@@ -1,4 +1,12 @@
-# Malm & Monster (Mines & Monsters), version 3.0
+# Malm & Monster (Mines & Monsters), version 3.1
+
+v3.1:
+- Stenhacka (`P.hasPick`, recept `stonePick`) krävs för all malm; äldre sparningar får `hasPick = true`. Hackraden i smedjan visar nivå 0-4 (0 = ingen hacka).
+- Sköld (`P.shield` 0-4, recept `shield`, `C.shield.block`): håll Shift, höger musknapp eller `BTN_SHIELD` (`P.blocking`). Långsammare, inget slag. `hurtPlayer(dmg, sx, sy)` + `blockedFrom` minskar skada framifrån; stoppar också spindelnät.
+- Pilbåge (`P.bow` 0-3, recept `bow`) och pilar (`P.arrows`, max 30, recept `arrows` ger 5): F eller `BTN_BOW`, `shoot` siktar på närmaste monster, pilar i `arrows` (`drawArrows`).
+- Smedjan har sju rader (`FSTEP` 51, tangent 1-7).
+- Utseende: `drawShieldShape` (sköld med spets, emblem per material: koppar nitar, järn blått kors, guld röd ädelsten, stjärnmalm stjärna), `drawBowShape` (lemmar, handtag, sträng, `pull`, pil på strängen), `drawQuiver`. Koger, båge och sköld bärs på ryggen (ritas före `stick`); vid parering hålls skölden framför och bakre armen går dit (`stick(..., offH)`), vid skott (`P.shotT`) spänns bågen i handen och svärdet göms en stund. Ikonerna använder samma ritfunktioner.
+
 
 v3.0 (hantverk och skattkammare):
 - Material: trä (`P.wood`, hugg träd: `treeHp`, `C.crafting.treeHits`), sten (`P.stone`, bryt grå stenar inne på kartan: `stoneHp`, `breakableStone` utesluter kanten och skattkammarens väggar), metall i fyra sorter (`MET`: 0 koppar = `P.ore`, 1 järn `P.iron`, 2 guld `P.gold`, 3 stjärnmalm `P.star`; `metalAmt`/`addMetal`). Malmsort per ruta i `oreT`, blandning per värld `C.crafting.oreMix`. Hackans nivå (`P.pick`, `PICK_NAME`) avgör vilken sort som går att bryta (sort <= hacka), annars meddelandet "För hård!".

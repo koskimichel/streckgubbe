@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 3.0
+# Malm & Monster (Mines & Monsters), version 3.1
+
+Nytt i 3.1: en stenhacka behövs för att bryta koppar. Skölden parerar skada framifrån (Shift, höger musknapp eller Sköld-knappen). Pilbågen skjuter på avstånd och siktar själv (F eller Skjut-knappen); pilar görs av trä och koppar i smedjan.
 
 Nytt i 3.0: hugg träd för trä, bryt grå stenar för sten och gör ett stensvärd, som behövs för att bryta malm. Det finns fyra sorters malm (koppar, järn, guld, stjärnmalm). Svärd, hacka och rustning smids av trä och metall, och en bättre hacka behövs för ädlare malm. Monstren tar 2–4 slag. Varje värld har en skattkammare med runstenar eller block att knuffa; kistan ger trä, metall och en månsten.
 

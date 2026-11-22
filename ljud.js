@@ -67,6 +67,8 @@ var LJUD = (function () {
     click: function (t) { tone('triangle', 900, 1200, 0.04, 0.15, t); },
     chop: function (t) { noise(0.08, 0.35, t, 'bandpass', 900, 500, 2); tone('square', 180, 120, 0.06, 0.1, t); },
     push: function (t) { noise(0.25, 0.3, t, 'lowpass', 600, 200); tone('sine', 90, 70, 0.2, 0.15, t); },
+    bow: function (t) { noise(0.12, 0.25, t, 'bandpass', 1800, 600, 2); tone('triangle', 520, 260, 0.1, 0.1, t); },
+    block: function (t) { tone('square', 700, 500, 0.06, 0.15, t); noise(0.08, 0.25, t, 'highpass', 2500); },
     storm: function (t) { noise(0.08, 0.55, t, 'highpass', 4000); noise(1.3, 0.5, t + 0.02, 'lowpass', 2500, 110); tone('sawtooth', 95, 38, 0.9, 0.28, t); },
     charge: function (t) { tone('sawtooth', 70, 160, 0.6, 0.22, t); noise(0.6, 0.15, t, 'lowpass', 300, 1200); },
     slam: function (t) { tone('sine', 120, 35, 0.5, 0.7, t); noise(0.4, 0.4, t, 'lowpass', 900, 150); },

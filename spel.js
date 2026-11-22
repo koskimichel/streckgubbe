@@ -1,6 +1,7 @@
-// Malm & Monster (Mines & Monsters), version 3.0 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 3.1 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
+// v3.1 nytt: stenhacka krävs för koppar, sköld (parera), pilbåge med pilar och auto-sikte.
 // v3.0 nytt: hantverk (trä och fyra malmsorter, hackan styr vad som går att bryta, recept i smedjan), ny skadebalans, skattkammare med runstenar och block.
 // v2.4 nytt: mobilanpassning (kamera som följer gubben, större knappar och text, karta i hörnet).
 // v2.3 nytt: svårighetsgrader, bossar med andra fas och eget utseende, tydligare djungel, månsten och lykta, synlig rustning.
@@ -57,8 +58,8 @@
   var trauma = 0, shakeT = 0, hitStop = 0, fade = 0, texts = [];
   // pekskärm: joystick under vänster tumme, knappar för höger tumme
   var touchMode = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), lastTouch = 0, deadAt = 0;
-  var touch = { joyId: null, jx0: 0, jy0: 0, jx: 0, jy: 0, atkId: null, eId: null };
-  var JOY_R = 56, BTN_ATK = { x: LW - 96, y: LH - 96, r: 56 }, BTN_E = { x: LW - 214, y: LH - 66, r: 42 }, BTN_PAUSE = { x: LW - 30, y: 23, r: 17 }, BTN_DIFF = { x: LW / 2 - 200, y: LH - 44, w: 200, h: 40 }, BTN_BOLT = { x: LW - 96, y: LH - 202, r: 38 }, BTN_NEW = { x: LW / 2, y: LH - 44, w: 170, h: 40 };
+  var touch = { joyId: null, jx0: 0, jy0: 0, jx: 0, jy: 0, atkId: null, eId: null, shieldId: null, bowId: null };
+  var JOY_R = 56, BTN_ATK = { x: LW - 96, y: LH - 96, r: 56 }, BTN_E = { x: LW - 214, y: LH - 66, r: 42 }, BTN_PAUSE = { x: LW - 30, y: 23, r: 17 }, BTN_DIFF = { x: LW / 2 - 200, y: LH - 44, w: 200, h: 40 }, BTN_BOLT = { x: LW - 96, y: LH - 202, r: 38 }, BTN_SHIELD = { x: LW - 214, y: LH - 168, r: 36 }, BTN_BOW = { x: LW - 214, y: LH - 262, r: 34 }, BTN_NEW = { x: LW / 2, y: LH - 44, w: 170, h: 40 };
 
   // inställningar som spelaren ändrar i pausmenyn (sparas per enhet)
   var SET_KEY = 'mm-installningar';
@@ -71,7 +72,7 @@
   }
   function sfx(n) { if (window.LJUD) LJUD.play(n); }
   var guideMoved = 0, eatHintT = 0;                      // eatHintT: sekunder till nästa ät-tips
-  var shots = [], ambientT = 0, forgeSel = 0;              // v2.2: nätskott, luftpartiklar, val i smedjan
+  var shots = [], arrows = [], ambientT = 0, forgeSel = 0;              // v2.2: nätskott, luftpartiklar, val i smedjan
 
   // v2.2: fem världar, var femte nivå. Bara utseende, musik och boss skiljer; monstren blir svårare med nivån.
   var BIOMES = [
@@ -114,7 +115,7 @@
       x: 2.5 * TS, y: 2.5 * TS, r: 10, hearts: C.player.startHearts,
       hp: C.player.startHearts * C.player.hpPerHeart,
       str: C.player.startStrength, ore: 0, meat: 1, sword: 0,
-      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chestDone: 0, mined: [], minedLevel: 0
+      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chestDone: 0, mined: [], minedLevel: 0, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0
     };
   }
   function maxHp() { return P.hearts * C.player.hpPerHeart; }
@@ -152,7 +153,7 @@
   function save() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chestDone: P.chestDone, minedLevel: P.minedLevel, mined: P.mined, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen
+        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chestDone: P.chestDone, minedLevel: P.minedLevel, mined: P.mined, hasPick: P.hasPick, shield: P.shield, bow: P.bow, arrows: P.arrows, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen
       }));
     } catch (e) {}
   }
@@ -467,7 +468,7 @@
 
   function startLevel(n) {
     level = n; buildLevel(n, 0);
-    P.x = 2.5 * TS; P.y = 3.5 * TS; P.inv = 1; camSnap = true; fx = []; texts = []; fade = 1; shots = []; P.slow = 0;
+    P.x = 2.5 * TS; P.y = 3.5 * TS; P.inv = 1; camSnap = true; fx = []; texts = []; fade = 1; shots = []; arrows = []; P.slow = 0;
     state = 'play'; save(); sfx('level');
     if (n >= 2 && settings.guide) { settings.guide = false; applySettings(); }   // guiden behövs bara första gången
     var bossLvl = n % C.boss.every === 0 && P.bossDone !== n, firstInWorld = (n - 1) % 5 === 0;
@@ -480,7 +481,7 @@
 
   function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); }
   function continueGame(s) {
-    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chestDone = s.chestDone || 0; P.mined = s.mined || []; P.minedLevel = s.minedLevel || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
+    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chestDone = s.chestDone || 0; P.mined = s.mined || []; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.minedLevel = s.minedLevel || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
     startLevel(s.level);
   }
 
@@ -503,7 +504,7 @@
   function tileAt(px, py) { return { x: Math.floor(px / TS), y: Math.floor(py / TS) }; }
 
   function attack() {
-    if (P.cd > 0 || state !== 'play') return;
+    if (P.cd > 0 || state !== 'play' || P.blocking) return;
     P.cd = C.player.attackCooldown; P.swing = 0.18; sfx('swing');
     var rc = reach(), hitAny = false, dmg = damage();
     mons.forEach(function (m) {
@@ -540,9 +541,9 @@
         }
       } else if (tile === ORE) {
         var ot = oreT[key] || 0;
-        if (P.sword < 1) {                                     // malm kräver minst ett stensvärd
+        if (!P.hasPick) {                                      // malm kräver en hacka, först en stenhacka
           sparks(cx2, cy2, '#cfd6e0', 5); sfx('deny');
-          if (msgT <= 0 || msg.indexOf('stensvärd') < 0) say('Du behöver ett stensvärd för att bryta ' + MET[ot].name + '. Smid det vid ugnen.');
+          if (msgT <= 0 || msg.indexOf('stenhacka') < 0) say('Du behöver en stenhacka för att bryta ' + MET[ot].name + '. Smid den vid ugnen.');
         } else if (P.pick < ot) {                                     // för hård malm: visar vad man behöver
           sparks(cx2, cy2, '#cfd6e0', 5); sfx('deny');
           if (msgT <= 0 || msg.indexOf('För hård') < 0) say('För hård! Du behöver en ' + PICK_NAME[ot] + ' för ' + MET[ot].name + '.');
@@ -599,7 +600,9 @@
   function update(dt) {
     time += dt; if (msgT > 0) msgT -= dt;
     if (state !== 'play') return;
-    P.cd -= dt; P.inv -= dt; P.swing -= dt; if (P.pu > 0) P.pu -= dt; if (P.slow > 0) P.slow -= dt; if (P.icy > 0) P.icy -= dt; if (bossIntro > 0) bossIntro -= dt;
+    P.cd -= dt; P.inv -= dt; P.swing -= dt; P.shootCd -= dt; P.shotT -= dt; P.blockFlash -= dt;
+    P.blocking = P.shield > 0 && !!(keys.Shift || mouse.rdown || touch.shieldId != null);   // håller skölden uppe
+    if (P.pu > 0) P.pu -= dt; if (P.slow > 0) P.slow -= dt; if (P.icy > 0) P.icy -= dt; if (bossIntro > 0) bossIntro -= dt;
     // gnistor runt gubben, fler ju starkare han är
     var pw = power();
     if (pw >= 1) {
@@ -618,7 +621,7 @@
     P.moving = !!(ax || ay);
     if (ax || ay) {
       var l = Math.hypot(ax, ay), sp = Math.min(1, l * 1.4); ax /= l; ay /= l; P.fx = ax; P.fy = ay;
-      var slowK = P.slow > 0 ? C.spider.slowFactor : 1;               // fast i spindelnät
+      var slowK = (P.slow > 0 ? C.spider.slowFactor : 1) * (P.blocking ? C.shield.slow : 1);   // nät och sköld gör en långsam
       var tvx = ax * C.player.speed * sp * slowK, tvy = ay * C.player.speed * sp * slowK;
       if (P.icy > 0) { var ik = Math.min(1, 1.6 * dt); P.vx += (tvx - P.vx) * ik; P.vy += (tvy - P.vy) * ik; } else { P.vx = tvx; P.vy = tvy; }   // halt på is
       move(P, P.vx * dt, P.vy * dt);
@@ -656,16 +659,32 @@
           move(m, (P.y - m.y) / d * m.speed * dt, -(P.x - m.x) / d * m.speed * dt);
         }
       }
-      if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg); }
+      if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg, m.x, m.y); }
     });
     // spindelnät i luften
     shots = shots.filter(function (sh) {
       sh.t -= dt; sh.x += sh.vx * dt; sh.y += sh.vy * dt;
       if (sh.t <= 0 || blockedAt(sh.x, sh.y, 2)) { sparks(sh.x, sh.y, '#e8e8f0', 4); return false; }
       if (Math.hypot(sh.x - P.x, sh.y - P.y) < P.r + 5) {
-        P.slow = C.spider.slowTime; sparks(sh.x, sh.y, '#ffffff', 8); sfx('webhit');
-        floatText(P.x, P.y - 40, 'fast i nät!', '#e8e8f0'); hurtPlayer(C.spider.shotDamage);
+        if (!blockedFrom(sh.x - sh.vx, sh.y - sh.vy)) P.slow = C.spider.slowTime;   // skölden stoppar nätet
+        sparks(sh.x, sh.y, '#ffffff', 8); sfx('webhit');
+        floatText(P.x, P.y - 40, 'fast i nät!', '#e8e8f0'); hurtPlayer(C.spider.shotDamage, sh.x - sh.vx, sh.y - sh.vy);
         return false;
+      }
+      return true;
+    });
+    // pilar i luften
+    arrows = arrows.filter(function (a) {
+      var stp = Math.hypot(a.vx, a.vy) * dt; a.x += a.vx * dt; a.y += a.vy * dt; a.left -= stp;
+      if (a.left <= 0 || blockedAt(a.x, a.y, 2)) { sparks(a.x, a.y, '#c9a06a', 4); return false; }
+      for (var ai = 0; ai < mons.length; ai++) {
+        var m = mons[ai]; if (m.hidden || m.hp <= 0) continue;
+        if (Math.hypot(m.x - a.x, m.y - a.y) < m.r + 4) {
+          var l2 = Math.hypot(a.vx, a.vy) || 1, kb = C.monsters.knockback * 0.4 * (m.type === 'boss' ? 0.25 : 1);
+          m.hp -= a.dmg; m.hit = 0.12; m.pop = 0; m.kx = a.vx / l2 * kb; m.ky = a.vy / l2 * kb;
+          sparks(m.x, m.y, PAL.bolt, 5); floatText(m.x, m.y - m.r - 8, fmt(a.dmg), '#ffffff'); sfx('hit');
+          return false;
+        }
       }
       return true;
     });
@@ -725,7 +744,7 @@
       } else if (f.k === 'w') {                              // chockvåg från bossen
         var wr = f.R * (1 - f.t / f.life);
         var pd = Math.hypot(P.x - f.x, P.y - f.y);           // träffar alla som vågen har passerat, inom ringen
-        if (!f.hitDone && pd < wr + 16 && pd <= f.R + 10) { f.hitDone = true; hurtPlayer(f.dmg); }
+        if (!f.hitDone && pd < wr + 16 && pd <= f.R + 10) { f.hitDone = true; hurtPlayer(f.dmg, f.x, f.y); }
       }
       else if (f.k === 'rock') { if (f.t <= 0) { sparks(f.x, f.y, '#9a9ea6', 10); addTrauma(0.15); sfx('hit'); if (Math.hypot(P.x - f.x, P.y - f.y) < 24) hurtPlayer(f.dmg); } }
       else if (f.k === 'ice') { if (Math.hypot(P.x - f.x, P.y - f.y) < f.R) P.icy = 0.3; }
@@ -753,8 +772,17 @@
 
   // ---------- v2.2: skada, boss, spindel, luft ----------
   function monColor(m) { return m.type === 'boss' ? biome.bossColor : C.monsters[m.type].color; }
-  function hurtPlayer(dmg) {                                  // rustningen minskar all skada
+  function blockedFrom(sx, sy) {                              // kommer skadan framifrån medan skölden är uppe?
+    if (!P.blocking || !P.shield || sx == null) return false;
+    var dx = sx - P.x, dy = sy - P.y, l = Math.hypot(dx, dy) || 1;
+    return (dx * P.fx + dy * P.fy) / l > 0.25;
+  }
+  function hurtPlayer(dmg, sx, sy) {                          // rustningen minskar all skada, skölden det som kommer framifrån
     if (P.inv > 0 || state !== 'play') return false;
+    if (blockedFrom(sx, sy)) {
+      dmg *= 1 - C.shield.block[P.shield]; sfx('block'); P.blockFlash = 0.25;
+      sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 10); floatText(P.x, P.y - 40, 'parerad!', '#e6f5ff');
+    }
     var d = dmg * (1 - C.upgrades.armor.reducePerLevel * P.armor);
     P.hp -= d; P.inv = C.player.invulnAfterHit;
     addTrauma(0.5); sparks(P.x, P.y, '#ff4d4d', 10); sfx('hurt');
@@ -820,10 +848,10 @@
       if (m.aiT <= 0) {
         if (!blockedAt(m.ex, m.ey, m.r)) { m.x = m.ex; m.y = m.ey; }
         m.hidden = 0; m.ai = 'stun'; m.aiT = 1; addTrauma(0.6); sfx('slam'); sparks(m.x, m.y, '#e2c07a', 24);
-        if (Math.hypot(P.x - m.x, P.y - m.y) < 46) hurtPlayer(m.dmg * 1.2);
+        if (Math.hypot(P.x - m.x, P.y - m.y) < 46) hurtPlayer(m.dmg * 1.2, m.x, m.y);
       }
     } else if (m.aiT <= 0) { m.ai = 'walk'; m.aiT = (Df.gap[0] + Math.random() * (Df.gap[1] - Df.gap[0])) * (m.phase2 ? 0.7 : 1); }
-    if (!m.hidden && d < m.r + P.r + 3 && m.cd <= 0 && hurtPlayer(m.ai === 'charge' ? m.dmg * 1.4 : m.dmg)) m.cd = 0.8;
+    if (!m.hidden && d < m.r + P.r + 3 && m.cd <= 0 && hurtPlayer(m.ai === 'charge' ? m.dmg * 1.4 : m.dmg, m.x, m.y)) m.cd = 0.8;
     if (!m.phase2 && m.hp < m.maxHp / 2) {                        // andra fasen: snabbare, stenregn och hjälpare
       m.phase2 = true; say(biome.boss + ' blir rasande och kallar på hjälp!'); sfx('summon'); addTrauma(0.5);
       for (var i = 0; i < Df.minions + lapOf(level); i++) {
@@ -857,7 +885,7 @@
       m.shot = S.shotCooldown * (0.8 + Math.random() * 0.4);
       shots.push({ x: m.x, y: m.y, vx: ux * S.shotSpeed, vy: uy * S.shotSpeed, t: 2 }); sfx('web');
     }
-    if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg); }
+    if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg, m.x, m.y); }
     return true;
   }
   function spawnAir() {
@@ -882,6 +910,19 @@
     });
     stormT = 0.5; addTrauma(0.8); freeze(0.1); sfx('storm'); P.pu = 0.6;
     say(hits ? 'Blixtstorm! ' + hits + ' träffar' : 'Blixtstorm!');
+  }
+
+  function shoot() {                                          // pilbåge: siktar själv på närmaste monster inom räckhåll
+    if (state !== 'play' || P.blocking) return;
+    if (!P.bow) { say('Du har ingen pilbåge. Gör en i smedjan.'); sfx('deny'); return; }
+    if (P.arrows <= 0) { say('Slut på pilar. Gör fler i smedjan av trä och koppar.'); sfx('deny'); return; }
+    if (P.shootCd > 0) return;
+    var B = C.bow, best = null, bd = B.range[P.bow];
+    mons.forEach(function (m) { if (m.hidden) return; var d = dist(m, P); if (d < bd) { bd = d; best = m; } });
+    var dx = best ? best.x - P.x : P.fx, dy = best ? best.y - P.y : P.fy, l = Math.hypot(dx, dy) || 1;
+    dx /= l; dy /= l; P.fx = dx; P.fy = dy;
+    arrows.push({ x: P.x + dx * 12, y: P.y - 4 + dy * 12, vx: dx * B.speed, vy: dy * B.speed, left: B.range[P.bow], dmg: damage() * B.dmgMul[P.bow] });
+    P.arrows--; P.shootCd = B.cooldown; P.shotT = 0.35; sfx('bow'); save();
   }
 
   function die() {
@@ -921,6 +962,7 @@
   function layoutButtons() {                                     // pekknappar sitter i vyns hörn
     BTN_ATK.x = LW - 96; BTN_ATK.y = LH - 96; BTN_E.x = LW - 214; BTN_E.y = LH - 66;
     BTN_PAUSE.x = LW - 30; BTN_BOLT.x = LW - 96; BTN_BOLT.y = LH - 202;
+    BTN_SHIELD.x = LW - 214; BTN_SHIELD.y = LH - 168; BTN_BOW.x = LW - 214; BTN_BOW.y = LH - 262;
   }
   // kamera, skärm och värld
   function camTarget() {
@@ -1258,7 +1300,7 @@
   // ---------- figurer ----------
   function shadow(x, y, rw, a) { g.fillStyle = 'rgba(0,0,0,' + (a || 0.3) + ')'; g.beginPath(); g.ellipse(x, y, rw, rw * 0.35, 0, 0, 7); g.fill(); }
 
-  function stick(x, y, fx_, fy_, swing, armed, walk, moving) {
+  function stick(x, y, fx_, fy_, swing, armed, walk, moving, offH) {
     var lg_ = moving ? Math.sin(walk) * 5 : 0, bob = moving ? Math.abs(Math.cos(walk)) * 1.2 : 0;
     var ang = Math.atan2(fy_, fx_) + (swing > 0 ? (0.18 - swing) * 8 - 0.7 : 0);
     var hx = x + fx_ * 9, hy = y - 2 - bob + fy_ * 6;
@@ -1268,7 +1310,8 @@
       g.beginPath(); g.moveTo(x, y - 9 - bob); g.lineTo(x, y + 3 - bob);
       g.moveTo(x, y + 3 - bob); g.lineTo(x - 5 + lg_, y + 12); g.moveTo(x, y + 3 - bob); g.lineTo(x + 5 - lg_, y + 12);
       g.moveTo(x, y - 6 - bob); g.lineTo(hx, hy);
-      g.moveTo(x, y - 6 - bob); g.lineTo(x - fx_ * 6 - lg_ * 0.4, y - 1 - bob - fy_ * 2);
+      g.moveTo(x, y - 6 - bob);
+      if (offH) g.lineTo(offH.x, offH.y); else g.lineTo(x - fx_ * 6 - lg_ * 0.4, y - 1 - bob - fy_ * 2);
       g.stroke();
     }
     body('rgba(10,20,10,0.55)', 5.5);                    // kontur
@@ -1358,6 +1401,73 @@
     if (lowest >= 2) { g.save(); g.globalCompositeOperation = 'lighter'; glow(x, y - 4, 20, lowest >= 3 ? '120,190,255' : '255,210,80', 0.12 + 0.08 * Math.sin(time * 4)); g.restore(); }
   }
 
+  // Sköld: rak överkant och spets nedåt, emblem efter material (koppar nitar, järn blått kors, guld rött fält, stjärnmalm stjärna).
+  function drawShieldShape(cx, cy, sc, tier, lit) {
+    var M = ARMOR_MAT[tier];
+    g.save(); g.translate(cx, cy); g.scale(sc, sc); g.lineJoin = 'round';
+    function path() { g.beginPath(); g.moveTo(-6, -7); g.quadraticCurveTo(0, -9, 6, -7); g.lineTo(6, -1); g.quadraticCurveTo(5.5, 5.5, 0, 9.5); g.quadraticCurveTo(-5.5, 5.5, -6, -1); g.closePath(); }
+    path(); g.strokeStyle = 'rgba(10,20,10,0.55)'; g.lineWidth = 3.4; g.stroke();
+    g.fillStyle = M.col; g.fill();
+    g.save(); path(); g.clip();
+    if (tier === 0) {
+      g.fillStyle = M.dark; g.fillRect(-7, -2.6, 14, 2.4);
+      g.fillStyle = '#ffd08a'; [[-3.6, -5.2], [3.6, -5.2], [-3, 3], [3, 3]].forEach(function (q) { g.beginPath(); g.arc(q[0], q[1], 0.85, 0, 7); g.fill(); });
+    } else if (tier === 1) {
+      g.fillStyle = '#3d6fb8'; g.fillRect(-1.7, -9, 3.4, 19); g.fillRect(-7, -3.6, 14, 3.4);
+    } else if (tier === 2) {
+      g.strokeStyle = M.dark; g.lineWidth = 0.8; g.beginPath(); g.moveTo(0, -9); g.lineTo(0, 10); g.moveTo(-7, -1.4); g.lineTo(7, -1.4); g.stroke();
+      g.fillStyle = '#c8324a'; g.beginPath(); g.moveTo(0, -5.4); g.lineTo(3, -1.4); g.lineTo(0, 2.6); g.lineTo(-3, -1.4); g.closePath(); g.fill();   /* röd ädelsten */
+      g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.moveTo(0, -4.4); g.lineTo(1.2, -2.6); g.lineTo(0, -1.8); g.closePath(); g.fill();
+    } else {
+      g.fillStyle = '#ffffff'; g.beginPath();
+      for (var si = 0; si < 10; si++) { var sa = -Math.PI / 2 + si * Math.PI / 5, sr = si % 2 ? 1.8 : 4.2; g.lineTo(Math.cos(sa) * sr, -0.5 + Math.sin(sa) * sr); }
+      g.closePath(); g.fill();
+    }
+    g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(-6, -8, 2, 13);   /* glans */
+    g.restore();
+    if (tier < 2) { g.fillStyle = '#d9b24a'; g.beginPath(); g.arc(0, -1.4, 1.7, 0, 7); g.fill(); g.strokeStyle = M.dark; g.lineWidth = 0.6; g.stroke(); }
+    path(); g.lineWidth = 1.4; g.strokeStyle = lit ? '#ffffff' : M.dark; g.stroke();
+    if (tier >= 2) { g.save(); g.globalCompositeOperation = 'lighter'; glow(0, 0, 12, tier === 3 ? '120,190,255' : '255,210,80', 0.14 + 0.06 * Math.sin(time * 4)); g.restore(); }
+    if (tier === 3 && Math.sin(time * 7) > 0.4) { g.strokeStyle = '#ffffff'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(2, -6); g.lineTo(5, -6); g.moveTo(3.5, -7.5); g.lineTo(3.5, -4.5); g.stroke(); }
+    g.restore();
+  }
+  // Båge: ang = skjutriktning, L = halva längden, pull 0-1 drar strängen bakåt, nocked = pil på strängen.
+  var BOW_COL = [null, { limb: '#a8743c', dark: '#5e3b18' }, { limb: '#c9d0da', dark: '#545c6a' }, { limb: '#f0c94a', dark: '#a8781f' }];
+  function drawBowShape(cx, cy, ang, L, tier, pull, nocked) {
+    var B = BOW_COL[Math.max(1, Math.min(3, tier))], dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx, back = L * 0.42;
+    var t1x = cx + px * L - dx * back, t1y = cy + py * L - dy * back, t2x = cx - px * L - dx * back, t2y = cy - py * L - dy * back;
+    var nx = cx - dx * (back + pull * 5), ny = cy - dy * (back + pull * 5);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(245,245,235,0.95)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(t1x, t1y); g.lineTo(nx, ny); g.lineTo(t2x, t2y); g.stroke();
+    if (nocked) {
+      var ax = cx + dx * L * 0.55, ay = cy + dy * L * 0.55;
+      g.strokeStyle = '#8a5a2b'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(nx, ny); g.lineTo(ax, ay); g.stroke();
+      g.fillStyle = '#e1e4ea'; g.beginPath(); g.moveTo(ax + dx * 3, ay + dy * 3); g.lineTo(ax + px * 1.6, ay + py * 1.6); g.lineTo(ax - px * 1.6, ay - py * 1.6); g.closePath(); g.fill();
+    }
+    function limbs() {
+      g.beginPath(); g.moveTo(t1x, t1y);
+      g.quadraticCurveTo(cx + px * L * 0.75 + dx * L * 0.14, cy + py * L * 0.75 + dy * L * 0.14, cx, cy);
+      g.quadraticCurveTo(cx - px * L * 0.75 + dx * L * 0.14, cy - py * L * 0.75 + dy * L * 0.14, t2x, t2y);
+    }
+    limbs(); g.strokeStyle = 'rgba(10,20,10,0.6)'; g.lineWidth = 4; g.stroke();
+    g.strokeStyle = B.limb; g.lineWidth = 2.3; g.stroke();
+    g.strokeStyle = B.dark; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + px * 2, cy + py * 2); g.lineTo(cx - px * 2, cy - py * 2); g.stroke();   /* handtag */
+    g.fillStyle = B.dark; g.beginPath(); g.arc(t1x, t1y, 1.1, 0, 7); g.arc(t2x, t2y, 1.1, 0, 7); g.fill();
+    if (tier >= 3) { g.save(); g.globalCompositeOperation = 'lighter'; glow(cx, cy, L * 1.2, '255,210,80', 0.16); g.restore(); }
+  }
+  function drawQuiver(x, y, s, n) {                              // koger på ryggen med fjädrar som sticker upp
+    g.save(); g.translate(x, y); g.rotate(-s * 0.5);
+    var k = Math.min(3, n);
+    for (var i = 0; i < k; i++) {
+      var ox = (i - (k - 1) / 2) * 2.2;
+      g.strokeStyle = '#8a5a2b'; g.lineWidth = 1; g.beginPath(); g.moveTo(ox, -4); g.lineTo(ox, -8); g.stroke();
+      g.fillStyle = i % 2 ? '#f4f4f4' : '#e0503a'; g.beginPath(); g.moveTo(ox, -7); g.lineTo(ox - 1.4, -10.5); g.lineTo(ox + 1.4, -10.5); g.closePath(); g.fill();
+    }
+    rr(g, -3, -5, 6, 11, 1.5); g.fillStyle = '#7a4a22'; g.fill(); g.strokeStyle = 'rgba(10,20,10,0.6)'; g.lineWidth = 1; g.stroke();
+    g.strokeStyle = '#c9a06a'; g.beginPath(); g.moveTo(-3, -2); g.lineTo(3, -2); g.moveTo(-3, 3); g.lineTo(3, 3); g.stroke();
+    g.restore();
+  }
+
   function drawPlayer() {
     var pw = power(), armed;
     if (P.sword === 0) armed = { len: 20 };
@@ -1380,8 +1490,21 @@
       g.beginPath(); g.arc(P.x, P.y - 2, reach() * 0.75, a0 - 0.9 + (1 - k) * 0.6, a0 + 0.3 + (1 - k) * 0.9); g.stroke();
       g.restore();
     }
-    stick(P.x, P.y, P.fx, P.fy, P.swing, armed, P.walk, P.moving);
+    var sd = P.fx >= 0 ? 1 : -1, bobP = P.moving ? Math.abs(Math.cos(P.walk)) * 1.2 : 0, shooting = P.bow > 0 && P.shotT > 0, offH = null;
+    if (P.bow > 0 && P.arrows > 0) drawQuiver(P.x - sd * 4, P.y - 5 - bobP, sd, P.arrows);                    // på ryggen, bakom kroppen
+    if (P.bow > 0 && !shooting) drawBowShape(P.x - sd * 2, P.y - 4 - bobP, sd > 0 ? Math.PI + 0.9 : -0.9, 10, P.bow, 0, false);
+    if (P.shield > 0 && !P.blocking) drawShieldShape(P.x - sd * 5, P.y - 3 - bobP, 0.7, P.shield - 1, false);
+    var hxP = P.x + P.fx * 9, hyP = P.y - 2 - bobP + P.fy * 6, pull = shooting ? clamp((P.shotT - 0.2) / 0.15, 0, 1) : 0;
+    var shX = P.x + P.fx * 9, shY = P.y - 5 - bobP + P.fy * 5, bf = Math.max(0, P.blockFlash);
+    if (shooting) offH = { x: hxP - P.fx * (4.6 + pull * 5), y: hyP - P.fy * (4.6 + pull * 5) };   // handen på strängen
+    else if (P.blocking) offH = { x: shX, y: shY + 2 };
+    stick(P.x, P.y, P.fx, P.fy, P.swing, shooting ? null : armed, P.walk, P.moving, offH);
     drawArmor();
+    if (shooting) drawBowShape(hxP, hyP, Math.atan2(P.fy, P.fx), 11, P.bow, pull, pull > 0);
+    if (P.shield > 0 && P.blocking) {                          // skölden uppe framför
+      g.save(); g.globalCompositeOperation = 'lighter'; glow(shX, shY, 16 + bf * 40, '230,245,255', 0.18 + bf * 1.6); g.restore();
+      drawShieldShape(shX, shY, 1, P.shield - 1, bf > 0);
+    }
     if (P.slow > 0) {                                          // fast i nät
       g.save(); g.globalAlpha = Math.min(1, P.slow); g.strokeStyle = 'rgba(235,235,245,0.85)'; g.lineWidth = 1;
       for (var wi = 0; wi < 5; wi++) { var wa = wi * 1.26; g.beginPath(); g.moveTo(P.x + Math.cos(wa) * 14, P.y - 2 + Math.sin(wa) * 14); g.lineTo(P.x - Math.cos(wa) * 14, P.y - 2 - Math.sin(wa) * 14); g.stroke(); }
@@ -1562,6 +1685,16 @@
       [[-4, -6, -4, 6], [-4, 0, 4, -6], [-4, 0, 4, 6]], [[-4, -6, 4, 6], [4, -6, -4, 6]], [[0, -6, 4, 0], [4, 0, 0, 6], [0, 6, -4, 0], [-4, 0, 0, -6]],
       [[-4, -6, 4, -6], [4, -6, -4, 6], [-4, 6, 4, 6]]];
     g.beginPath(); G[i % G.length].forEach(function (l) { g.moveTo(x + l[0], y + l[1]); g.lineTo(x + l[2], y + l[3]); }); g.stroke();
+  }
+  function drawArrows() {
+    arrows.forEach(function (a) {
+      var l = Math.hypot(a.vx, a.vy) || 1, ux = a.vx / l, uy = a.vy / l;
+      g.strokeStyle = '#8a5a2b'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(a.x - ux * 12, a.y - uy * 12); g.lineTo(a.x, a.y); g.stroke();
+      g.fillStyle = '#c9d0da'; g.beginPath(); g.moveTo(a.x + ux * 4, a.y + uy * 4); g.lineTo(a.x - uy * 2.5, a.y + ux * 2.5); g.lineTo(a.x + uy * 2.5, a.y - ux * 2.5); g.closePath(); g.fill();
+      g.strokeStyle = '#f4f4f4'; g.lineWidth = 1.2; g.beginPath();
+      g.moveTo(a.x - ux * 12, a.y - uy * 12); g.lineTo(a.x - ux * 15 - uy * 3, a.y - uy * 15 + ux * 3);
+      g.moveTo(a.x - ux * 12, a.y - uy * 12); g.lineTo(a.x - ux * 15 + uy * 3, a.y - uy * 15 - ux * 3); g.stroke();
+    });
   }
   function drawShots() {                                     // spindelnät i luften
     shots.forEach(function (sh) {
@@ -1868,6 +2001,7 @@
     var metStats = [];                                           // metaller som du har eller kan bryta
     for (var mt = 0; mt < 4; mt++) if (metalAmt(mt) > 0 || mt <= P.pick) (function (q) { metStats.push([function (x, y) { iconMetal(x, y, q); }, String(metalAmt(q))]); })(mt);
     stats.splice.apply(stats, [3, 0].concat(metStats));
+    if (P.bow > 0) stats.splice(1, 0, [iconArrowSmall, String(P.arrows), touchMode ? null : 'F']);   // pilar
     g.font = 'bold 15px ' + TXT;
     var x0 = 10 + w1 + 10, wStats = 14;
     stats.forEach(function (s) { wStats += 22 + g.measureText(s[1]).width + 16 + (s[2] ? 24 : 0); });
@@ -1961,14 +2095,14 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, cy + 112, 64);
-    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.0', cx, cy + 156);
+    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.1', cx, cy + 156);
     g.font = '15px ' + UI; g.fillStyle = 'rgba(250,250,242,0.85)';
     if (touchMode) {
       g.fillText('Dra med vänster tumme för att gå. Tryck på Slå för att slå och hacka.', cx, cy + 196);
       g.fillText('Knappen med kött äter, vid ugnen blir den en hammare som smider. Paus finns uppe till höger.', cx, cy + 218);
     } else {
       g.fillText('Piltangenter eller WASD för att gå. Mellanslag eller musklick för att slå och hacka.', cx, cy + 196);
-      g.fillText('E smider vid ugnen och äter kött annars. Q blixtstorm, Esc pausar.', cx, cy + 218);
+      g.fillText('E smider och äter, Q blixtstorm, Shift parerar med skölden, F skjuter, Esc pausar.', cx, cy + 218);
     }
     var pulse = 0.65 + 0.35 * Math.sin(time * 4), start;
     if (touchMode) start = saved ? 'Tryck för att fortsätta på nivå ' + saved.level : 'Tryck för att börja';
@@ -2007,7 +2141,7 @@
     }
     g.scale(ZW, ZW); g.translate(-camX, -camY);                // kameran; på dator och platta visar den hela kartan
     g.drawImage(mapCv, 0, 0, WW, WH);
-    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPuzzle(); drawMonsters(); drawShots(); drawPlayer(); drawFx();
+    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPuzzle(); drawMonsters(); drawShots(); drawArrows(); drawPlayer(); drawFx();
     if (biome.canopy) g.drawImage(canCv, 0, 0, WW, WH);          // djungelns lövtak
     var lapT = lapOf(level);                                     // varv 2 kväll, varv 3+ natt
     if (lapT > 0) { g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = lapT === 1 ? 0.5 : 0.75; g.fillStyle = lapT === 1 ? '#ffb07a' : '#6a78c0'; g.fillRect(0, 0, WW, WH); g.restore(); }
@@ -2075,6 +2209,20 @@
     g.beginPath(); g.moveTo(4, -16); g.lineTo(-8, 2); g.lineTo(-1, 2); g.lineTo(-5, 16); g.lineTo(9, -4); g.lineTo(2, -4); g.lineTo(6, -16); g.closePath();
     g.fillStyle = PAL.bolt; g.fill(); g.strokeStyle = '#7a5a10'; g.lineWidth = 1.5; g.stroke();
   }
+  function iconShieldRound() { drawShieldShape(0, 0, 1.5, Math.max(0, Math.min(3, P.shield > 0 ? P.shield - 1 : 0)), false); }
+  function iconBow() { drawBowShape(5, 0, 0, 15, Math.max(1, P.bow || 1), 0.6, true); }
+  function iconArrows() {
+    for (var i = -1; i <= 1; i++) {
+      g.save(); g.rotate(-0.7 + i * 0.25);
+      g.strokeStyle = '#8a5a2b'; g.lineWidth = 2; g.beginPath(); g.moveTo(-12, i * 3); g.lineTo(10, i * 3); g.stroke();
+      g.fillStyle = '#c9d0da'; g.beginPath(); g.moveTo(14, i * 3); g.lineTo(9, i * 3 - 3); g.lineTo(9, i * 3 + 3); g.closePath(); g.fill();
+      g.restore();
+    }
+  }
+  function iconArrowSmall(x, y) {
+    g.save(); g.translate(x, y); g.rotate(-0.8); g.strokeStyle = '#c9a06a'; g.lineWidth = 2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(-7, 0); g.lineTo(5, 0); g.stroke(); g.fillStyle = '#e1e4ea'; g.beginPath(); g.moveTo(8, 0); g.lineTo(4, -3); g.lineTo(4, 3); g.closePath(); g.fill(); g.restore();
+  }
   function iconPause() { g.fillStyle = PAL.chalk; rr(g, -9, -11, 6, 22, 2); g.fill(); rr(g, 3, -11, 6, 22, 2); g.fill(); }
 
   // ---------- paus och inställningar ----------
@@ -2138,16 +2286,19 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.0', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.1', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
   // ---------- smedjan (v2.2) ----------
-  var FX0 = LW / 2 - 270, FW = 540, FY0 = 132, FH = 62, FSTEP = 70, FBY = FY0 + 4 * FSTEP + 36;
+  var FX0 = LW / 2 - 270, FW = 540, FY0 = 118, FH = 46, FSTEP = 51, FBY = FY0 + 7 * FSTEP + 22;   // sju rader
   function recipe(k, lvl) {                                      // kostnaden för att nå nivå lvl
     var Cc = C.crafting;
     if (k === 'sword') return Cc.sword[lvl];
-    if (k === 'pick') return Cc.pick[lvl];
+    if (k === 'pick') return lvl === 1 ? Cc.stonePick : Cc.pick[lvl - 1];
+    if (k === 'shield') return Cc.shield[lvl];
+    if (k === 'bow') return Cc.bow[lvl];
+    if (k === 'arrows') return P.bow ? Cc.arrows : null;
     if (k === 'armor') return Cc.armor[lvl];
     return lvl === 1 ? Cc.lantern0 : { moon: C.upgrades.lantern.moonCost[Math.min(lvl - 2, 2)] };
   }
@@ -2158,8 +2309,15 @@
       { k: 'sword', name: swordName(Math.min(P.sword + 1, C.weapon.maxSwordLevel)), lvl: P.sword, max: C.weapon.maxSwordLevel, desc: 'Mer skada mot monstren', icon: iconSwordBig },
       { k: 'armor', name: P.armor < U.armor.max ? ARMOR_PART[P.armor % 4] + ' av ' + MET[Math.floor(P.armor / 4)].name : 'Rustning', lvl: P.armor, max: U.armor.max,
         desc: P.armor < U.armor.max ? (P.armor < 4 ? 'Ny del till rustningen' : 'Byter ut ' + ARMOR_PART[P.armor % 4].toLowerCase() + ' av ' + MET[Math.floor(P.armor / 4) - 1].name) + ', mindre skada' : 'Hela rustningen är av stjärnmalm', icon: iconShield },
-      { k: 'pick', name: P.pick < 3 ? cap(PICK_NAME[P.pick + 1]) : 'Guldhacka', lvl: P.pick, max: 3, desc: P.pick < 3 ? 'Kan bryta ' + MET[P.pick + 1].name : 'Bryter all malm', icon: iconPick },
-      { k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus. Kostar månsten, som är sällsynt.', icon: iconLamp }
+      { k: 'pick', name: !P.hasPick ? 'Stenhacka' : P.pick < 3 ? cap(PICK_NAME[P.pick + 1]) : 'Guldhacka', lvl: P.hasPick ? P.pick + 1 : 0, max: 4,
+        desc: !P.hasPick ? 'Behövs för att bryta koppar' : P.pick < 3 ? 'Kan bryta ' + MET[P.pick + 1].name : 'Bryter all malm', icon: iconPick },
+      { k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus. Kostar månsten, som är sällsynt.', icon: iconLamp },
+      { k: 'shield', name: P.shield < 4 ? 'Sköld av ' + MET[P.shield].name : 'Sköld', lvl: P.shield, max: 4,
+        desc: P.shield < 4 ? 'Håll in för att parera: stoppar ' + Math.round(C.shield.block[P.shield + 1] * 100) + ' % framifrån' : 'Stoppar 90 % framifrån', icon: iconShieldRound },
+      { k: 'bow', name: P.bow < 3 ? ['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow] : 'Pilbåge', lvl: P.bow, max: 3,
+        desc: P.bow === 0 ? 'Skjut pilar på avstånd, siktar själv' : 'Längre räckvidd och mer skada', icon: iconBow },
+      { k: 'arrows', name: 'Pilar (+' + C.bow.arrowsPerCraft + ')', lvl: P.arrows, max: C.bow.maxArrows,
+        desc: P.bow ? 'Till pilbågen' : 'Kräver en pilbåge', icon: iconArrows }
     ];
     rows.forEach(function (r) { r.cost = r.lvl < r.max ? recipe(r.k, r.lvl + 1) : null; });
     return rows;
@@ -2182,7 +2340,7 @@
   function forgeGoal() {                                        // nästa mål: svärdet, eller hackan om svärdet kräver malm du inte kan bryta
     var rows = forgeRows(), sw = rows[0], pk = rows[2], r = sw;
     if (!sw.cost) r = rows[1].cost ? rows[1] : null;
-    else if (sw.cost.metal != null && sw.cost.metal > P.pick && pk.cost) r = pk;
+    else if (sw.cost.metal != null && (!P.hasPick || sw.cost.metal > P.pick) && pk.cost) r = pk;
     return r && r.cost ? { k: r.k, name: r.name, price: costText(r.cost), can: canAfford(r.cost) } : null;
   }
   function canBuyAny() { return forgeRows().some(function (r) { return r.cost && canAfford(r.cost); }); }
@@ -2194,17 +2352,21 @@
   function closeForge() { if (state !== 'forge') return; state = 'play'; if (window.LJUD) LJUD.duck(false); }
   function buy(i) {
     var r = forgeRows()[i]; if (!r) return;
-    if (!r.cost) { sfx('deny'); say(r.name + ' är redan på högsta nivån'); return; }
+    if (r.k === 'arrows' && !P.bow) { sfx('deny'); say('Du behöver en pilbåge först.'); return; }
+    if (!r.cost) { sfx('deny'); say(r.k === 'arrows' ? 'Du kan inte bära fler pilar.' : r.name + ' är redan på högsta nivån'); return; }
     if (!canAfford(r.cost)) { sfx('deny'); say('Behöver ' + missingText(r.cost) + ' till'); return; }
     pay(r.cost);
-    if (r.k === 'sword') { P.sword++; say(P.sword === 1 ? 'Du gjorde ett stensvärd! Nu kan du bryta koppar.' : swordName(P.sword) + ', nivå ' + P.sword); }
+    if (r.k === 'sword') { P.sword++; say(P.sword === 1 ? 'Du gjorde ett stensvärd!' : swordName(P.sword) + ', nivå ' + P.sword); }
     else if (r.k === 'armor') { var ap = (P.armor) % 4, am = Math.floor(P.armor / 4); P.armor++; say(ARMOR_PART[ap] + ' av ' + MET[am].name + '! Rustningen är nu nivå ' + P.armor + ' av 16.'); }
-    else if (r.k === 'pick') { P.pick++; say('Ny ' + PICK_NAME[P.pick] + '! Nu kan du bryta ' + MET[P.pick].name + '.'); }
-    else { P.lamp++; say('Lyktan är nu nivå ' + P.lamp); }
+    else if (r.k === 'pick') { if (!P.hasPick) { P.hasPick = true; say('Du gjorde en stenhacka! Nu kan du bryta koppar.'); } else { P.pick++; say('Ny ' + PICK_NAME[P.pick] + '! Nu kan du bryta ' + MET[P.pick].name + '.'); } }
+    else if (r.k === 'lamp') { P.lamp++; say('Lyktan är nu nivå ' + P.lamp); }
+    else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : 'Shift eller höger musknapp') + ' för att parera.'); }
+    else if (r.k === 'bow') { P.bow++; if (P.bow === 1) P.arrows = Math.max(P.arrows, 5); say(['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow - 1] + '! ' + (touchMode ? 'Tryck Skjut' : 'Tryck F') + ' för att skjuta.'); }
+    else { P.arrows = Math.min(C.bow.maxArrows, P.arrows + C.bow.arrowsPerCraft); say('+' + C.bow.arrowsPerCraft + ' pilar (du har ' + P.arrows + ')'); }
     sfx('craft'); powerUp(); save();
   }
   function forgeHit(p) {
-    for (var i = 0; i < 4; i++) { var y = FY0 + i * FSTEP; if (p.x > FX0 && p.x < FX0 + FW && p.y > y - 3 && p.y < y + FH + 3) { forgeSel = i; buy(i); return; } }
+    for (var i = 0; i < 7; i++) { var y = FY0 + i * FSTEP; if (p.x > FX0 && p.x < FX0 + FW && p.y > y - 3 && p.y < y + FH + 3) { forgeSel = i; buy(i); return; } }
     if (Math.abs(p.x - 480) < 100 && Math.abs(p.y - FBY) < 30) closeForge();   // menyrutan är alltid 960 bred
   }
   function iconShield() {
@@ -2235,22 +2397,22 @@
       var y = FY0 + i * FSTEP, maxed = r.lvl >= r.max, can = !maxed && canAfford(r.cost);
       tag(FX0, y, FW, FH);
       if (i === forgeSel && !touchMode) { rr(g, FX0, y, FW, FH, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
-      g.save(); g.translate(FX0 + 36, y + FH / 2); g.scale(0.8, 0.8); r.icon(); g.restore();
-      g.textAlign = 'left'; g.font = 'bold 19px ' + TXT; g.fillStyle = PAL.chalk; g.fillText(r.name, FX0 + 70, y + 22);
+      g.save(); g.translate(FX0 + 32, y + FH / 2); g.scale(0.62, 0.62); r.icon(); g.restore();
+      g.textAlign = 'left'; g.font = 'bold 17px ' + TXT; g.fillStyle = PAL.chalk; g.fillText(r.name, FX0 + 62, y + 16);
       if (goal && goal.k === r.k && !maxed) {                  // rekommendation
         var nw = g.measureText(r.name).width; g.font = 'bold 12px ' + TXT; var bt = 'Bra att köpa nu', bw3 = g.measureText(bt).width + 14;
-        rr(g, FX0 + 80 + nw, y + 12, bw3, 20, 6); g.fillStyle = PAL.bolt; g.fill(); g.fillStyle = '#1a2a1a'; g.fillText(bt, FX0 + 87 + nw, y + 22);
+        rr(g, FX0 + 72 + nw, y + 7, bw3, 18, 6); g.fillStyle = PAL.bolt; g.fill(); g.fillStyle = '#1a2a1a'; g.fillText(bt, FX0 + 79 + nw, y + 16);
       }
-      g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.fillText(r.desc, FX0 + 70, y + 44);
+      g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.fillText(r.desc, FX0 + 62, y + 34);
       g.textAlign = 'right'; g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.8)';
-      g.fillText('Nivå ' + r.lvl + ' av ' + r.max, FX0 + FW - 18, y + 20);
+      g.font = '12px ' + TXT; g.fillText(r.k === 'arrows' ? r.lvl + ' av ' + r.max + ' pilar' : 'Nivå ' + r.lvl + ' av ' + r.max, FX0 + FW - 18, y + 14);
       g.font = 'bold 18px ' + TXT; g.fillStyle = maxed ? '#c9bfff' : can ? '#7dff8a' : '#ff9a8a';
-      g.font = 'bold 15px ' + TXT; g.fillText(maxed ? 'Klar' : costText(r.cost), FX0 + FW - 18, y + 43);
+      g.font = 'bold 14px ' + TXT; g.fillText(maxed ? (r.k === 'arrows' ? 'Fullt' : 'Klar') : r.cost ? costText(r.cost) : 'Kräver båge', FX0 + FW - 18, y + 33);
     });
     tag(LW / 2 - 95, FBY - 24, 190, 48);
     g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 22px ' + TXT; g.fillText('Stäng', LW / 2, FBY + 1);
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
-    g.fillText(touchMode ? 'Tryck på en rad för att köpa.' : 'Pilarna väljer, Enter köper (eller 1 till 4). E eller Esc stänger.', LW / 2, FBY + 42);
+    g.fillText(touchMode ? 'Tryck på en rad för att köpa.' : 'Pilarna väljer, Enter köper (eller 1 till 7). E eller Esc stänger.', LW / 2, FBY + 42);
     g.textAlign = 'left';
   }
 
@@ -2270,7 +2432,10 @@
     if (P.sword === 0 && P.wood < 2) return { t: 'Hugg träd: gå fram till ett träd och ' + hit + '. Trä: ' + P.wood + ' av 2.', target: nearest(treeList()) };
     if (P.sword === 0 && P.stone < 3) return { t: 'Bryt sten: ' + hit + ' på en grå sten. Sten: ' + P.stone + ' av 3.', target: nearest(stoneList()) };
     if (P.sword === 0) return { t: 'Gå till ugnen, ' + (T ? 'tryck Smid' : 'tryck E') + ' och gör ett stensvärd.', target: smeltPos };
-    if (P.sword < 3 && P.ore < 4) return { t: 'Med stensvärdet kan du bryta den orange kopparmalmen. Koppar: ' + P.ore + '.', target: nearest(oreList(0)) };
+    if (!P.hasPick && P.wood < 2) return { t: 'Nu behövs en stenhacka. Hugg mer trä: ' + P.wood + ' av 2.', target: nearest(treeList()) };
+    if (!P.hasPick && P.stone < 3) return { t: 'Bryt mer sten till stenhackan: ' + P.stone + ' av 3.', target: nearest(stoneList()) };
+    if (!P.hasPick) return { t: 'Gå till ugnen och gör en stenhacka. Den behövs för att bryta koppar.', target: smeltPos };
+    if (P.sword < 3 && P.ore < 4) return { t: 'Med stenhackan kan du bryta den orange kopparmalmen. Koppar: ' + P.ore + '.', target: nearest(oreList(0)) };
     if (kills < quota) return { t: 'Besegra monstren. Många gömmer sig i grottorna. ' + (quota - kills) + ' kvar.', target: nearest(mons) };
     return { t: 'Portalen är öppen! Gå in i den.', target: exitPos };
   }
@@ -2313,6 +2478,8 @@
     var nearSmelt = smeltPos && Math.hypot(smeltPos.x - P.x, smeltPos.y - P.y) < TS * 2;
     touchButton(BTN_ATK, touch.atkId !== null, iconSwordBig, 'Slå');
     touchButton(BTN_BOLT, touch.boltId != null, iconBolt, 'Blixt', P.bolts === 0, P.bolts || null);
+    if (P.shield > 0) touchButton(BTN_SHIELD, touch.shieldId != null, iconShieldRound, 'Sköld');
+    if (P.bow > 0) touchButton(BTN_BOW, touch.bowId != null, iconBow, 'Skjut', P.arrows === 0, P.arrows || null);
     if (nearSmelt) touchButton(BTN_E, touch.eId !== null, iconHammer, 'Smid', false);
     else touchButton(BTN_E, touch.eId !== null, iconMeat, 'Ät', P.meat === 0 || P.hp >= maxHp(), P.meat);
     g.restore();
@@ -2326,10 +2493,10 @@
     if (keys[k]) return; keys[k] = true;
     if (state === 'forge') {
       if (k === 'Escape' || k === 'e' || k === 'p') closeForge();
-      else if (k === 'ArrowUp' || k === 'w') forgeSel = (forgeSel + 3) % 4;
-      else if (k === 'ArrowDown' || k === 's') forgeSel = (forgeSel + 1) % 4;
+      else if (k === 'ArrowUp' || k === 'w') forgeSel = (forgeSel + 6) % 7;
+      else if (k === 'ArrowDown' || k === 's') forgeSel = (forgeSel + 1) % 7;
       else if (k === 'Enter' || k === ' ') buy(forgeSel);
-      else if ('1234'.indexOf(k) >= 0 && k.length === 1) { forgeSel = +k - 1; buy(forgeSel); }
+      else if ('1234567'.indexOf(k) >= 0 && k.length === 1) { forgeSel = +k - 1; buy(forgeSel); }
       return;
     }
     if (k === 'Escape' || k === 'p') { if (state === 'play') pauseGame(); else if (state === 'paused') resumeGame(); return; }
@@ -2347,6 +2514,7 @@
     if (k === ' ') attack();                            // slå direkt, så att korta tryck aldrig missas
     if (state === 'title' && (k === 'ArrowLeft' || k === 'ArrowRight')) { cycleDiff(k === 'ArrowLeft' ? -1 : 1); return; }
     if (k === 'q') castStorm();
+    if (k === 'f') shoot();
     if (k === 'e') useE();
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
@@ -2355,7 +2523,7 @@
     if (k === 'n' && state === 'title') newGame();
   });
   window.addEventListener('keyup', function (e) { keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false; });
-  window.addEventListener('blur', function () { keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null; pauseGame(); });
+  window.addEventListener('blur', function () { keys = {}; mouse.down = false; mouse.rdown = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; pauseGame(); });
   document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
     if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
     else if (window.LJUD) LJUD.resume();
@@ -2375,11 +2543,12 @@
     if (state === 'title') { if (inBox(toBox(mp), BTN_DIFF)) { cycleDiff(1); return; } var s0 = load(); if (saved && inBox(toBox(mp), BTN_NEW)) newGame(); else if (s0) continueGame(s0); else newGame(); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
+    if (e.button === 2) { mouse.rdown = true; return; }       // höger musknapp: skölden
     mouse.down = true;
     if (state === 'play' && !P.moving) { var mw2 = toWorld(mouse.x, mouse.y), dx = mw2.x - P.x, dy = mw2.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
     attack();
   });
-  window.addEventListener('mouseup', function () { mouse.down = false; });
+  window.addEventListener('mouseup', function (e) { if (e.button === 2) mouse.rdown = false; else mouse.down = false; });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // pekskärm och penna (Android-plattor). Musen hanteras ovan.
@@ -2412,6 +2581,8 @@
       if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); }   // spärr så att ett kvarglömt finger inte startar om direkt
       return;
     }
+    if (P.shield > 0 && Math.hypot(p.x - BTN_SHIELD.x, p.y - BTN_SHIELD.y) < BTN_SHIELD.r * 1.1) { touch.shieldId = e.pointerId; return; }
+    if (P.bow > 0 && Math.hypot(p.x - BTN_BOW.x, p.y - BTN_BOW.y) < BTN_BOW.r * 1.1) { touch.bowId = e.pointerId; shoot(); return; }
     if (Math.hypot(p.x - BTN_BOLT.x, p.y - BTN_BOLT.y) < BTN_BOLT.r * 1.1) { touch.boltId = e.pointerId; castStorm(); return; }
     if (onBtn(p, BTN_E)) { touch.eId = e.pointerId; useE(); return; }
     if (p.x >= LW / 2) {                                    // hela högra halvan slår
@@ -2435,6 +2606,8 @@
     if (e.pointerId === touch.atkId) touch.atkId = null;
     if (e.pointerId === touch.eId) touch.eId = null;
     if (e.pointerId === touch.boltId) touch.boltId = null;
+    if (e.pointerId === touch.shieldId) touch.shieldId = null;
+    if (e.pointerId === touch.bowId) touch.bowId = null;
   }
   cv.addEventListener('pointerup', endTouch);
   cv.addEventListener('pointercancel', endTouch);
@@ -2456,6 +2629,6 @@
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
     step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
-    get bossIntro() { return bossIntro; },
+    get bossIntro() { return bossIntro; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
     get fx() { return { trauma: trauma, hitStop: hitStop, texts: texts.length, particles: fx.length }; } };
 })();

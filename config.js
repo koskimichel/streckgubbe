@@ -92,11 +92,19 @@ const CONFIG = {
     pick: [null, { wood: 2, metal: 0, n: 4 }, { wood: 3, metal: 1, n: 5 }, { wood: 3, metal: 2, n: 6 }],
     // Rustningen: delarna 0 bröstplåt, 1 hjälm, 2 axelskydd, 3 benskydd byggs/byts en i taget, först koppar, sedan järn, guld, stjärnmalm.
     armor: (function () { var a = [null]; for (var t = 0; t < 4; t++) for (var p = 0; p < 4; p++) a.push({ wood: 1 + (t >= 2 ? 1 : 0), metal: t, n: 2 + t + (p === 0 ? 1 : 0) }); return a; })(),
+    stonePick: { wood: 2, stone: 3 },                            // v3.1: stenhacka krävs för koppar
+    shield: [null, { wood: 2, metal: 0, n: 4 }, { wood: 2, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 3, metal: 3, n: 7 }],
+    bow: [null, { wood: 4, stone: 1 }, { wood: 3, metal: 1, n: 4 }, { wood: 3, metal: 2, n: 5 }],   // träbåge, järnbåge, guldbåge
+    arrows: { wood: 1, metal: 0, n: 1 },                         // ger bow.arrowsPerCraft pilar
     lantern0: { metal: 0, n: 4 }
   },
 
   // Skattkammare (v3.0): en per värld på en slumpad nivå. Kistan ger trä, metall av nästa sort och en månsten.
   treasure: { chestWood: 3, moon: 1 },
+
+  // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
+  shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5 },
+  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, maxArrows: 30, arrowsPerCraft: 5 },
 
   // Svårighetsgrader (v2.3). mHp/mDmg = monster, bHp = bossens hälsa, gap = sekunder mellan bossens anfall,
   // wind = hur länge bossen varnar (1 = som förut), keep = andel malm kvar efter död, minions = hjälpare i bossens andra fas
