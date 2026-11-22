@@ -1,0 +1,13 @@
+# Hemligheter och lokala inställningar ska aldrig in i repot
+.env
+.env.*
+*.key
+*.pem
+.claude/settings.local.json
+
+# Verktyg och systemfiler
+node_modules/
+__pycache__/
+Thumbs.db
+desktop.ini
+.DS_Store

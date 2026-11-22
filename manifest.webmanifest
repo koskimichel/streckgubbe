@@ -1,0 +1,13 @@
+{
+  "name": "Streckgubbe",
+  "short_name": "Streckgubbe",
+  "description": "Streckgubbe mot monster. Bryt malm, smid svärd, bli stark.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101810",
+  "theme_color": "#1b2a1b",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

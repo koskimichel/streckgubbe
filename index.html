@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Streckgubbe</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1b2a1b">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  html, body { margin:0; height:100%; background:#101810; color:#eee; font-family:Segoe UI, Arial, sans-serif; }
+  body { display:flex; align-items:center; justify-content:center; }
+  canvas { background:#000; max-width:100vw; max-height:100vh; image-rendering:pixelated; cursor:crosshair; }
+</style>
+</head>
+<body>
+<canvas id="c" width="960" height="576"></canvas>
+<script src="config.js"></script>
+<script src="spel.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+</script>
+</body>
+</html>
