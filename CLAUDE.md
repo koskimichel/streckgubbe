@@ -1,4 +1,11 @@
-# Malm & Monster (Mines & Monsters), version 2.3
+# Malm & Monster (Mines & Monsters), version 2.4
+
+v2.4 (mobil):
+- `WW`/`WH` = världens mått (960 x 576), `LW`/`LH` = vyns mått i logiska enheter. Dator/platta: vy = värld, kameran visar hela kartan (som förut). Mobil (`PHONE`, minsta skärmsida < 520 CSS-px): vyn fyller skärmen (`LH` = 430, `LW` efter bildformat), större HUD och knappar.
+- Kamera: `ZW` (zoom, ca 42 CSS-px per ruta på mobil), `camX/camY` följer gubben mjukt (`updateCamera` i `realUpdate`), får gå 4 rutor utanför kanten på mobil så att gubben inte hamnar under knapparna. Världen ritas med `g.scale(ZW) + g.translate(-cam)` i `draw`.
+- Världens cacher (`mapCv`, `caveCv`, `lightCv`, `canCv`) ritas med `RSW` (= RS * ZW). Världskoordinater: använd `WW/WH`, aldrig `LW/LH`. Omvandling: `toScreen`, `toWorld` (musen), `toBox` (menyer).
+- Menyer (titel, paus, smedja, död, vrid-meddelande) ritas i en 960 x 576-ruta via `inBox960` (sätter tillfälligt `LW/LH` = 960/576). Deras träffytor tar `toBox(p)`. Pekknappar i vyns hörn placeras av `layoutButtons`.
+- Liten karta i hörnet på mobil (`drawMinimap`, `miniCv`): portal, monster, boss, månsten/kristall/hjärta, gul ram för vad kameran ser.
 
 v2.3:
 - Svårighet `settings.diff` (latt/medel/svar, `C.difficulty`, `DF()`): monster- och bosshälsa/skada, tid mellan bossanfall, varningstid, malm kvar efter död, antal hjälpare. Väljs på titeln (`BTN_DIFF`, pilar vänster/höger) och i pausmenyn; gäller från nästa nivå.

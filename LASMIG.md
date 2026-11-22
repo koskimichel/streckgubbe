@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 2.3
+# Malm & Monster (Mines & Monsters), version 2.4
+
+Nytt i 2.4: spelet fungerar på mobil. På små skärmar fyller spelet hela skärmen, kameran zoomar in och följer gubben, knappar och text blir större och en liten karta i hörnet visar portalen och monstren. På dator och platta är allt som förut.
 
 Nytt i 2.3: svårighetsgrad (Lätt, Medel, Svår) på titelskärmen och i pausmenyn, bossar med eget utseende, andra fas och egna förmågor, en tydligare djungel, mörkare grottor längre fram, lyktan får du i Djungeln och uppgraderar med sällsynt månsten, ugnen visar ! när du har råd med något, och rustningen syns på gubben. Dessutom: max 10 hjärtan, mindre malm och dyrare uppgraderingar så att det tar längre tid att bli max, kristaller ger blixtkraft (Q eller Blixt-knappen slår ned blixtar på alla monster), och efter nivå 25 kommer varv 2 med kvällsljus och elitmonster.
 
