@@ -75,6 +75,35 @@
     return false;
   }
 
+  // Rutor spelaren kan nå från start. Malm räknas som öppen (den går att hacka bort).
+  function openFrom(sx, sy) {
+    var open = [], q = [[sx, sy]], y, x;
+    for (y = 0; y < H; y++) { open[y] = []; for (x = 0; x < W; x++) open[y][x] = false; }
+    open[sy][sx] = true;
+    while (q.length) {
+      var c = q.pop();
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        var nx = c[0] + d[0], ny = c[1] + d[1];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H || open[ny][nx]) return;
+        var t = map[ny][nx];
+        if (t === STONE || t === TREE || t === SMELT) return;
+        open[ny][nx] = true; q.push([nx, ny]);
+      });
+    }
+    return open;
+  }
+
+  // Nödutväg: hugg upp en väg från start till portalen om slumpen aldrig gav en.
+  function carvePath(sx, sy, tx, ty) {
+    var x = sx, y = sy;
+    function clear() {
+      var t = map[y][x];
+      if (t === STONE || t === TREE || t === ORE) { map[y][x] = isCave[y][x] ? CAVE : GRASS; delete oreHp[x + ',' + y]; }
+    }
+    while (x !== tx) { clear(); x += x < tx ? 1 : -1; }
+    while (y !== ty) { clear(); y += y < ty ? 1 : -1; }
+  }
+
   function buildLevel(n, attempt) {
     var rnd = mulberry(n * 7919 + attempt * 104729 + 13), L = C.level;
     map = []; isCave = []; oreHp = {};
@@ -109,7 +138,11 @@
     for (y = ey - 1; y <= ey + 1; y++) for (x = ex - 1; x <= ex + 1; x++) { if (y < H - 1 && x < W - 1) { map[y][x] = GRASS; isCave[y][x] = false; } }
     map[ey][ex] = EXIT;
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (map[y][x] === ORE) oreHp[x + ',' + y] = C.mining.hitsPerOre;
-    if (!reachable(2, 2, ex, ey) && attempt < 30) return buildLevel(n, attempt + 1);
+    if (!reachable(2, 2, ex, ey)) {
+      if (attempt < 30) return buildLevel(n, attempt + 1);
+      carvePath(2, 3, ex, ey);                          // rad 3 går förbi smältstationen på rad 2
+    }
+    var open = openFrom(2, 2);
 
     // monster
     mons = []; items = [];
@@ -125,7 +158,7 @@
     function freeSpot(wantCave) {
       for (var t = 0; t < 300; t++) {
         var px = 1 + Math.floor(rnd() * (W - 2)), py = 1 + Math.floor(rnd() * (H - 2));
-        if (solid(map[py][px]) || map[py][px] === EXIT) continue;
+        if (solid(map[py][px]) || map[py][px] === EXIT || !open[py][px]) continue;
         if (wantCave && !isCave[py][px]) continue;
         if (Math.hypot(px - 2, py - 2) < 8) continue;
         return { x: (px + 0.5) * TS, y: (py + 0.5) * TS };
@@ -258,7 +291,7 @@
     // monster
     mons.forEach(function (m) {
       m.hit -= dt; m.cd -= dt;
-      var d = dist(m, P), inCave = isCave[clamp(Math.floor(m.y / TS), 0, H - 1)][clamp(Math.floor(m.x / TS), 0, W - 1)];
+      var d = dist(m, P) || 0.01, inCave = isCave[clamp(Math.floor(m.y / TS), 0, H - 1)][clamp(Math.floor(m.x / TS), 0, W - 1)];
       var range = inCave ? C.monsters.caveAggroRange : C.monsters.aggroRange;
       var vx = m.kx, vy = m.ky; m.kx *= 0.85; m.ky *= 0.85;
       if (d < range) {
@@ -475,5 +508,6 @@
   }
   requestAnimationFrame(frame);
   // för test: window.__sg exponerar läge
-  window.__sg = { get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; } };
+  window.__sg = { get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
+    get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); } };
 })();

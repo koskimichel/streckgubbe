@@ -1,5 +1,5 @@
 // Enkel offline-cache. Höj VERSION när filer ändras.
-const VERSION = 'streckgubbe-v1';
+const VERSION = 'streckgubbe-v2';
 const FILER = ['./', 'index.html', 'spel.js', 'config.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', function (e) {
@@ -16,10 +16,13 @@ self.addEventListener('activate', function (e) {
 
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== self.location.origin) return;   // bara spelets egna filer
   e.respondWith(
     fetch(e.request).then(function (r) {
-      var kopia = r.clone();
-      caches.open(VERSION).then(function (c) { c.put(e.request, kopia); });
+      if (r.ok) {                                                       // cacha aldrig felsvar
+        var kopia = r.clone();
+        caches.open(VERSION).then(function (c) { c.put(e.request, kopia); });
+      }
       return r;
     }).catch(function () { return caches.match(e.request); })
   );
