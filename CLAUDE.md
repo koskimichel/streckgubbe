@@ -1,4 +1,12 @@
-# Malm & Monster (Mines & Monsters), version 2.1
+# Malm & Monster (Mines & Monsters), version 2.2
+
+v2.2 hittills:
+- E-tangent vid köttet i HUD (dator), ät-tips vid låg hälsa (`eatHintT`).
+- Fem världar (`BIOMES`, `biomeOf(n)`, byter var 5:e nivå): Ängen, Djungeln, Öknen, Snölandet, Lavalandet. Styr markfärger, träd (`drawTree`), stenar, grottor, luftpartiklar (`spawnAir`, fx-typ `a`) och musikens tonart (`LJUD.setBiome`).
+- Boss var 5:e nivå (`C.boss`, typ `boss`, `updateBoss`: walk > windCharge/windSlam > charge > stun, chockvåg fx-typ `w`, hjälp vid halv hälsa, `bossDefeated` släpper malm/hjärta/kristall). Varningar ritas i `drawBossExtras`, hälsostapel i HUD.
+- Nya monster: spindel (`spiderAI`, nät i `shots`, saktar ned via `P.slow`), spöke (svävar genom väggar).
+- Smedjan (`state = 'forge'`, `openForge`/`buy`/`overlayForge`): svärd (max 15), rustning (`P.armor`, `hurtPlayer` minskar skada), hacka (`P.pick`), lykta (`P.lamp`). Sparas i sparfilen.
+- Fler monster per nivå (config `level`). All skada på spelaren går via `hurtPlayer`. Tidigare: `../Streckgubbe v2.1` (tagg `v2.1`).
 
 2D-monsterspel sett uppifrån. Ren HTML5-canvas och vanilla JavaScript. Inga beroenden, inget byggsteg, ingen server-backend. Svara och skriv kommentarer på svenska.
 

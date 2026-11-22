@@ -3,7 +3,7 @@
 var LJUD = (function () {
   'use strict';
   var ac = null, sfxBus, musicBus, musicFilter, noiseBuf, timer = null;
-  var vol = { music: 0.5, sfx: 0.8 }, cave = false, ducked = false, last = {};
+  var vol = { music: 0.5, sfx: 0.8 }, cave = false, ducked = false, last = {}, trans = 0;
 
   function init() {
     if (ac) { if (ac.state === 'suspended' && !document.hidden) ac.resume(); return; }
@@ -64,7 +64,13 @@ var LJUD = (function () {
     deny: function (t) { tone('square', 200, 0, 0.08, 0.1, t); tone('square', 150, 0, 0.12, 0.1, t + 0.1); },
     level: function (t) { noise(0.5, 0.14, t, 'bandpass', 300, 3000, 1.5); [392, 523, 659, 784].forEach(function (f, i) { tone('triangle', f, 0, 0.22, 0.18, t + 0.15 + i * 0.09); }); },
     death: function (t) { [392, 330, 262, 196].forEach(function (f, i) { tone('triangle', f, f * 0.97, 0.3, 0.22, t + i * 0.18); }); },
-    click: function (t) { tone('triangle', 900, 1200, 0.04, 0.15, t); }
+    click: function (t) { tone('triangle', 900, 1200, 0.04, 0.15, t); },
+    charge: function (t) { tone('sawtooth', 70, 160, 0.6, 0.22, t); noise(0.6, 0.15, t, 'lowpass', 300, 1200); },
+    slam: function (t) { tone('sine', 120, 35, 0.5, 0.7, t); noise(0.4, 0.4, t, 'lowpass', 900, 150); },
+    summon: function (t) { [0, 0.12, 0.24].forEach(function (d, i) { tone('triangle', 330 - i * 40, 220 - i * 30, 0.3, 0.15, t + d); }); },
+    web: function (t) { noise(0.12, 0.2, t, 'bandpass', 2500, 900, 3); },
+    webhit: function (t) { noise(0.2, 0.25, t, 'lowpass', 1500, 400); tone('sine', 300, 180, 0.2, 0.12, t); },
+    bossdown: function (t) { [523, 659, 784, 1047, 784, 1047, 1319].forEach(function (f, i) { tone('triangle', f, 0, 0.25, 0.2, t + i * 0.1); }); noise(0.8, 0.08, t + 0.3, 'highpass', 5000, 9000); }
   };
   function play(name) {
     if (!ac || vol.sfx <= 0 || !SFX[name] || ac.state !== 'running') return;
@@ -98,11 +104,11 @@ var LJUD = (function () {
     while (nextT < ac.currentTime + 0.25) {
       if (vol.music > 0) {
         var s = stepN % mel.length, inBar = s % 8, ch = CH[Math.floor(s / 8) % 4];
-        if (inBar === 0 || inBar === 4) tone('triangle', mtof(ch[0] - 12), 0, STEP * 3.5, 0.32, nextT, musicFilter, 0.01);   // bas
+        if (inBar === 0 || inBar === 4) tone('triangle', mtof(ch[0] - 12 + trans), 0, STEP * 3.5, 0.32, nextT, musicFilter, 0.01);   // bas
         if (inBar === 0) tone('sine', 110, 45, 0.12, 0.28, nextT, musicFilter);                                              // mjuk trumma
         if (inBar % 2 === 1) noise(0.04, 0.045, nextT, 'highpass', 7000, null, 0.7, musicFilter);                            // hi-hat
-        tone('sine', mtof(ch[1 + (inBar % 3)]), 0, STEP * 0.9, 0.06, nextT, musicFilter, 0.01);                              // arpeggio
-        if (mel[s]) tone('triangle', mtof(mel[s]), 0, STEP * 1.6, cave ? 0.07 : 0.12, nextT, musicFilter, 0.01);             // melodi
+        tone('sine', mtof(ch[1 + (inBar % 3)] + trans), 0, STEP * 0.9, 0.06, nextT, musicFilter, 0.01);                              // arpeggio
+        if (mel[s]) tone('triangle', mtof(mel[s] + trans), 0, STEP * 1.6, cave ? 0.07 : 0.12, nextT, musicFilter, 0.01);             // melodi
       }
       nextT += STEP; stepN++;
     }
@@ -119,10 +125,11 @@ var LJUD = (function () {
     if (!ac || b === cave) return;
     cave = b; musicFilter.frequency.setTargetAtTime(b ? 850 : 3200, ac.currentTime, 0.4);
   }
+  function setBiome(i) { trans = [0, -2, 3, 2, -3][i] || 0; }      // ny tonart i varje miljö
   function duck(on) { ducked = on; if (ac) musicBus.gain.setTargetAtTime(musicGain(), ac.currentTime, 0.15); }
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume().then(function () { nextT = Math.max(nextT, ac.currentTime + 0.1); }); }
 
-  return { init: init, play: play, setVolumes: setVolumes, setCave: setCave, duck: duck, suspend: suspend, resume: resume,
+  return { init: init, play: play, setVolumes: setVolumes, setCave: setCave, setBiome: setBiome, duck: duck, suspend: suspend, resume: resume,
     get state() { return ac ? ac.state : 'ingen'; } };
 })();

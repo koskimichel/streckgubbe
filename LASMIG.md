@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 2.1
+# Malm & Monster (Mines & Monsters), version 2.2
+
+Nytt i 2.2: fem världar (äng, djungel, öken, snö, lava), en boss var femte nivå, spindlar som skjuter nät och spöken som går genom väggar, fler monster, smedjan vid ugnen (svärd upp till nivå 15, rustning, hacka, lykta) och tips om att äta när hälsan är låg.
 
 Nytt i 2.1: ljud och bakgrundsmusik, paus med inställningar (musik, ljud, skak, blinkningar, skadetal, guide), automatisk paus när appen hamnar i bakgrunden, en guide på nivå 1 och tydligare knappar på plattan.
 
