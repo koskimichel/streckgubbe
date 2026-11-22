@@ -1,6 +1,7 @@
-// Malm & Monster (Mines & Monsters), version 2.2 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 2.3 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
+// v2.3 nytt: svårighetsgrader, bossar med andra fas och eget utseende, tydligare djungel, månsten och lykta, synlig rustning.
 // Stil: "krita på sommaräng". Kritvit hjälte, målad äng, blåsvarta grottor. Blixtgult är enda starka accenten.
 // v2 nytt: förrenderad karta, ljus i grottor, skuggor, animerade figurer, träffkänsla (skak, hit-stop, skadetal), ny HUD.
 (function () {
@@ -52,11 +53,11 @@
   // pekskärm: joystick under vänster tumme, knappar för höger tumme
   var touchMode = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), lastTouch = 0, deadAt = 0;
   var touch = { joyId: null, jx0: 0, jy0: 0, jx: 0, jy: 0, atkId: null, eId: null };
-  var JOY_R = 56, BTN_ATK = { x: LW - 96, y: LH - 96, r: 56 }, BTN_E = { x: LW - 214, y: LH - 66, r: 42 }, BTN_PAUSE = { x: LW - 30, y: 23, r: 17 }, BTN_NEW = { x: LW / 2, y: LH - 44, w: 170, h: 40 };
+  var JOY_R = 56, BTN_ATK = { x: LW - 96, y: LH - 96, r: 56 }, BTN_E = { x: LW - 214, y: LH - 66, r: 42 }, BTN_PAUSE = { x: LW - 30, y: 23, r: 17 }, BTN_DIFF = { x: LW / 2 - 200, y: LH - 44, w: 200, h: 40 }, BTN_BOLT = { x: LW - 96, y: LH - 202, r: 38 }, BTN_NEW = { x: LW / 2, y: LH - 44, w: 170, h: 40 };
 
   // inställningar som spelaren ändrar i pausmenyn (sparas per enhet)
   var SET_KEY = 'mm-installningar';
-  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true };
+  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true, diff: 'latt' };
   try { var ss = JSON.parse(localStorage.getItem(SET_KEY)); if (ss) Object.keys(settings).forEach(function (k) { if (ss[k] !== undefined) settings[k] = ss[k]; }); } catch (e) {}
   function applySettings() {
     FXC.shake = settings.shake; FXC.flash = settings.flash; FXC.damageNumbers = settings.numbers;
@@ -81,16 +82,27 @@
       flowers: null, tree: 'dead', stone: ['#6d5650', '#2b201d'], rim: '#4a3a36', cave: ['#1d1416', '#21171a'], air: 'embers', cracks: true }
   ];
   BIOMES.forEach(function (b, i) { b.i = i; });
+  function lapOf(n) { return Math.floor((n - 1) / 25); }        // varv: 0 = första, 1 = kväll, 2+ = natt
   function biomeOf(n) { return BIOMES[Math.floor((n - 1) / 5) % BIOMES.length]; }
   var biome = BIOMES[0];
   var AIR_RATE = { snow: 0.05, sand: 0.09, embers: 0.12, fireflies: 0.45 };
+  BIOMES[1].treeMul = 1.9; BIOMES[1].canopy = true;           // djungeln: tät skog och lövtak
+  var CAVE_DARK = [0.62, 0.76, 0.83, 0.88, 0.93];              // grottorna blir mörkare för varje värld
+  var BOSS_KIND = ['golem', 'ape', 'scorpion', 'yeti', 'demon'];
+  var DIFF_ORDER = ['latt', 'medel', 'svar'], DIFF_NAME = { latt: 'Lätt', medel: 'Medel', svar: 'Svår' };
+  function DF() { return C.difficulty[settings.diff] || C.difficulty.latt; }
+  function cycleDiff(dir) {
+    var i = DIFF_ORDER.indexOf(settings.diff); if (i < 0) i = 0;
+    settings.diff = DIFF_ORDER[(i + (dir || 1) + 3) % 3]; applySettings(); sfx('click');
+  }
+  var bossIntro = 0, stormT = 0;
 
   function newPlayer() {
     return {
       x: 2.5 * TS, y: 2.5 * TS, r: 10, hearts: C.player.startHearts,
       hp: C.player.startHearts * C.player.hpPerHeart,
       str: C.player.startStrength, ore: 0, meat: 1, sword: 0,
-      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0
+      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0
     };
   }
   function maxHp() { return P.hearts * C.player.hpPerHeart; }
@@ -101,7 +113,7 @@
   function power() { return P.sword + P.str - 1; }          // styr blixtarnas storlek
   function reach() { return C.player.baseReach + Math.min(power(), 12) * 2; }
   function upgradeCost() {
-    return P.sword === 0 ? C.weapon.craftCost : C.weapon.upgradeCostBase + C.weapon.upgradeCostStep * P.sword;
+    return P.sword === 0 ? C.weapon.craftCost : Math.round(C.weapon.upgradeCostBase + C.weapon.upgradeCostStep * P.sword + (C.weapon.upgradeCostSquare || 0) * P.sword * P.sword);
   }
   function say(t) { msg = t; msgT = 3; }
 
@@ -126,7 +138,7 @@
   function save() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp
+        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts
       }));
     } catch (e) {}
   }
@@ -193,7 +205,8 @@
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
       if (x === 0 || y === 0 || x === W - 1 || y === H - 1) { map[y][x] = STONE; continue; }
       var r = rnd();
-      if (r < L.treeDensity) map[y][x] = TREE; else if (r < L.treeDensity + L.stoneDensity) map[y][x] = STONE;
+      var td = L.treeDensity * (biomeOf(n).treeMul || 1);
+      if (r < td) map[y][x] = TREE; else if (r < td + L.stoneDensity) map[y][x] = STONE;
     }
     // grottor
     var caves = [];
@@ -206,7 +219,7 @@
       for (x = cx; x < cx + cw; x++) { if (rnd() < 0.45) { map[cy][x] = ORE; } if (rnd() < 0.45) { map[cy + ch - 1][x] = ORE; } }
     }
     // extra malm på marken, intill sten
-    var oreWanted = Math.round(L.baseOre + L.orePerLevel * n), placed = 0, tries = 0;
+    var oreWanted = Math.min(L.maxOre || 99, Math.round(L.baseOre + L.orePerLevel * n)), placed = 0, tries = 0;
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (map[y][x] === ORE) placed++;
     while (placed < oreWanted && tries++ < 2000) {
       x = 2 + Math.floor(rnd() * (W - 4)); y = 2 + Math.floor(rnd() * (H - 4));
@@ -250,9 +263,11 @@
     for (i = 0; i < count; i++) {
       var s = freeSpot(rnd() < 0.65) || freeSpot(false); if (!s) continue;
       var k = pickType(), d = C.monsters[k];
-      var hp = d.hpBase + d.hpPerLevel * n;
-      mons.push({ type: k, x: s.x, y: s.y, r: d.radius, hp: hp, maxHp: hp, dmg: d.dmgBase + d.dmgPerLevel * n,
+      var hp = (d.hpBase + d.hpPerLevel * n) * DF().mHp;
+      mons.push({ type: k, x: s.x, y: s.y, r: d.radius, hp: hp, maxHp: hp, dmg: (d.dmgBase + d.dmgPerLevel * n) * DF().mDmg,
         speed: Math.min(d.maxSpeed, d.speed + d.speedPerLevel * n), cd: 0, kx: 0, ky: 0, hit: 0, pop: 9, ph: rnd() * 6 });
+      var eC = Math.min(C.laps.eliteMax, lapOf(n) * C.laps.eliteChancePerLap);
+      if (eC > 0 && rnd() < eC) { var em = mons[mons.length - 1]; em.elite = true; em.hp *= C.laps.eliteHp; em.maxHp = em.hp; em.dmg *= C.laps.eliteDmg; }
     }
     if (n % C.boss.every === 0) {                                      // boss långt från start, med plats runt sig
       var bs = null;
@@ -265,15 +280,20 @@
         for (var yy = fy0 - 1; yy <= fy0 + 1; yy++) for (var xx = fx0 - 1; xx <= fx0 + 1; xx++) if (map[yy][xx] !== EXIT) { map[yy][xx] = isCave[yy][xx] ? CAVE : GRASS; delete oreHp[xx + ',' + yy]; }
         bs = { x: (fx0 + 0.5) * TS, y: (fy0 + 0.5) * TS };
       }
-      var BB = C.boss, bhp = BB.hpBase + BB.hpPerLevel * n;
-      mons.push({ type: 'boss', x: bs.x, y: bs.y, r: BB.radius, hp: bhp, maxHp: bhp, dmg: BB.dmgBase + BB.dmgPerLevel * n, speed: BB.speed,
-        cd: 0, kx: 0, ky: 0, hit: 0, pop: 9, ph: 0, ai: 'walk', aiT: 2.5, summoned: false, dirx: 1, diry: 0 });
+      var BB = C.boss, bhp = (BB.hpBase + BB.hpPerLevel * n) * DF().bHp;
+      mons.push({ type: 'boss', x: bs.x, y: bs.y, r: BB.radius, hp: bhp, maxHp: bhp, dmg: (BB.dmgBase + BB.dmgPerLevel * n) * DF().mDmg, speed: BB.speed,
+        cd: 0, kx: 0, ky: 0, hit: 0, pop: 9, ph: 0, ai: 'walk', aiT: 2.5, summoned: false, dirx: 1, diry: 0, kind: BOSS_KIND[biomeOf(n).i], phase2: false, chain: 0, hidden: 0 });
     }
     kills = 0; quota = mons.length;
     // föremål: kristaller i grottor, hjärta, kött
     for (i = 0; i < L.crystalsPerLevel; i++) { var c1 = freeSpot(true) || freeSpot(false); if (c1) items.push({ t: 'crystal', x: c1.x, y: c1.y }); }
     if (n % L.heartEveryNLevels === 0) { var h1 = freeSpot(true) || freeSpot(false); if (h1) items.push({ t: 'heart', x: h1.x, y: h1.y }); }
     for (i = 0; i < L.extraMeat; i++) { var m1 = freeSpot(false); if (m1) items.push({ t: 'meat', x: m1.x, y: m1.y }); }
+    if (n >= 2 && n % 3 === 0) {                                 // gömd månsten längst in i en grotta
+      var mbest = null, mbd = 0;
+      for (y = 1; y < H - 1; y++) for (x = 1; x < W - 1; x++) if (isCave[y][x] && map[y][x] === CAVE && open[y][x]) { var mdd = Math.hypot(x - 2, y - 2); if (mdd > mbd) { mbd = mdd; mbest = { x: x, y: y }; } }
+      if (mbest) items.push({ t: 'moon', x: (mbest.x + 0.5) * TS, y: (mbest.y + 0.5) * TS });
+    }
     mapSeed = n; mapDirty = true; biome = biomeOf(n);
   }
 
@@ -283,13 +303,15 @@
     state = 'play'; save(); sfx('level');
     if (n >= 2 && settings.guide) { settings.guide = false; applySettings(); }   // guiden behövs bara första gången
     var bossLvl = n % C.boss.every === 0, firstInWorld = (n - 1) % 5 === 0;
-    say(bossLvl ? 'Nivå ' + n + ': ' + biome.boss + ' väntar!' : (firstInWorld ? 'Välkommen till ' + biome.name + '! ' : '') + 'Nivå ' + n + ': besegra ' + quota + ' monster');
+    say(bossLvl ? 'Nivå ' + n + ': ' + biome.boss + ' väntar!' : (firstInWorld ? 'Välkommen till ' + biome.name + (lapOf(n) ? ', varv ' + (lapOf(n) + 1) : '') + '! ' : '') + 'Nivå ' + n + ': besegra ' + quota + ' monster');
     if (window.LJUD) LJUD.setBiome(biome.i);
+    if (n >= 6 && P.lamp === 0) { P.lamp = 1; say('Du hittade en lykta! Den lyser upp de mörka grottorna.'); powerUp(); save(); }
+    bossIntro = bossLvl ? 2.4 : 0;
   }
 
   function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); }
   function continueGame(s) {
-    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.hp = maxHp();
+    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.hp = maxHp();
     startLevel(s.level);
   }
 
@@ -315,6 +337,7 @@
     P.cd = C.player.attackCooldown; P.swing = 0.18; sfx('swing');
     var rc = reach(), hitAny = false, dmg = damage();
     mons.forEach(function (m) {
+      if (m.hidden) return;                                    // bossen under sanden går inte att träffa
       var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy);
       if (d > rc + m.r) return;
       var dot = d > 0 ? (dx * P.fx + dy * P.fy) / d : 1;
@@ -379,7 +402,7 @@
   function update(dt) {
     time += dt; if (msgT > 0) msgT -= dt;
     if (state !== 'play') return;
-    P.cd -= dt; P.inv -= dt; P.swing -= dt; if (P.pu > 0) P.pu -= dt; if (P.slow > 0) P.slow -= dt;
+    P.cd -= dt; P.inv -= dt; P.swing -= dt; if (P.pu > 0) P.pu -= dt; if (P.slow > 0) P.slow -= dt; if (P.icy > 0) P.icy -= dt; if (bossIntro > 0) bossIntro -= dt;
     // gnistor runt gubben, fler ju starkare han är
     var pw = power();
     if (pw >= 1) {
@@ -399,10 +422,16 @@
     if (ax || ay) {
       var l = Math.hypot(ax, ay), sp = Math.min(1, l * 1.4); ax /= l; ay /= l; P.fx = ax; P.fy = ay;
       var slowK = P.slow > 0 ? C.spider.slowFactor : 1;               // fast i spindelnät
-      move(P, ax * C.player.speed * sp * slowK * dt, ay * C.player.speed * sp * slowK * dt);
+      var tvx = ax * C.player.speed * sp * slowK, tvy = ay * C.player.speed * sp * slowK;
+      if (P.icy > 0) { var ik = Math.min(1, 1.6 * dt); P.vx += (tvx - P.vx) * ik; P.vy += (tvy - P.vy) * ik; } else { P.vx = tvx; P.vy = tvy; }   // halt på is
+      move(P, P.vx * dt, P.vy * dt);
       P.walk += dt * 12 * sp; if (level === 1) guideMoved += C.player.speed * sp * dt;
     } else if (mouse.has && mouse.down) {
       var mdx = mouse.x - P.x, mdy = mouse.y - P.y, ml = Math.hypot(mdx, mdy) || 1; P.fx = mdx / ml; P.fy = mdy / ml;
+    }
+    if (!P.moving) {                                             // på is glider man vidare en stund
+      if (P.icy > 0 && Math.abs(P.vx) + Math.abs(P.vy) > 5) { var fk = 1 - Math.min(1, 1.2 * dt); P.vx *= fk; P.vy *= fk; move(P, P.vx * dt, P.vy * dt); }
+      else { P.vx = 0; P.vy = 0; }
     }
     if (window.LJUD) LJUD.setCave(isCave[clamp(Math.floor(P.y / TS), 0, H - 1)][clamp(Math.floor(P.x / TS), 0, W - 1)]);
     if (touch.atkId !== null && !P.moving) aimNearest();
@@ -458,15 +487,25 @@
       if (m.type === 'boss') { bossDefeated(m); return false; }
       addTrauma(0.3); freeze(0.08); sfx('kill');
       if (Math.random() < C.items.meatDropChance) items.push({ t: 'meat', x: m.x, y: m.y });
+      if (m.type === 'ghost' && Math.random() < 0.05) items.push({ t: 'moon', x: m.x, y: m.y });   // sällsynt månsten
       return false;
     });
     // plocka upp
     items = items.filter(function (it) {
       if (Math.hypot(it.x - P.x, it.y - P.y) > 18) return true;
       if (it.t === 'meat') { if (P.meat >= C.items.maxMeat) return true; P.meat++; say('+ köttklubba'); sfx('meat'); floatText(it.x, it.y - 14, '+1 kött', '#ffb38a'); }
+      else if (it.t === 'moon') { P.moon++; P.moonEver = true; say('Månsten! Lyktan kan bli starkare i smedjan.'); sfx('heart'); floatText(it.x, it.y - 14, '+1 månsten', '#cfe6ff'); }
       else if (it.t === 'ore') { P.ore++; sfx('ore'); floatText(it.x, it.y - 14, '+1 malm', PAL.gold); }
-      else if (it.t === 'heart') { P.hearts += C.items.heartMaxHpGain; P.hp += C.player.hpPerHeart * C.items.heartMaxHpGain; say('+ hjärta! Maxhälsan ökade'); sfx('heart'); floatText(it.x, it.y - 14, '+ hjärta', PAL.heart); }
-      else if (it.t === 'crystal') { P.str += C.items.crystalStrengthGain; say('+ kristall! Du känner dig starkare'); floatText(it.x, it.y - 14, '+ styrka', '#8ff0ff'); powerUp(); }
+      else if (it.t === 'heart') {
+        if (P.hearts >= C.items.maxHearts) { P.hp = maxHp(); say('Full hälsa! Du har redan max antal hjärtan'); floatText(it.x, it.y - 14, 'full hälsa', PAL.heart); }
+        else { P.hearts += C.items.heartMaxHpGain; P.hp += C.player.hpPerHeart * C.items.heartMaxHpGain; say('+ hjärta! Maxhälsan ökade'); floatText(it.x, it.y - 14, '+ hjärta', PAL.heart); }
+        sfx('heart');
+      }
+      else if (it.t === 'crystal') {
+        P.str += C.items.crystalStrengthGain; P.bolts = Math.min(C.boltPower.max, P.bolts + 1);
+        say('+ kristall! Blixtkraft ' + P.bolts + ' av ' + C.boltPower.max + (touchMode ? '. Tryck på Blixt.' : '. Tryck Q.'));
+        floatText(it.x, it.y - 14, '+ blixt', PAL.bolt); powerUp();
+      }
       sparks(it.x, it.y, '#ffffff', 12); save(); return false;
     });
     // utgång
@@ -490,6 +529,9 @@
         var pd = Math.hypot(P.x - f.x, P.y - f.y);           // träffar alla som vågen har passerat, inom ringen
         if (!f.hitDone && pd < wr + 16 && pd <= f.R + 10) { f.hitDone = true; hurtPlayer(f.dmg); }
       }
+      else if (f.k === 'rock') { if (f.t <= 0) { sparks(f.x, f.y, '#9a9ea6', 10); addTrauma(0.15); sfx('hit'); if (Math.hypot(P.x - f.x, P.y - f.y) < 24) hurtPlayer(f.dmg); } }
+      else if (f.k === 'ice') { if (Math.hypot(P.x - f.x, P.y - f.y) < f.R) P.icy = 0.3; }
+      else if (f.k === 'fire') { if (Math.hypot(P.x - f.x, P.y - f.y) < 13) hurtPlayer(f.dmg); }
       return f.t > 0;
     });
   }
@@ -499,13 +541,14 @@
     trauma = Math.max(0, trauma - 1.3 * dt); shakeT += dt * 30;
     if (fade > 0) fade = Math.max(0, fade - dt * 2.2);
     if (confirmNew > 0) confirmNew = Math.max(0, confirmNew - dt);
+    if (stormT > 0) stormT = Math.max(0, stormT - dt);
     texts = texts.filter(function (t) { t.t += dt; t.y -= 32 * dt; t.x += t.vx * dt; return t.t < t.life; });
   }
 
   // på pekskärm finns ingen mus att sikta med: vänd dig mot närmaste monster inom räckhåll
   function aimNearest() {
     var best = null, bd = reach() * 1.8;
-    mons.forEach(function (m) { var d = dist(m, P); if (d < bd) { bd = d; best = m; } });
+    mons.forEach(function (m) { if (m.hidden) return; var d = dist(m, P); if (d < bd) { bd = d; best = m; } });
     if (best && bd > 0) { P.fx = (best.x - P.x) / bd; P.fy = (best.y - P.y) / bd; }
   }
 
@@ -521,40 +564,75 @@
     return true;
   }
   function updateBoss(m, dt, d) {
-    var B = C.boss; m.aiT -= dt;
+    var B = C.boss, Df = DF(), sp = m.speed * (m.phase2 ? 1.35 : 1);
+    if (bossIntro > 0) return;                                    // väntar medan namnet visas
+    m.aiT -= dt;
     var kx = m.kx, ky = m.ky; m.kx *= 0.8; m.ky *= 0.8;
+    if (m.kind === 'demon' && (m.ai === 'walk' || m.ai === 'charge')) {   // Lavaherren lämnar eld efter sig
+      m.fireT = (m.fireT || 0) - dt;
+      if (m.fireT <= 0) { m.fireT = m.ai === 'charge' ? 0.08 : 0.35; fx.push({ k: 'fire', x: m.x, y: m.y + m.r * 0.6, t: 3, life: 3, dmg: m.dmg * 0.3 }); }
+    }
     if (m.ai === 'walk') {
-      move(m, ((P.x - m.x) / d * m.speed + kx) * dt, ((P.y - m.y) / d * m.speed + ky) * dt);
-      if (m.aiT <= 0 && d < 380) {                              // välj attack, med varning först
-        m.ai = (d > 200 || Math.random() < 0.5) ? 'windCharge' : 'windSlam';
-        m.aiT = m.ai === 'windCharge' ? 0.75 : 0.85; m.dirx = (P.x - m.x) / d; m.diry = (P.y - m.y) / d;
+      move(m, ((P.x - m.x) / d * sp + kx) * dt, ((P.y - m.y) / d * sp + ky) * dt);
+      if (m.aiT <= 0 && d < 400) {                                // välj anfall, alltid med varning först
+        var opts = ['windCharge', 'windSlam'];
+        if (m.phase2) opts.push('windRain');
+        if (m.kind === 'scorpion') opts.push('burrow');
+        var pick = (d > 220 && m.kind !== 'scorpion') ? 'windCharge' : opts[Math.floor(Math.random() * opts.length)];
+        m.ai = pick; m.aiT = { windCharge: 0.75, windSlam: 0.85, windRain: 0.7, burrow: 0.5 }[pick] * Df.wind;
+        m.dirx = (P.x - m.x) / d; m.diry = (P.y - m.y) / d;
+        m.chain = m.kind === 'ape' ? (m.phase2 ? 3 : 2) : 0;       // Djungeljätten rusar flera gånger
       }
     } else if (m.ai === 'windCharge') {
-      m.dirx = (P.x - m.x) / d; m.diry = (P.y - m.y) / d;     // siktar tills den rusar
+      m.dirx = (P.x - m.x) / d; m.diry = (P.y - m.y) / d;
       if (m.aiT <= 0) { m.ai = 'charge'; m.aiT = 0.65; sfx('charge'); }
     } else if (m.ai === 'charge') {
-      var ox = m.x, oy = m.y; move(m, m.dirx * B.chargeSpeed * dt, m.diry * B.chargeSpeed * dt);
+      var cs = B.chargeSpeed * (m.phase2 ? 1.15 : 1), ox = m.x, oy = m.y;
+      move(m, m.dirx * cs * dt, m.diry * cs * dt);
       if (Math.random() < 0.5) sparks(m.x, m.y + m.r * 0.8, shade(biome.ground[0], -0.3), 1);
       var stuck = m.x === ox && m.y === oy;
-      if (stuck || m.aiT <= 0) {                                 // in i väggen: yr en stund
-        m.ai = 'stun'; m.aiT = stuck ? 1.4 : 0.5;
-        if (stuck) { addTrauma(0.4); sfx('slam'); }
+      if (stuck || m.aiT <= 0) {
+        if (!stuck && m.chain > 1) { m.chain--; m.ai = 'windCharge'; m.aiT = 0.35 * Df.wind; }
+        else { m.ai = 'stun'; m.aiT = stuck ? 1.4 : 0.5; if (stuck) { addTrauma(0.4); sfx('slam'); } }
       }
     } else if (m.ai === 'windSlam') {
       if (m.aiT <= 0) {
         m.ai = 'stun'; m.aiT = 0.7; addTrauma(0.6); sfx('slam');
         fx.push({ k: 'w', x: m.x, y: m.y + 6, t: 0.5, life: 0.5, R: B.slamRadius, hitDone: false, dmg: m.dmg * 0.8 });
+        if (m.kind === 'yeti') fx.push({ k: 'ice', x: m.x, y: m.y + 6, t: 5, life: 5, R: B.slamRadius * 0.9 });   // Isjätten fryser marken
       }
-    } else if (m.aiT <= 0) { m.ai = 'walk'; m.aiT = 2 + Math.random() * 1.5; }
-    if (d < m.r + P.r + 3 && m.cd <= 0 && hurtPlayer(m.ai === 'charge' ? m.dmg * 1.4 : m.dmg)) m.cd = 0.8;
-    if (!m.summoned && m.hp < m.maxHp / 2) {                    // kallar på hjälp vid halv hälsa
-      m.summoned = true; say(biome.boss + ' kallar på hjälp!'); sfx('summon');
-      for (var i = 0; i < B.minionsAtHalf; i++) {
+    } else if (m.ai === 'windRain') {                             // stenregn: skuggor visar var stenarna landar
+      if (m.aiT <= 0) {
+        m.ai = 'stun'; m.aiT = 0.9; sfx('summon');
+        var nRocks = 5 + (Df.minions - 3);
+        for (var ri = 0; ri < nRocks; ri++) {
+          var rx = ri === 0 ? P.x : clamp(P.x + (Math.random() - 0.5) * 220, TS * 1.5, LW - TS * 1.5);
+          var ry = ri === 0 ? P.y : clamp(P.y + (Math.random() - 0.5) * 160, TS * 1.5, LH - TS * 1.5);
+          fx.push({ k: 'rock', x: rx, y: ry, t: 1 + ri * 0.12, life: 1 + ri * 0.12, dmg: m.dmg * 0.6 });
+        }
+      }
+    } else if (m.ai === 'burrow') {                               // Sandkungen gräver ned sig
+      if (m.aiT <= 0) { m.ai = 'under'; m.aiT = 1.6; m.hidden = 1; sfx('charge'); }
+    } else if (m.ai === 'under') {
+      move(m, (P.x - m.x) / d * sp * 2.2 * dt, (P.y - m.y) / d * sp * 2.2 * dt);
+      if (Math.random() < 0.6) sparks(m.x, m.y + 6, '#d9b56a', 1);
+      if (m.aiT <= 0) { m.ai = 'emerge'; m.aiT = 0.7 * Df.wind; m.ex = P.x; m.ey = P.y; }
+    } else if (m.ai === 'emerge') {                               // dyker upp där spelaren stod
+      if (m.aiT <= 0) {
+        if (!blockedAt(m.ex, m.ey, m.r)) { m.x = m.ex; m.y = m.ey; }
+        m.hidden = 0; m.ai = 'stun'; m.aiT = 1; addTrauma(0.6); sfx('slam'); sparks(m.x, m.y, '#e2c07a', 24);
+        if (Math.hypot(P.x - m.x, P.y - m.y) < 46) hurtPlayer(m.dmg * 1.2);
+      }
+    } else if (m.aiT <= 0) { m.ai = 'walk'; m.aiT = (Df.gap[0] + Math.random() * (Df.gap[1] - Df.gap[0])) * (m.phase2 ? 0.7 : 1); }
+    if (!m.hidden && d < m.r + P.r + 3 && m.cd <= 0 && hurtPlayer(m.ai === 'charge' ? m.dmg * 1.4 : m.dmg)) m.cd = 0.8;
+    if (!m.phase2 && m.hp < m.maxHp / 2) {                        // andra fasen: snabbare, stenregn och hjälpare
+      m.phase2 = true; say(biome.boss + ' blir rasande och kallar på hjälp!'); sfx('summon'); addTrauma(0.5);
+      for (var i = 0; i < Df.minions + lapOf(level); i++) {
         var k = i % 2 ? 'bat' : 'slime', md = C.monsters[k], a = i * 2.1 + 0.5;
         var x = m.x + Math.cos(a) * 44, y = m.y + Math.sin(a) * 44;
         if (blockedAt(x, y, md.radius)) { x = m.x; y = m.y; }
-        var hp = md.hpBase + md.hpPerLevel * level * 0.6;
-        mons.push({ type: k, x: x, y: y, r: md.radius, hp: hp, maxHp: hp, dmg: md.dmgBase + md.dmgPerLevel * level * 0.6,
+        var hp = (md.hpBase + md.hpPerLevel * level * 0.6) * Df.mHp;
+        mons.push({ type: k, x: x, y: y, r: md.radius, hp: hp, maxHp: hp, dmg: (md.dmgBase + md.dmgPerLevel * level * 0.6) * Df.mDmg,
           speed: Math.min(md.maxSpeed, md.speed + md.speedPerLevel * level), cd: 0.5, kx: 0, ky: 0, hit: 0, pop: 0, ph: Math.random() * 6 });
         quota++; sparks(x, y, '#c9bfff', 12);
       }
@@ -566,7 +644,7 @@
     say(biome.boss + ' är besegrad!');
     function drop(t, x, y) { if (blockedAt(x, y, 4)) { x = m.x; y = m.y; } items.push({ t: t, x: x, y: y }); }
     for (var i = 0; i < C.boss.rewardOre; i++) { var a = i / C.boss.rewardOre * 6.283; drop('ore', m.x + Math.cos(a) * 26, m.y + Math.sin(a) * 26); }
-    drop('heart', m.x - 10, m.y); drop('crystal', m.x + 10, m.y);
+    drop('heart', m.x - 10, m.y); drop('crystal', m.x + 10, m.y); drop('moon', m.x, m.y + 14);
   }
   function spiderAI(m, dt, d) {                               // håller avstånd och skjuter nät
     var S = C.spider; if (d > S.range) return false;
@@ -591,9 +669,24 @@
     f.k = 'a'; f.life = f.t; fx.push(f);
   }
 
+  function castStorm() {                                     // blixtkraft: en laddning slår ned blixtar på alla monster
+    if (state !== 'play') return;
+    if (P.bolts <= 0) { say('Ingen blixtkraft. Hitta kristaller!'); sfx('deny'); return; }
+    P.bolts--; save();
+    var BP = C.boltPower, dmg = BP.damageBase + BP.damagePerLevel * level, hits = 0;
+    mons.forEach(function (m) {
+      if (m.hidden) return;
+      m.hp -= dmg; m.hit = 0.2; m.pop = 0; hits++;
+      bolt(m.x + (Math.random() - 0.5) * 40, -10, m.x, m.y, 3);
+      sparks(m.x, m.y, PAL.bolt, 10); floatText(m.x, m.y - m.r - 10, fmt(dmg), PAL.bolt);
+    });
+    stormT = 0.5; addTrauma(0.8); freeze(0.1); sfx('storm'); P.pu = 0.6;
+    say(hits ? 'Blixtstorm! ' + hits + ' träffar' : 'Blixtstorm!');
+  }
+
   function die() {
     state = 'dead'; deadAt = performance.now();
-    P.ore = Math.floor(P.ore / 2); save();
+    P.ore = Math.floor(P.ore * DF().keep); save();
     addTrauma(1); sparks(P.x, P.y, '#ffffff', 26); sfx('death');
   }
 
@@ -602,6 +695,7 @@
   var mapCv = document.createElement('canvas'), mg = mapCv.getContext('2d');
   var caveCv = document.createElement('canvas'), cg = caveCv.getContext('2d');
   var lightCv = document.createElement('canvas'), lg = lightCv.getContext('2d');
+  var canCv = document.createElement('canvas'), ng = canCv.getContext('2d');   // djungelns lövtak
   var oreTiles = [], smeltPos = null, exitPos = null;
 
   function resize() {
@@ -619,7 +713,7 @@
   // ---------- kartan ritas en gång per nivå ----------
   function renderMapCache() {
     var pw = Math.round(LW * RS), ph = Math.round(LH * RS), x, y;
-    [mapCv, caveCv, lightCv].forEach(function (c) { if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; } });
+    [mapCv, caveCv, lightCv, canCv].forEach(function (c) { if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; } });
     mg.setTransform(RS, 0, 0, RS, 0, 0); mg.clearRect(0, 0, LW, LH);
     oreTiles = []; smeltPos = null; exitPos = null;
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) drawGround(mg, x, y);
@@ -635,9 +729,33 @@
     cg.setTransform(1, 0, 0, 1, 0, 0); cg.clearRect(0, 0, pw, ph);
     cg.setTransform(RS, 0, 0, RS, 0, 0);
     cg.filter = 'blur(' + Math.round(9 * RS) + 'px)';
-    cg.fillStyle = 'rgba(6,7,18,0.86)';
+    cg.fillStyle = 'rgba(6,7,18,' + CAVE_DARK[biome.i] + ')';
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (isCave[y][x]) cg.fillRect(x * TS - 3, y * TS - 3, TS + 6, TS + 6);
     cg.filter = 'none';
+    ng.setTransform(1, 0, 0, 1, 0, 0); ng.clearRect(0, 0, pw, ph);
+    if (biome.canopy) {                                          // skugga från trädkronor med ljusfläckar och lianer
+      ng.setTransform(RS, 0, 0, RS, 0, 0);
+      ng.fillStyle = 'rgba(6,34,10,0.34)'; ng.fillRect(0, 0, LW, LH);
+      ng.globalCompositeOperation = 'destination-out';
+      for (var ci = 0; ci < 28; ci++) {
+        var lx = hash(ci, 3, 300) * LW, ly = hash(ci, 5, 301) * LH, lr = 30 + hash(ci, 7, 302) * 55;
+        var lgr = ng.createRadialGradient(lx, ly, lr * 0.2, lx, ly, lr); lgr.addColorStop(0, 'rgba(0,0,0,0.9)'); lgr.addColorStop(1, 'rgba(0,0,0,0)');
+        ng.fillStyle = lgr; ng.beginPath(); ng.arc(lx, ly, lr, 0, 7); ng.fill();
+      }
+      ng.globalCompositeOperation = 'source-over';
+      for (ci = 0; ci < 20; ci++) {
+        var vx = hash(ci, 9, 303) * LW, vl = 24 + hash(ci, 11, 304) * 70;
+        ng.strokeStyle = '#1f5a22'; ng.lineWidth = 2; ng.beginPath(); ng.moveTo(vx, 0); ng.quadraticCurveTo(vx + 8, vl * 0.5, vx, vl); ng.stroke();
+        ng.fillStyle = '#2f7a2a'; for (var lf = 8; lf < vl; lf += 10) { ng.beginPath(); ng.ellipse(vx + (lf % 20 ? 4 : -4), lf, 4.5, 2, lf % 20 ? 0.6 : -0.6, 0, 7); ng.fill(); }
+      }
+      for (ci = 0; ci < 14; ci++) {                              // stora blad längs kanterna
+        var side = ci % 4, bx2 = side === 0 ? hash(ci, 1, 305) * LW : side === 1 ? hash(ci, 1, 305) * LW : side === 2 ? 0 : LW;
+        var by2 = side === 0 ? 0 : side === 1 ? LH : hash(ci, 2, 306) * LH, ba = Math.atan2(LH / 2 - by2, LW / 2 - bx2);
+        ng.save(); ng.translate(bx2, by2); ng.rotate(ba);
+        ng.fillStyle = ci % 2 ? '#1c4f1f' : '#2a6a28'; ng.beginPath(); ng.ellipse(22, 0, 26, 9, 0, 0, 7); ng.fill();
+        ng.strokeStyle = 'rgba(120,200,100,0.35)'; ng.lineWidth = 1; ng.beginPath(); ng.moveTo(0, 0); ng.lineTo(46, 0); ng.stroke(); ng.restore();
+      }
+    }
     mapDirty = false;
   }
 
@@ -667,6 +785,11 @@
       c.fillStyle = biome.flowers[Math.floor(hash(x, y, 73) * biome.flowers.length)];
       for (i = 0; i < 5; i++) { c.beginPath(); c.arc(fx_ + Math.cos(i * 1.257) * 2, fy_ + Math.sin(i * 1.257) * 2, 1.4, 0, 7); c.fill(); }
       c.fillStyle = '#e0a020'; c.beginPath(); c.arc(fx_, fy_, 1.1, 0, 7); c.fill();
+    }
+    if (biome.canopy && hash(x, y, 77) < 0.16) {               // ormbunkar i djungeln
+      var fxb = px + 6 + hash(x, y, 78) * 20, fyb = py + 20 + hash(x, y, 79) * 8;
+      c.strokeStyle = '#1d5a1f'; c.lineWidth = 1.6; c.lineCap = 'round';
+      for (i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(fxb, fyb); c.quadraticCurveTo(fxb + i * 4, fyb - 10, fxb + i * 7, fyb - 12 + Math.abs(i) * 3); c.stroke(); }
     }
     if (biome.cracks && hash(x, y, 74) < 0.16) {           // glödande sprickor i lavalandet
       var kx = px + 4 + hash(x, y, 75) * 22, ky = py + 4 + hash(x, y, 76) * 20;
@@ -792,6 +915,12 @@
     });
     if (smeltPos) {
       var fxp = smeltPos.x, fyp = smeltPos.y + 8;
+      if (state === 'play' && canBuyAny()) {                    // ugnen visar ! när du har råd med något
+        var ey2 = smeltPos.y - 36 + Math.sin(time * 5) * 3;
+        g.save(); g.globalCompositeOperation = 'lighter'; glow(smeltPos.x, ey2, 18, '255,225,77', 0.4); g.restore();
+        g.fillStyle = PAL.bolt; g.beginPath(); g.arc(smeltPos.x, ey2, 9, 0, 7); g.fill();
+        g.fillStyle = '#1a2a1a'; g.font = 'bold 14px ' + TXT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('!', smeltPos.x, ey2 + 1); g.textAlign = 'left';
+      }
       for (i = 0; i < 4; i++) {
         var fl = Math.sin(time * 13 + i * 2.1) * 1.5, h = 7 + Math.sin(time * 9 + i) * 2;
         g.fillStyle = ['#ff6a1a', '#ff9a2a', '#ffd36a', '#fff3b0'][i];
@@ -906,6 +1035,27 @@
     }
   }
 
+  // Rustningen växer: 1 bröstplåt, 2 axelskydd, 3 hjälm, 4 blått stål med plym, 5 guld som glimmar
+  function drawArmor() {
+    var a = P.armor; if (a <= 0) return;
+    var bob = P.moving ? Math.abs(Math.cos(P.walk)) * 1.2 : 0, x = P.x, y = P.y - bob;
+    var col = a >= 5 ? '#ffd23f' : a >= 4 ? '#8fb8e8' : '#b4bcc8', dark = a >= 5 ? '#9a7410' : a >= 4 ? '#3f6a9a' : '#5f6774';
+    g.lineJoin = 'round'; g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(x - 5, y - 9); g.lineTo(x + 5, y - 9); g.lineTo(x + 4, y + 1); g.quadraticCurveTo(x, y + 4, x - 4, y + 1); g.closePath();
+    g.fillStyle = col; g.fill(); g.strokeStyle = dark; g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.moveTo(x - 2.5, y - 7); g.lineTo(x - 2.5, y - 1); g.stroke();
+    if (a >= 2) for (var s = -1; s <= 1; s += 2) {
+      g.beginPath(); g.ellipse(x + s * 5.5, y - 8, 3.4, 2.6, 0, Math.PI, 0); g.closePath(); g.fillStyle = col; g.fill(); g.strokeStyle = dark; g.stroke();
+    }
+    if (a >= 3) {
+      g.beginPath(); g.arc(x, y - 14, 6.3, Math.PI * 1.02, Math.PI * 1.98); g.lineTo(x + 6.3, y - 13); g.lineTo(x - 6.3, y - 13); g.closePath();
+      g.fillStyle = col; g.fill(); g.strokeStyle = dark; g.stroke();
+      g.fillStyle = dark; g.fillRect(x - 0.8, y - 14, 1.6, 4);
+      if (a >= 4) { g.fillStyle = a >= 5 ? '#ff4d6a' : '#e8eef5'; g.beginPath(); g.moveTo(x, y - 20); g.quadraticCurveTo(x + 5, y - 26, x + 1, y - 27); g.quadraticCurveTo(x - 2, y - 24, x, y - 20); g.fill(); }
+    }
+    if (a >= 5) { g.save(); g.globalCompositeOperation = 'lighter'; glow(x, y - 6, 18, '255,210,80', 0.12 + 0.08 * Math.sin(time * 4)); g.restore(); }
+  }
+
   function drawPlayer() {
     var pw = power(), armed;
     if (P.sword === 0) armed = { len: 20 };
@@ -931,10 +1081,7 @@
       g.restore();
     }
     stick(P.x, P.y, P.fx, P.fy, P.swing, armed, P.walk, P.moving);
-    if (P.armor > 0) {                                         // rustning på bröstet
-      g.strokeStyle = P.armor >= 5 ? '#ffd23f' : P.armor >= 3 ? '#8fd3ff' : '#9aa3b0'; g.lineWidth = 4.5; g.lineCap = 'round';
-      g.beginPath(); g.moveTo(P.x, P.y - 8); g.lineTo(P.x, P.y + 1); g.stroke();
-    }
+    drawArmor();
     if (P.slow > 0) {                                          // fast i nät
       g.save(); g.globalAlpha = Math.min(1, P.slow); g.strokeStyle = 'rgba(235,235,245,0.85)'; g.lineWidth = 1;
       for (var wi = 0; wi < 5; wi++) { var wa = wi * 1.26; g.beginPath(); g.moveTo(P.x + Math.cos(wa) * 14, P.y - 2 + Math.sin(wa) * 14); g.lineTo(P.x - Math.cos(wa) * 14, P.y - 2 - Math.sin(wa) * 14); g.stroke(); }
@@ -958,8 +1105,9 @@
       if (k < 1) { sx = 1.3 + (1 - 1.3) * e; sy = 0.7 + (1 - 0.7) * e; }
       var fly = (m.type === 'bat' || m.type === 'ghost') ? 6 + Math.sin(time * 4 + m.ph) * 2 : 0;
       shadow(m.x, m.y + m.r * 0.85 + (fly ? 4 : 0), m.r * (fly ? 0.7 : 1), fly ? 0.2 : 0.3);
+      if (m.elite) { g.save(); g.globalCompositeOperation = 'lighter'; glow(m.x, m.y - fly, m.r * 2.2, '200,120,255', 0.32 + 0.1 * Math.sin(time * 5 + m.ph)); g.restore(); }
       g.save(); g.translate(m.x, m.y + m.r); g.scale(sx, sy); g.translate(-m.x, -(m.y + m.r) - fly);
-      if (m.type === 'slime') {
+      if (m.type === 'boss') { drawBoss(m, white); } else if (m.type === 'slime') {
         var wob = 0.8 + 0.1 * Math.sin(time * 6 + m.ph), r = m.r, cy = m.y + 2;
         var gr = g.createRadialGradient(m.x - r * 0.4, cy - r * 0.5, 1, m.x, cy, r * 1.2);
         gr.addColorStop(0, shade(col, 0.45)); gr.addColorStop(1, shade(col, -0.3));
@@ -1008,7 +1156,7 @@
         g.fillStyle = shade(d.color, -0.25); g.strokeStyle = shade(d.color, -0.65); g.lineWidth = 1.6;
         g.beginPath(); g.arc(m.x - r2 - 2, m.y + 3 + arm, 5, 0, 7); g.fill(); g.stroke();
         g.beginPath(); g.arc(m.x + r2 + 2, m.y + 3 - arm, 5, 0, 7); g.fill(); g.stroke();
-        rr(g, m.x - r2, m.y - r2, r2 * 2, r2 * 2, 7);
+        g.beginPath(); g.ellipse(m.x, m.y + 1, r2 * 1.05, r2 * 0.95, 0, 0, 7);   // rund kropp, ingen låda
         var bg = g.createLinearGradient(0, m.y - r2, 0, m.y + r2); bg.addColorStop(0, shade(col, 0.25)); bg.addColorStop(1, shade(col, -0.35));
         g.fillStyle = bg; g.fill(); g.stroke();
         g.fillStyle = '#efe3c4'; [-1, 1].forEach(function (s) {           // horn
@@ -1066,6 +1214,7 @@
         g.fillStyle = hg; g.fill(); g.strokeStyle = '#6a0a1c'; g.lineWidth = 1.3; g.stroke();
         g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.ellipse(it.x - 4, it.y + bob - 4, 2.2, 1.3, -0.6, 0, 7); g.fill();
       } else if (it.t === 'ore') iconOre(it.x, it.y + bob);
+      else if (it.t === 'moon') moonShape(it.x, it.y + bob, 1);
       else crystalShape(it.x, it.y + bob, 1);
     });
   }
@@ -1078,25 +1227,181 @@
     });
   }
   function drawBossExtras(m) {
-    var cy0 = m.y - m.r - 6;                                   // krona
-    g.fillStyle = '#ffd23f'; g.strokeStyle = '#7a5a10'; g.lineWidth = 1.5;
-    g.beginPath(); g.moveTo(m.x - 12, cy0 + 6); g.lineTo(m.x - 12, cy0 - 4); g.lineTo(m.x - 6, cy0 + 1); g.lineTo(m.x, cy0 - 7);
-    g.lineTo(m.x + 6, cy0 + 1); g.lineTo(m.x + 12, cy0 - 4); g.lineTo(m.x + 12, cy0 + 6); g.closePath(); g.fill(); g.stroke();
+    var top = m.y - m.r * 1.65;
+    if (m.phase2 && !m.hidden) { g.save(); g.globalCompositeOperation = 'lighter'; glow(m.x, m.y, m.r * 2.2, '255,60,40', 0.12 + 0.06 * Math.sin(time * 6)); g.restore(); }
     if (m.ai === 'windCharge') {                               // varning: rusar längs linjen
       g.save(); g.setLineDash([8, 6]); g.strokeStyle = 'rgba(255,60,60,' + (0.5 + 0.4 * Math.sin(time * 20)) + ')'; g.lineWidth = 3;
       g.beginPath(); g.moveTo(m.x, m.y); g.lineTo(m.x + m.dirx * 220, m.y + m.diry * 220); g.stroke(); g.restore();
     } else if (m.ai === 'windSlam') {                          // varning: chockvåg inom ringen
-      var k2 = clamp(1 - m.aiT / 0.85, 0, 1);
+      var k2 = clamp(1 - m.aiT / (0.85 * DF().wind), 0, 1);
       g.save(); g.setLineDash([10, 8]); g.strokeStyle = 'rgba(255,60,60,0.75)'; g.lineWidth = 3;
       g.beginPath(); g.arc(m.x, m.y + 6, C.boss.slamRadius, 0, 7); g.stroke(); g.restore();
       g.fillStyle = 'rgba(255,60,60,' + (0.14 * k2) + ')'; g.beginPath(); g.arc(m.x, m.y + 6, C.boss.slamRadius * k2, 0, 7); g.fill();
+    } else if (m.ai === 'emerge') {                            // varning: Sandkungen dyker upp här
+      g.save(); g.setLineDash([6, 5]); g.strokeStyle = 'rgba(255,60,60,' + (0.6 + 0.3 * Math.sin(time * 18)) + ')'; g.lineWidth = 3;
+      g.beginPath(); g.arc(m.ex, m.ey, 46, 0, 7); g.stroke(); g.restore();
     } else if (m.ai === 'stun') {                              // yr
-      for (var i = 0; i < 3; i++) { var a = time * 5 + i * 2.1; g.fillStyle = PAL.bolt; g.beginPath(); g.arc(m.x + Math.cos(a) * 14, cy0 - 8 + Math.sin(a) * 4, 2.2, 0, 7); g.fill(); }
+      for (var i = 0; i < 3; i++) { var a = time * 5 + i * 2.1; g.fillStyle = PAL.bolt; g.beginPath(); g.arc(m.x + Math.cos(a) * 16, top + Math.sin(a) * 5, 2.4, 0, 7); g.fill(); }
     }
+  }
+  function rockShape(cx, cy, rw, rh, light, dark, seed) {
+    g.beginPath();
+    for (var i = 0; i < 8; i++) { var a = i / 8 * 6.283, kk = 0.82 + hash(seed, i, 400) * 0.26, px = cx + Math.cos(a) * rw * kk, py = cy + Math.sin(a) * rh * kk; if (i) g.lineTo(px, py); else g.moveTo(px, py); }
+    g.closePath();
+    var gr = g.createLinearGradient(cx, cy - rh, cx, cy + rh); gr.addColorStop(0, light); gr.addColorStop(1, dark);
+    g.fillStyle = gr; g.fill(); g.strokeStyle = 'rgba(15,15,25,0.6)'; g.lineWidth = 1.5; g.stroke();
+  }
+  function furBlob(cx, cy, r, c1, c2) {
+    g.beginPath();
+    for (var i = 0; i < 18; i++) { var a = i / 18 * 6.283, r2 = r * (i % 2 ? 0.86 : 1.06), px = cx + Math.cos(a) * r2, py = cy + Math.sin(a) * r2; if (i) g.lineTo(px, py); else g.moveTo(px, py); }
+    g.closePath();
+    var gr = g.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 1, cx, cy, r); gr.addColorStop(0, c1); gr.addColorStop(1, c2);
+    g.fillStyle = gr; g.fill(); g.strokeStyle = 'rgba(90,110,140,0.6)'; g.lineWidth = 1.2; g.stroke();
+  }
+  function bossEyes(cx, cy, gap, r, rgb) {
+    g.save(); g.globalCompositeOperation = 'lighter';
+    [-1, 1].forEach(function (s) { glow(cx + s * gap, cy, r * 3.2, rgb, 0.5); g.fillStyle = 'rgba(' + rgb + ',1)'; g.beginPath(); g.arc(cx + s * gap, cy, r, 0, 7); g.fill(); });
+    g.restore();
+  }
+  // Varje boss har en egen form: stengolem, gorilla, skorpion, yeti och lavademon.
+  function drawBoss(m, white) {
+    var k = m.kind, R = m.r * 1.3, t = time + m.ph, i, s;
+    var look = Math.atan2(P.y - m.y, P.x - m.x), lx = Math.cos(look), ly = Math.sin(look);
+    var up = (m.ai === 'windSlam' || m.ai === 'windRain') ? 1 : 0, lean = (m.ai === 'windCharge' || m.ai === 'charge') ? 1 : 0, dizzy = m.ai === 'stun' ? 1 : 0;
+    var rage = m.phase2 ? 1 : 0, br = 1 + Math.sin(t * 2.4) * 0.03;
+    function W_(c) { return white ? '#ffffff' : c; }
+    if (m.hidden) {                                             // en sandhög som rör sig
+      g.fillStyle = '#d9b56a'; g.beginPath(); g.ellipse(m.x, m.y + 6, R * 0.75, R * 0.38, 0, Math.PI, 0); g.fill();
+      g.fillStyle = '#c49a52'; for (i = 0; i < 4; i++) { g.beginPath(); g.arc(m.x - R * 0.4 + i * R * 0.27, m.y + 6 - Math.abs(Math.sin(t * 8 + i)) * 4, 3, 0, 7); g.fill(); }
+      return;
+    }
+    g.save(); g.translate(m.x + lx * lean * 5, m.y + dizzy * 3); g.scale(br, 2 - br);
+    if (k === 'golem') {
+      var st = W_('#9a9da6'), sd = W_('#5b5e66');
+      var armY = up ? -R * 0.95 : R * 0.1 + Math.sin(t * 3) * 2;
+      for (s = -1; s <= 1; s += 2) rockShape(s * R * 0.95, armY, R * 0.36, R * 0.32, st, sd, 7 + s);
+      rockShape(0, R * 0.15, R * 0.8, R * 0.7, st, sd, 1);
+      rockShape(-R * 0.35, -R * 0.32, R * 0.45, R * 0.4, st, sd, 2);
+      rockShape(R * 0.38, -R * 0.28, R * 0.42, R * 0.38, st, sd, 3);
+      rockShape(0, -R * 0.62, R * 0.42, R * 0.36, st, sd, 4);
+      g.fillStyle = W_('#5f8f3a'); g.beginPath(); g.ellipse(-R * 0.3, R * 0.05, R * 0.25, R * 0.12, 0.3, 0, 7); g.ellipse(R * 0.35, -R * 0.45, R * 0.18, R * 0.09, -0.4, 0, 7); g.fill();
+      if (rage) {
+        g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = 'rgba(255,140,40,' + (0.6 + 0.3 * Math.sin(t * 8)) + ')'; g.lineWidth = 2.2;
+        g.beginPath(); g.moveTo(-R * 0.2, -R * 0.1); g.lineTo(0, R * 0.2); g.lineTo(R * 0.25, R * 0.05); g.moveTo(0, R * 0.2); g.lineTo(-R * 0.1, R * 0.5); g.stroke(); g.restore();
+      }
+      g.fillStyle = W_('#757880');
+      [-1, 0, 1].forEach(function (q) { g.beginPath(); g.moveTo(q * R * 0.22 - R * 0.09, -R * 0.9); g.lineTo(q * R * 0.22, -R * 1.18 - (q ? 0 : R * 0.1)); g.lineTo(q * R * 0.22 + R * 0.09, -R * 0.9); g.closePath(); g.fill(); });
+      bossEyes(lx * 2, -R * 0.64 + ly * 1.5, R * 0.16, R * 0.08, rage ? '255,80,60' : '255,220,90');
+    } else if (k === 'ape') {
+      var fur = W_('#5a4130'), furD = W_('#33241a'), skin = W_('#a08a6a');   // brun päls syns mot djungelns gröna mark
+      for (s = -1; s <= 1; s += 2) {
+        var hx = s * R * (up ? 0.7 : 1.0), hy = up ? -R * 1.05 : R * 0.75 + Math.sin(t * 6 + s) * 2;
+        g.strokeStyle = fur; g.lineWidth = R * 0.32; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(s * R * 0.55, -R * 0.35); g.quadraticCurveTo(s * R * 1.05, -R * 0.1, hx, hy); g.stroke();
+        g.fillStyle = furD; g.beginPath(); g.arc(hx, hy, R * 0.2, 0, 7); g.fill();
+      }
+      g.fillStyle = fur; g.beginPath(); g.ellipse(0, R * 0.05, R * 0.78, R * 0.72, 0, 0, 7); g.fill();
+      g.fillStyle = skin; g.beginPath(); g.ellipse(0, R * 0.15, R * 0.42, R * 0.38, 0, 0, 7); g.fill();
+      for (i = 0; i < 9; i++) {                                 // man av löv
+        var la = Math.PI * (1.05 + i * 0.1);
+        g.fillStyle = W_(i % 2 ? '#2f7a2a' : '#4f9a3c'); g.beginPath(); g.ellipse(Math.cos(la) * R * 0.78, -R * 0.2 + Math.sin(la) * R * 0.62, R * 0.2, R * 0.09, la, 0, 7); g.fill();
+      }
+      g.fillStyle = fur; g.beginPath(); g.arc(0, -R * 0.62, R * 0.36, 0, 7); g.fill();
+      g.fillStyle = skin; g.beginPath(); g.ellipse(lx * 2, -R * 0.55 + ly, R * 0.24, R * 0.2, 0, 0, 7); g.fill();
+      bossEyes(lx * 2, -R * 0.66 + ly, R * 0.11, R * 0.06, rage ? '255,70,50' : '150,255,110');
+      g.fillStyle = W_('#1a1a12'); g.fillRect(lx * 2 - R * 0.1, -R * 0.48 + ly, R * 0.2, 2);
+    } else if (k === 'scorpion') {
+      var sh = W_('#c98a3a'), shD = W_('#7a4f1c');
+      g.rotate(look);
+      g.strokeStyle = shD; g.lineWidth = 2.4; g.lineCap = 'round';
+      for (i = 0; i < 3; i++) for (s = -1; s <= 1; s += 2) {
+        var bx = -R * 0.25 + i * R * 0.25, wg = Math.sin(t * 12 + i * 2 + s) * 3;
+        g.beginPath(); g.moveTo(bx, s * R * 0.3); g.lineTo(bx - 4 + wg, s * R * 0.75); g.lineTo(bx - 8 + wg, s * R * 0.95); g.stroke();
+      }
+      for (s = -1; s <= 1; s += 2) {
+        var opn = (up || lean) ? 0.55 : 0.2 + 0.1 * Math.sin(t * 4);
+        g.strokeStyle = sh; g.lineWidth = 4; g.beginPath(); g.moveTo(R * 0.4, s * R * 0.25); g.lineTo(R * 0.85, s * R * 0.45); g.stroke();
+        g.fillStyle = sh; g.beginPath(); g.ellipse(R * 1.0, s * R * 0.45, R * 0.24, R * 0.14, s * opn, 0, 7); g.fill(); g.strokeStyle = shD; g.lineWidth = 1.2; g.stroke();
+      }
+      for (i = 0; i < 3; i++) { g.fillStyle = i % 2 ? shD : sh; g.beginPath(); g.ellipse(R * 0.25 - i * R * 0.33, 0, R * 0.3, R * (0.36 - i * 0.04), 0, 0, 7); g.fill(); }
+      for (i = 0; i < 6; i++) {                                 // svansen böjer sig över ryggen
+        var th = Math.PI * (1 + i * 0.17) + Math.sin(t * 3) * 0.05 * (lean ? 0 : 1);
+        var tx = -R * 0.45 + Math.cos(th) * R * 0.55, ty = Math.sin(th) * R * 0.38 - i * R * 0.03;
+        g.fillStyle = i % 2 ? shD : sh; g.beginPath(); g.arc(tx, ty, R * (0.2 - i * 0.02), 0, 7); g.fill();
+        if (i === 5) { g.fillStyle = W_('#3a2a1a'); g.beginPath(); g.moveTo(tx + R * 0.08, ty); g.lineTo(tx + R * 0.36, ty + R * 0.12); g.lineTo(tx + R * 0.06, ty + R * 0.16); g.closePath(); g.fill(); }
+      }
+      if (rage) bossEyes(R * 0.52, 0, R * 0.1, R * 0.05, '255,70,50');
+      else { g.fillStyle = '#1a0f08'; g.beginPath(); g.arc(R * 0.52, -R * 0.1, R * 0.05, 0, 7); g.arc(R * 0.52, R * 0.1, R * 0.05, 0, 7); g.fill(); }
+    } else if (k === 'yeti') {
+      var fW = W_('#f2f6fb'), fS = W_('#c8d6e6');
+      for (s = -1; s <= 1; s += 2) furBlob(s * R * 0.95, up ? -R * 0.95 : R * 0.35 + Math.sin(t * 4 + s) * 2, R * 0.3, fW, fS);
+      furBlob(0, R * 0.05, R * 0.82, fW, fS);
+      furBlob(0, -R * 0.55, R * 0.42, fW, fS);
+      g.fillStyle = W_('#6f9bd1'); g.beginPath(); g.ellipse(lx * 2, -R * 0.5 + ly, R * 0.26, R * 0.22, 0, 0, 7); g.fill();
+      g.fillStyle = W_('#bfe6ff');
+      for (s = -1; s <= 1; s += 2) { g.beginPath(); g.moveTo(s * R * 0.2, -R * 0.85); g.lineTo(s * R * 0.48, -R * 1.25); g.lineTo(s * R * 0.36, -R * 0.82); g.closePath(); g.fill(); }
+      bossEyes(lx * 2, -R * 0.56 + ly, R * 0.1, R * 0.05, rage ? '255,70,50' : '210,245,255');
+      g.fillStyle = W_('#2a3a5a'); g.beginPath(); g.arc(lx * 2, -R * 0.42 + ly, R * 0.08, 0, Math.PI); g.fill();
+    } else {
+      var bas = W_('#2a1f22'), basL = W_('#4d3c3c');
+      for (s = -1; s <= 1; s += 2) rockShape(s * R * 0.95, up ? -R * 0.95 : R * 0.25 + Math.sin(t * 5 + s) * 2, R * 0.3, R * 0.28, basL, bas, 20 + s);
+      rockShape(0, R * 0.05, R * 0.8, R * 0.75, basL, bas, 21);
+      rockShape(0, -R * 0.6, R * 0.4, R * 0.36, basL, bas, 22);
+      g.save(); g.globalCompositeOperation = 'lighter';
+      g.strokeStyle = 'rgba(255,120,30,' + (0.75 + 0.2 * Math.sin(t * 6)) + ')'; g.lineWidth = rage ? 3 : 2;
+      g.beginPath(); g.moveTo(-R * 0.4, -R * 0.2); g.lineTo(-R * 0.1, R * 0.1); g.lineTo(-R * 0.25, R * 0.5); g.moveTo(-R * 0.1, R * 0.1); g.lineTo(R * 0.3, 0); g.lineTo(R * 0.45, R * 0.4); g.stroke();
+      for (i = 0; i < 5; i++) {                                 // flammande krona
+        var fx2 = (i - 2) * R * 0.16, fh = R * (0.35 + 0.15 * Math.sin(t * 10 + i * 1.7)) * (rage ? 1.3 : 1);
+        g.fillStyle = i % 2 ? 'rgba(255,200,60,0.9)' : 'rgba(255,110,30,0.9)';
+        g.beginPath(); g.moveTo(fx2 - R * 0.1, -R * 0.85); g.quadraticCurveTo(fx2, -R * 0.85 - fh * 1.2, fx2 + R * 0.1, -R * 0.85); g.closePath(); g.fill();
+      }
+      g.restore();
+      bossEyes(lx * 2, -R * 0.62 + ly, R * 0.11, R * 0.06, '255,230,120');
+    }
+    g.restore();
+  }
+  function drawGroundFx() {                                     // is, eld och stenregnets skuggor ligger under figurerna
+    fx.forEach(function (f) {
+      if (f.k === 'ice') {
+        var ia = Math.min(1, f.t);
+        g.fillStyle = 'rgba(190,230,255,' + 0.45 * ia + ')'; g.beginPath(); g.arc(f.x, f.y, f.R, 0, 7); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,' + 0.7 * ia + ')'; g.lineWidth = 1.2; g.beginPath();
+        for (var i = 0; i < 6; i++) { var an = i * 1.05; g.moveTo(f.x, f.y); g.lineTo(f.x + Math.cos(an) * f.R * 0.8, f.y + Math.sin(an) * f.R * 0.8); }
+        g.stroke();
+      } else if (f.k === 'fire') {
+        var fa = Math.min(1, f.t / 0.6), fl = 6 + Math.sin(time * 15 + f.x) * 2;
+        g.save(); g.globalCompositeOperation = 'lighter'; glow(f.x, f.y, 16, '255,120,30', 0.4 * fa);
+        g.fillStyle = 'rgba(255,170,50,' + 0.9 * fa + ')'; g.beginPath(); g.moveTo(f.x - 5, f.y); g.quadraticCurveTo(f.x, f.y - fl * 2, f.x + 5, f.y); g.closePath(); g.fill(); g.restore();
+      } else if (f.k === 'rock') {
+        var rk = 1 - f.t / f.life;
+        g.fillStyle = 'rgba(0,0,0,' + (0.15 + 0.35 * rk) + ')'; g.beginPath(); g.ellipse(f.x, f.y, 6 + 14 * rk, (6 + 14 * rk) * 0.5, 0, 0, 7); g.fill();
+        g.strokeStyle = 'rgba(255,60,60,0.55)'; g.lineWidth = 1.5; g.beginPath(); g.arc(f.x, f.y, 22, 0, 7); g.stroke();
+      }
+    });
+  }
+  function drawRock(f) { var k = f.t / f.life; rockShape(f.x, f.y - k * k * 240 - 6, 9, 8, biome.stone[0], biome.stone[1], 50); }
+  function drawBossIntro() {                                    // bossens namn glider in
+    var k = bossIntro / 2.4, slide = k > 0.83 ? (1 - k) / 0.17 : 1, a = k < 0.17 ? k / 0.17 : 1;
+    g.save(); g.globalAlpha = a;
+    g.fillStyle = 'rgba(10,6,6,0.7)'; g.fillRect(0, LH / 2 - 62, LW, 124);
+    var x = LW / 2 - (1 - easeOutCubic(slide)) * LW * 0.6;
+    chalkTitle(biome.boss, x, LH / 2 - 8, 58);
+    g.font = 'bold 17px ' + TXT; g.fillStyle = '#ff8a7a'; g.textAlign = 'center'; g.fillText('Boss i ' + biome.name, x, LH / 2 + 38);
+    g.restore(); g.textAlign = 'left';
+  }
+
+  function moonShape(x, y, sc) {                                // månsten
+    g.save(); g.globalCompositeOperation = 'lighter'; glow(x, y, 16 * sc, '170,210,255', 0.35); g.restore();
+    g.beginPath(); g.moveTo(x, y - 8 * sc); g.lineTo(x + 6 * sc, y - 2 * sc); g.lineTo(x + 4 * sc, y + 7 * sc); g.lineTo(x - 4 * sc, y + 7 * sc); g.lineTo(x - 6 * sc, y - 2 * sc); g.closePath();
+    g.fillStyle = '#dcecff'; g.fill(); g.strokeStyle = '#6a8fc0'; g.lineWidth = 1.2; g.stroke();
+    g.fillStyle = '#9fc2ee'; g.beginPath(); g.arc(x + sc, y + sc, 2.8 * sc, 0, 7); g.fill();
+    g.fillStyle = '#dcecff'; g.beginPath(); g.arc(x + 2.3 * sc, y + 0.2 * sc, 2.3 * sc, 0, 7); g.fill();
   }
 
   function drawFx() {
     fx.forEach(function (f) {
+      if (f.k === 'ice' || f.k === 'fire') return;                // ritas i drawGroundFx
+      if (f.k === 'rock') { drawRock(f); return; }
       if (f.k === 'p') {
         var k = Math.max(0, f.t / f.life);
         g.globalAlpha = Math.min(1, k * 1.6); g.fillStyle = f.col;
@@ -1153,16 +1458,42 @@
     g.fillStyle = '#1a2a1a'; g.beginPath(); g.arc(x - 2.3, y - 1, 1.6, 0, 7); g.arc(x + 2.3, y - 1, 1.6, 0, 7); g.fill();
   }
 
+  function drawHeart(cx, cy, s, full) {                        // blankt hjärta med glans och kontur, fylls efter hälsa
+    heartPath(g, cx, cy, s); g.fillStyle = '#3a1018'; g.fill();
+    if (full > 0) {
+      g.save(); heartPath(g, cx, cy, s); g.clip();
+      var hg = g.createLinearGradient(0, cy - s, 0, cy + s); hg.addColorStop(0, '#ff8a9c'); hg.addColorStop(1, '#d6203f');
+      g.fillStyle = hg; g.fillRect(cx - s * 1.5, cy - s * 1.5, s * 3 * full, s * 3);
+      g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.ellipse(cx - s * 0.45, cy - s * 0.38, s * 0.28, s * 0.16, -0.6, 0, 7); g.fill();
+      g.restore();
+    }
+    heartPath(g, cx, cy, s); g.strokeStyle = '#5a0a1c'; g.lineWidth = 1.6; g.stroke();
+  }
+
   function drawHud() {
     g.textBaseline = 'middle';
     // hälsa
-    var n = P.hearts, hw = Math.min(22, 250 / n), hs = 8 * hw / 22, w1 = n * hw + 18;
-    tag(10, 8, w1, 30);
-    for (var i = 0; i < n; i++) {
-      var cx = 19 + hs + i * hw, full = clamp((P.hp - i * C.player.hpPerHeart) / C.player.hpPerHeart, 0, 1);
-      heartPath(g, cx, 23, hs); g.fillStyle = '#3a1018'; g.fill();
-      if (full > 0) { g.save(); heartPath(g, cx, 23, hs); g.clip(); g.fillStyle = PAL.heart; g.fillRect(cx - hs * 1.5, 0, hs * 3 * full, 40); g.restore(); }
-      heartPath(g, cx, 23, hs); g.strokeStyle = 'rgba(250,250,242,0.7)'; g.lineWidth = 1; g.stroke();
+    var n = P.hearts, hpc = C.player.hpPerHeart, low = state === 'play' && P.hp <= maxHp() * 0.3;
+    var beat = low ? 1 + 0.1 * Math.max(0, Math.sin(time * 9)) : 1, w1;
+    if (low) {                                                   // låg hälsa: röd kant som pulserar
+      var lv = g.createRadialGradient(LW / 2, LH / 2, LH * 0.35, LW / 2, LH / 2, LW * 0.7);
+      lv.addColorStop(0, 'rgba(255,0,0,0)'); lv.addColorStop(1, 'rgba(200,0,30,' + (0.16 + 0.1 * Math.sin(time * 9)) + ')');
+      g.fillStyle = lv; g.fillRect(0, 0, LW, LH);
+    }
+    if (n <= 10) {                                               // upp till 10 hjärtan, två rader om fem
+      var rows = n > 5 ? 2 : 1, cols = Math.min(n, 5), hs = 8.5, hw = 21;
+      w1 = cols * hw + 16; tag(10, 8, w1, rows === 2 ? 50 : 30);
+      for (var i = 0; i < n; i++) {
+        var hcx = 18 + hs + (i % 5) * hw, hcy = 23 + Math.floor(i / 5) * 20;
+        drawHeart(hcx, hcy, hs * beat, clamp((P.hp - i * hpc) / hpc, 0, 1));
+      }
+    } else {                                                     // fler än 10 (äldre sparningar): ett hjärta och en mätare
+      w1 = 200; tag(10, 8, w1, 30);
+      drawHeart(30, 23, 10 * beat, 1);
+      var hk = clamp(P.hp / maxHp(), 0, 1);
+      rr(g, 48, 17, 96, 12, 6); g.fillStyle = '#3a1018'; g.fill();
+      if (hk > 0) { rr(g, 48, 17, Math.max(12, 96 * hk), 12, 6); var hg2 = g.createLinearGradient(0, 17, 0, 29); hg2.addColorStop(0, '#ff8a9c'); hg2.addColorStop(1, '#d6203f'); g.fillStyle = hg2; g.fill(); }
+      g.font = 'bold 13px ' + TXT; g.fillStyle = PAL.chalk; g.fillText(Math.ceil(P.hp) + '/' + maxHp(), 150, 24);
     }
     // förråd
     var stats = [
@@ -1171,6 +1502,8 @@
       [function (x, y) { meatShape(x + 2, y, 0.6); }, String(P.meat), touchMode ? null : 'E'],
       [iconSword, P.sword ? 'nivå ' + P.sword : 'pinne']
     ];
+    if (P.moonEver || P.moon > 0) stats.splice(3, 0, [function (x, y) { moonShape(x, y, 0.62); }, String(P.moon)]);
+    stats.splice(1, 0, [function (x, y) { g.save(); g.translate(x, y); g.scale(0.55, 0.55); iconBolt(); g.restore(); }, P.bolts + '/' + C.boltPower.max, touchMode ? null : 'Q']);
     g.font = 'bold 15px ' + TXT;
     var x0 = 10 + w1 + 10, wStats = 14;
     stats.forEach(function (s) { wStats += 22 + g.measureText(s[1]).width + 16 + (s[2] ? 24 : 0); });
@@ -1185,8 +1518,14 @@
         xx += 24;
       }
     });
+    var goal = forgeGoal();                                      // nästa mål i smedjan
+    if (goal && state === 'play') {
+      g.font = 'bold 13px ' + TXT; var gtx = 'Nästa: ' + goal.name + ', ' + goal.cost + ' malm', gw = g.measureText(gtx).width + 22;
+      tag(x0, 42, gw, 22); g.fillStyle = goal.can ? '#7dff8a' : 'rgba(250,250,242,0.85)'; g.fillText(gtx, x0 + 11, 53);
+      g.font = 'bold 15px ' + TXT;
+    }
     // nivå och monster kvar, högerställt
-    var left = quota - kills, t2 = 'Nivå ' + level, t3 = left > 0 ? String(left) : 'portalen är öppen';
+    var left = quota - kills, t2 = 'Nivå ' + level + (lapOf(level) ? ', varv ' + (lapOf(level) + 1) : ''), t3 = left > 0 ? String(left) : 'portalen är öppen';
     var w2 = g.measureText(t2).width, w3 = g.measureText(t3).width, wR = w2 + w3 + 62;
     var RX = LW - 44;                                        // plats för pausknappen längst till höger
     tag(RX - 10 - wR, 8, wR, 30);
@@ -1258,14 +1597,14 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, cy + 112, 64);
-    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 2.2', cx, cy + 156);
+    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 2.3', cx, cy + 156);
     g.font = '15px ' + UI; g.fillStyle = 'rgba(250,250,242,0.85)';
     if (touchMode) {
       g.fillText('Dra med vänster tumme för att gå. Tryck på Slå för att slå och hacka.', cx, cy + 196);
       g.fillText('Knappen med kött äter, vid ugnen blir den en hammare som smider. Paus finns uppe till höger.', cx, cy + 218);
     } else {
       g.fillText('Piltangenter eller WASD för att gå. Mellanslag eller musklick för att slå och hacka.', cx, cy + 196);
-      g.fillText('E smider vid ugnen och äter kött annars. Esc eller P pausar.', cx, cy + 218);
+      g.fillText('E smider vid ugnen och äter kött annars. Q blixtstorm, Esc pausar.', cx, cy + 218);
     }
     var pulse = 0.65 + 0.35 * Math.sin(time * 4), start;
     if (touchMode) start = saved ? 'Tryck för att fortsätta på nivå ' + saved.level : 'Tryck för att börja';
@@ -1277,6 +1616,8 @@
       tag(BTN_NEW.x - BTN_NEW.w / 2, BTN_NEW.y - BTN_NEW.h / 2, BTN_NEW.w, BTN_NEW.h);
       g.font = 'bold 17px ' + TXT; g.fillStyle = PAL.chalk; g.fillText('Nytt spel', BTN_NEW.x, BTN_NEW.y + 1);
     }
+    tag(BTN_DIFF.x - BTN_DIFF.w / 2, BTN_DIFF.y - BTN_DIFF.h / 2, BTN_DIFF.w, BTN_DIFF.h);
+    g.font = 'bold 17px ' + TXT; g.fillStyle = PAL.bolt; g.textAlign = 'center'; g.fillText('Svårighet: ' + DIFF_NAME[settings.diff], BTN_DIFF.x, BTN_DIFF.y + 1);
     g.textAlign = 'left';
   }
   function overlayDead() {
@@ -1285,7 +1626,7 @@
     g.fillStyle = vg; g.fillRect(0, 0, LW, LH);
     chalkTitle('Du föll!', LW / 2, LH / 2 - 24, 52);
     g.font = '16px ' + UI; g.fillStyle = 'rgba(250,250,242,0.9)';
-    g.fillText('Du tappade halva malmen. ' + (touchMode ? 'Tryck på skärmen' : 'Tryck Enter') + ' för att försöka nivå ' + level + ' igen.', LW / 2, LH / 2 + 30);
+    g.fillText((DF().keep >= 0.75 ? 'Du tappade en fjärdedel av malmen. ' : DF().keep > 0 ? 'Du tappade halva malmen. ' : 'Du tappade all malm. ') + (touchMode ? 'Tryck på skärmen' : 'Tryck Enter') + ' för att försöka nivå ' + level + ' igen.', LW / 2, LH / 2 + 30);
     g.textAlign = 'left';
   }
 
@@ -1301,12 +1642,16 @@
         -LH / 2 + 7 * s * (0.6 * Math.sin(shakeT * 2.3) + 0.4 * Math.sin(shakeT * 3.7)));
     }
     g.drawImage(mapCv, 0, 0, LW, LH);
-    drawDynamicTiles(); drawItems(); drawMonsters(); drawShots(); drawPlayer(); drawFx();
+    drawDynamicTiles(); drawGroundFx(); drawItems(); drawMonsters(); drawShots(); drawPlayer(); drawFx();
+    if (biome.canopy) g.drawImage(canCv, 0, 0, LW, LH);          // djungelns lövtak
+    var lapT = lapOf(level);                                     // varv 2 kväll, varv 3+ natt
+    if (lapT > 0) { g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = lapT === 1 ? 0.5 : 0.75; g.fillStyle = lapT === 1 ? '#ffb07a' : '#6a78c0'; g.fillRect(0, 0, LW, LH); g.restore(); }
     var gd = guideNow();
     drawLighting(); drawCaveEyes(); drawTexts(); drawGuideArrow(gd);
     g.restore();
     drawVignette();
-    if (state !== 'title') { drawHud(); drawGuideText(gd); drawTouch(); }
+    if (stormT > 0) { g.fillStyle = FXC.flash !== false ? 'rgba(255,250,220,' + stormT * 1.1 + ')' : 'rgba(255,225,77,' + stormT * 0.3 + ')'; g.fillRect(0, 0, LW, LH); }
+    if (state !== 'title') { drawHud(); drawGuideText(gd); drawTouch(); if (bossIntro > 0 && state === 'play') drawBossIntro(); }
     if (fade > 0) { g.fillStyle = 'rgba(0,0,0,' + fade + ')'; g.fillRect(0, 0, LW, LH); }
     if (state === 'paused') overlayPause();
     if (state === 'forge') overlayForge();
@@ -1355,11 +1700,17 @@
     g.restore();
   }
   function iconMeat() { meatShape(1, 0, 1.2); }
+  function iconBolt() {                                      // blixt-ikon för knapp och HUD
+    g.save(); g.globalCompositeOperation = 'lighter'; glow(0, 0, 20, '255,225,77', 0.3); g.restore();
+    g.beginPath(); g.moveTo(4, -16); g.lineTo(-8, 2); g.lineTo(-1, 2); g.lineTo(-5, 16); g.lineTo(9, -4); g.lineTo(2, -4); g.lineTo(6, -16); g.closePath();
+    g.fillStyle = PAL.bolt; g.fill(); g.strokeStyle = '#7a5a10'; g.lineWidth = 1.5; g.stroke();
+  }
   function iconPause() { g.fillStyle = PAL.chalk; rr(g, -9, -11, 6, 22, 2); g.fill(); rr(g, 3, -11, 6, 22, 2); g.fill(); }
 
   // ---------- paus och inställningar ----------
   var pauseSel = 0, confirmNew = 0;                       // confirmNew: tid kvar för "Säker?"-läget
   var PROWS = [
+    { k: 'diff', label: 'Svårighet (från nästa nivå)', vals: ['latt', 'medel', 'svar'], names: ['Lätt', 'Medel', 'Svår'] },
     { k: 'music', label: 'Musik', vals: [0, 0.25, 0.5], names: ['Av', 'Låg', 'Hög'] },
     { k: 'sfx', label: 'Ljudeffekter', vals: [0, 0.4, 0.8], names: ['Av', 'Låg', 'Hög'] },
     { k: 'shake', label: 'Skärmskak', vals: [0, 0.5, 1], names: ['Av', 'Lite', 'Full'] },
@@ -1367,7 +1718,7 @@
     { k: 'numbers', label: 'Skadetal', vals: [true, false], names: ['På', 'Av'] },
     { k: 'guide', label: 'Guide på nivå 1', vals: [true, false], names: ['På', 'Av'] }
   ];
-  var PX = LW / 2 - 220, PW = 440, PY0 = 160, PH = 40, PSTEP = 47, PBY = PY0 + 6 * PSTEP + 30;
+  var PX = LW / 2 - 220, PW = 440, PY0 = 146, PH = 38, PSTEP = 44, PBY = PY0 + 7 * PSTEP + 26;
   var PB_GO = { x: LW / 2 - 112, y: PBY, w: 200, h: 48 }, PB_NEW = { x: LW / 2 + 112, y: PBY, w: 200, h: 48 };
   function inBox(p, b) { return Math.abs(p.x - b.x) < b.w / 2 + 6 && Math.abs(p.y - b.y) < b.h / 2 + 6; }
   function askNew() {                                       // första trycket frågar, andra börjar om
@@ -1388,6 +1739,7 @@
     var r = PROWS[i], idx = r.vals.indexOf(settings[r.k]); if (idx < 0) idx = 0;
     idx = (idx + (dir || 1) + r.vals.length) % r.vals.length;
     settings[r.k] = r.vals[idx]; applySettings(); sfx('click');
+    if (r.k === 'diff') say('Svårighet: ' + DIFF_NAME[settings.diff] + '. Gäller från nästa nivå.');
   }
   function pauseHit(p) {
     for (var i = 0; i < PROWS.length; i++) {
@@ -1395,7 +1747,7 @@
       if (p.x > PX && p.x < PX + PW && p.y > y - 3 && p.y < y + PH + 3) { pauseSel = i; cycleRow(i, 1); return; }
     }
     if (inBox(p, PB_GO)) resumeGame();
-    else if (inBox(p, PB_NEW)) { pauseSel = 7; askNew(); }
+    else if (inBox(p, PB_NEW)) { pauseSel = PROWS.length + 1; askNew(); }
   }
   function overlayPause() {
     g.fillStyle = 'rgba(8,16,10,0.82)'; g.fillRect(0, 0, LW, LH);
@@ -1408,14 +1760,15 @@
       g.font = 'bold 18px ' + TXT; g.textAlign = 'left'; g.fillStyle = PAL.chalk; g.fillText(r.label, PX + 18, y + PH / 2 + 1);
       g.textAlign = 'right'; g.fillStyle = PAL.bolt; g.fillText(r.names[idx < 0 ? 0 : idx], PX + PW - 18, y + PH / 2 + 1);
     });
-    [[PB_GO, 'Fortsätt', 6], [PB_NEW, confirmNew > 0 ? 'Säker? Tryck igen' : 'Nytt spel', 7]].forEach(function (b) {
+    [[PB_GO, 'Fortsätt', PROWS.length], [PB_NEW, confirmNew > 0 ? 'Säker? Tryck igen' : 'Nytt spel', PROWS.length + 1]].forEach(function (b) {
       var B = b[0]; tag(B.x - B.w / 2, B.y - B.h / 2, B.w, B.h);
-      if (b[2] === 7 && confirmNew > 0) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.fillStyle = 'rgba(200,40,60,0.55)'; g.fill(); }
+      if (b[2] === PROWS.length + 1 && confirmNew > 0) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.fillStyle = 'rgba(200,40,60,0.55)'; g.fill(); }
       if (pauseSel === b[2] && !touchMode) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
-      g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold ' + (b[2] === 7 && confirmNew > 0 ? 18 : 22) + 'px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
+      g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold ' + (b[2] === PROWS.length + 1 && confirmNew > 0 ? 18 : 22) + 'px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 2.3', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
@@ -1430,10 +1783,22 @@
         desc: Math.round(U.armor.reducePerLevel * 100) + ' % mindre skada för varje nivå', icon: iconShield },
       { k: 'pick', name: 'Hacka', lvl: P.pick, max: U.pickaxe.max, cost: U.pickaxe.costBase + U.pickaxe.costStep * P.pick,
         desc: P.pick >= 2 ? 'Nivå 3 ger dubbel malm' : 'Färre slag per malmsten', icon: iconPick },
-      { k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, cost: U.lantern.costBase + U.lantern.costStep * P.lamp,
-        desc: 'Mer ljus i grottorna', icon: iconLamp }
+      { k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, cost: P.lamp === 0 ? U.lantern.oreCost : U.lantern.moonCost[Math.min(P.lamp - 1, 2)],
+        unit: P.lamp === 0 ? 'malm' : 'månsten', desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus. Kostar månsten, som är sällsynt.', icon: iconLamp }
     ];
   }
+  function unitTxt(n, u) { return u === 'månsten' ? (n === 1 ? 'månsten' : 'månstenar') : 'malm'; }
+  function haveOf(r) { return (r.unit || 'malm') === 'månsten' ? P.moon : P.ore; }
+  function forgeGoal() {                                        // vad som är bra att köpa härnäst (bara malm)
+    var best = null;
+    forgeRows().forEach(function (r) {
+      if (r.lvl >= r.max || (r.unit || 'malm') !== 'malm') return;
+      if (P.sword === 0 && r.k !== 'sword') return;
+      if (!best || r.cost < best.cost) best = r;
+    });
+    return best ? { k: best.k, name: best.name, cost: best.cost, can: P.ore >= best.cost } : null;
+  }
+  function canBuyAny() { return forgeRows().some(function (r) { return r.lvl < r.max && haveOf(r) >= r.cost; }); }
   function openForge() {
     state = 'forge'; if (P.sword === 0) forgeSel = 0;
     keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null;
@@ -1443,8 +1808,9 @@
   function buy(i) {
     var r = forgeRows()[i]; if (!r) return;
     if (r.lvl >= r.max) { sfx('deny'); say(r.name + ' är redan på högsta nivån'); return; }
-    if (P.ore < r.cost) { sfx('deny'); say('Behöver ' + r.cost + ' malm, du har ' + P.ore); return; }
-    P.ore -= r.cost;
+    var have = haveOf(r), u = r.unit || 'malm';
+    if (have < r.cost) { sfx('deny'); say('Behöver ' + r.cost + ' ' + unitTxt(r.cost, u) + ', du har ' + have); return; }
+    if (u === 'månsten') P.moon -= r.cost; else P.ore -= r.cost;
     if (r.k === 'sword') { P.sword++; say(P.sword === 1 ? 'Du smidde ett svärd!' : 'Svärdet är nu nivå ' + P.sword); }
     else if (r.k === 'armor') { P.armor++; say('Rustningen är nu nivå ' + P.armor); }
     else if (r.k === 'pick') { P.pick++; say('Hackan är nu nivå ' + P.pick); }
@@ -1474,18 +1840,23 @@
     g.fillStyle = 'rgba(22,12,8,0.86)'; g.fillRect(0, 0, LW, LH);
     chalkTitle('Smedjan', LW / 2, 62, 42);
     g.textBaseline = 'middle'; g.textAlign = 'center'; g.font = 'bold 18px ' + TXT; g.fillStyle = PAL.gold;
-    g.fillText('Du har ' + P.ore + ' malm', LW / 2, 104);
+    g.fillText('Du har ' + P.ore + ' malm' + (P.moonEver || P.moon > 0 ? ' och ' + P.moon + ' ' + unitTxt(P.moon, 'månsten') : ''), LW / 2, 104);
+    var goal = forgeGoal();
     forgeRows().forEach(function (r, i) {
-      var y = FY0 + i * FSTEP, maxed = r.lvl >= r.max, can = !maxed && P.ore >= r.cost;
+      var y = FY0 + i * FSTEP, maxed = r.lvl >= r.max, can = !maxed && haveOf(r) >= r.cost;
       tag(FX0, y, FW, FH);
       if (i === forgeSel && !touchMode) { rr(g, FX0, y, FW, FH, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
       g.save(); g.translate(FX0 + 36, y + FH / 2); g.scale(0.8, 0.8); r.icon(); g.restore();
       g.textAlign = 'left'; g.font = 'bold 19px ' + TXT; g.fillStyle = PAL.chalk; g.fillText(r.name, FX0 + 70, y + 22);
+      if (goal && goal.k === r.k && !maxed) {                  // rekommendation
+        var nw = g.measureText(r.name).width; g.font = 'bold 12px ' + TXT; var bt = 'Bra att köpa nu', bw3 = g.measureText(bt).width + 14;
+        rr(g, FX0 + 80 + nw, y + 12, bw3, 20, 6); g.fillStyle = PAL.bolt; g.fill(); g.fillStyle = '#1a2a1a'; g.fillText(bt, FX0 + 87 + nw, y + 22);
+      }
       g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.fillText(r.desc, FX0 + 70, y + 44);
       g.textAlign = 'right'; g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.8)';
       g.fillText('Nivå ' + r.lvl + ' av ' + r.max, FX0 + FW - 18, y + 20);
       g.font = 'bold 18px ' + TXT; g.fillStyle = maxed ? '#c9bfff' : can ? '#7dff8a' : '#ff9a8a';
-      g.fillText(maxed ? 'Klar' : r.cost + ' malm', FX0 + FW - 18, y + 43);
+      g.fillText(maxed ? 'Klar' : r.cost + ' ' + unitTxt(r.cost, r.unit || 'malm'), FX0 + FW - 18, y + 43);
     });
     tag(LW / 2 - 95, FBY - 24, 190, 48);
     g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 22px ' + TXT; g.fillText('Stäng', LW / 2, FBY + 1);
@@ -1543,6 +1914,7 @@
     }
     var nearSmelt = smeltPos && Math.hypot(smeltPos.x - P.x, smeltPos.y - P.y) < TS * 2;
     touchButton(BTN_ATK, touch.atkId !== null, iconSwordBig, 'Slå');
+    touchButton(BTN_BOLT, touch.boltId != null, iconBolt, 'Blixt', P.bolts === 0, P.bolts || null);
     if (nearSmelt) touchButton(BTN_E, touch.eId !== null, iconHammer, 'Smid', false);
     else touchButton(BTN_E, touch.eId !== null, iconMeat, 'Ät', P.meat === 0 || P.hp >= maxHp(), P.meat);
     g.restore();
@@ -1564,17 +1936,19 @@
     }
     if (k === 'Escape' || k === 'p') { if (state === 'play') pauseGame(); else if (state === 'paused') resumeGame(); return; }
     if (state === 'paused') {
-      var NSEL = PROWS.length + 2;
-      if (k === 'ArrowUp' || k === 'w') pauseSel = pauseSel === 7 ? 5 : (pauseSel + NSEL - 1) % NSEL;
-      else if (k === 'ArrowDown' || k === 's') pauseSel = pauseSel === 6 ? 0 : (pauseSel + 1) % NSEL;
-      else if (pauseSel >= 6 && (k === 'ArrowLeft' || k === 'a' || k === 'ArrowRight' || k === 'd')) pauseSel = pauseSel === 6 ? 7 : 6;
-      else if (pauseSel === 6 && (k === 'Enter' || k === ' ')) resumeGame();
-      else if (pauseSel === 7 && (k === 'Enter' || k === ' ')) askNew();
+      var NR = PROWS.length, NSEL = NR + 2, GO = NR, NEWB = NR + 1;
+      if (k === 'ArrowUp' || k === 'w') pauseSel = pauseSel === NEWB ? NR - 1 : (pauseSel + NSEL - 1) % NSEL;
+      else if (k === 'ArrowDown' || k === 's') pauseSel = pauseSel === GO ? 0 : (pauseSel + 1) % NSEL;
+      else if (pauseSel >= GO && (k === 'ArrowLeft' || k === 'a' || k === 'ArrowRight' || k === 'd')) pauseSel = pauseSel === GO ? NEWB : GO;
+      else if (pauseSel === GO && (k === 'Enter' || k === ' ')) resumeGame();
+      else if (pauseSel === NEWB && (k === 'Enter' || k === ' ')) askNew();
       else if (k === 'ArrowLeft' || k === 'a') cycleRow(pauseSel, -1);
       else if (k === 'ArrowRight' || k === 'd' || k === 'Enter' || k === ' ') cycleRow(pauseSel, 1);
       return;
     }
     if (k === ' ') attack();                            // slå direkt, så att korta tryck aldrig missas
+    if (state === 'title' && (k === 'ArrowLeft' || k === 'ArrowRight')) { cycleDiff(k === 'ArrowLeft' ? -1 : 1); return; }
+    if (k === 'q') castStorm();
     if (k === 'e') useE();
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
@@ -1600,7 +1974,7 @@
     var mp = { x: mouse.x, y: mouse.y };
     if (state === 'forge') { forgeHit(mp); return; }
     if (state === 'paused') { pauseHit(mp); return; }
-    if (state === 'title') { var s0 = load(); if (saved && inBox(mp, BTN_NEW)) newGame(); else if (s0) continueGame(s0); else newGame(); return; }
+    if (state === 'title') { if (inBox(mp, BTN_DIFF)) { cycleDiff(1); return; } var s0 = load(); if (saved && inBox(mp, BTN_NEW)) newGame(); else if (s0) continueGame(s0); else newGame(); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
     mouse.down = true;
@@ -1631,6 +2005,7 @@
     if (state === 'play' && onPauseBtn(p)) { pauseGame(); return; }
     if (state === 'title') {
       goFullscreen();
+      if (inBox(p, BTN_DIFF)) { cycleDiff(1); return; }
       if (saved && Math.abs(p.x - BTN_NEW.x) < BTN_NEW.w / 2 + 10 && Math.abs(p.y - BTN_NEW.y) < BTN_NEW.h / 2 + 10) newGame();
       else { var s = load(); if (s) continueGame(s); else newGame(); }
       return;
@@ -1639,6 +2014,7 @@
       if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); }   // spärr så att ett kvarglömt finger inte startar om direkt
       return;
     }
+    if (Math.hypot(p.x - BTN_BOLT.x, p.y - BTN_BOLT.y) < BTN_BOLT.r * 1.1) { touch.boltId = e.pointerId; castStorm(); return; }
     if (onBtn(p, BTN_E)) { touch.eId = e.pointerId; useE(); return; }
     if (p.x >= LW / 2) {                                    // hela högra halvan slår
       if (touch.atkId === null) { touch.atkId = e.pointerId; if (!P.moving) aimNearest(); attack(); }
@@ -1660,6 +2036,7 @@
     if (e.pointerId === touch.joyId) { touch.joyId = null; touch.jx = touch.jy = 0; }
     if (e.pointerId === touch.atkId) touch.atkId = null;
     if (e.pointerId === touch.eId) touch.eId = null;
+    if (e.pointerId === touch.boltId) touch.boltId = null;
   }
   cv.addEventListener('pointerup', endTouch);
   cv.addEventListener('pointercancel', endTouch);
@@ -1680,5 +2057,7 @@
   window.__sg = { get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
+    step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
+    get bossIntro() { return bossIntro; },
     get fx() { return { trauma: trauma, hitStop: hitStop, texts: texts.length, particles: fx.length }; } };
 })();

@@ -65,6 +65,7 @@ var LJUD = (function () {
     level: function (t) { noise(0.5, 0.14, t, 'bandpass', 300, 3000, 1.5); [392, 523, 659, 784].forEach(function (f, i) { tone('triangle', f, 0, 0.22, 0.18, t + 0.15 + i * 0.09); }); },
     death: function (t) { [392, 330, 262, 196].forEach(function (f, i) { tone('triangle', f, f * 0.97, 0.3, 0.22, t + i * 0.18); }); },
     click: function (t) { tone('triangle', 900, 1200, 0.04, 0.15, t); },
+    storm: function (t) { noise(0.08, 0.55, t, 'highpass', 4000); noise(1.3, 0.5, t + 0.02, 'lowpass', 2500, 110); tone('sawtooth', 95, 38, 0.9, 0.28, t); },
     charge: function (t) { tone('sawtooth', 70, 160, 0.6, 0.22, t); noise(0.6, 0.15, t, 'lowpass', 300, 1200); },
     slam: function (t) { tone('sine', 120, 35, 0.5, 0.7, t); noise(0.4, 0.4, t, 'lowpass', 900, 150); },
     summon: function (t) { [0, 0.12, 0.24].forEach(function (d, i) { tone('triangle', 330 - i * 40, 220 - i * 30, 0.3, 0.15, t + d); }); },

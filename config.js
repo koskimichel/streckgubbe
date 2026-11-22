@@ -28,11 +28,12 @@ const CONFIG = {
     stickDamage: 1,        // utan svärd
     swordBaseDamage: 3,    // svärd nivå 1
     damagePerSwordLevel: 1.5,
-    damagePerStrength: 0.8,
+    damagePerStrength: 0.4,  // v2.3: var 0.8 (kristaller ger nu blixtkraft)
     maxSwordLevel: 15,    // v2.2: höjt från 10
     craftCost: 4,          // malm för första svärdet
     upgradeCostBase: 3,    // uppgradering = base + step * nuvarande nivå
-    upgradeCostStep: 2
+    upgradeCostStep: 2,
+    upgradeCostSquare: 0.3 // v2.3: dyrare för varje nivå (base + step*n + square*n*n)
   },
 
   mining: {
@@ -45,7 +46,8 @@ const CONFIG = {
     meatDropChance: 0.35,  // chans att monster tappar kött
     heartMaxHpGain: 1,     // hjärtan som läggs till (1 = ett helt hjärta)
     crystalStrengthGain: 1,
-    maxMeat: 9
+    maxMeat: 9,
+    maxHearts: 10          // v2.3: tak; fler hjärtan ger full hälsa i stället
   },
 
   level: {
@@ -53,12 +55,13 @@ const CONFIG = {
     monstersPerLevel: 1.5, // v2.2: var 1.2
     maxMonsters: 30,       // v2.2: var 22
     baseOre: 8,
-    orePerLevel: 1.5,
+    orePerLevel: 0.6,      // v2.3: var 1.5
+    maxOre: 22,            // v2.3: tak för malm per nivå
     treeDensity: 0.10,
     stoneDensity: 0.05,
     caves: 3,
     crystalsPerLevel: 1,   // kristaller gömda i grottor
-    heartEveryNLevels: 2,  // ett hjärta på marken var N:e nivå
+    heartEveryNLevels: 5,  // ett hjärta på marken var N:e nivå
     extraMeat: 1           // köttklubbor utlagda per nivå
   },
 
@@ -71,10 +74,24 @@ const CONFIG = {
 
   // Smedjan (v2.2). Kostnad = costBase + costStep * nuvarande nivå
   upgrades: {
-    armor:   { max: 5, costBase: 6, costStep: 4, reducePerLevel: 0.12 },   // mindre skada per nivå
-    pickaxe: { max: 3, costBase: 5, costStep: 5 },                         // färre slag per malm, nivå 3 ger dubbel malm
-    lantern: { max: 3, costBase: 4, costStep: 4, lightPerLevel: 30 }       // större ljus i grottor (pixlar)
+    armor:   { max: 5, costBase: 8, costStep: 6, reducePerLevel: 0.12 },   // mindre skada per nivå
+    pickaxe: { max: 3, costBase: 6, costStep: 6 },                         // färre slag per malm, nivå 3 ger dubbel malm
+    lantern: { max: 4, oreCost: 4, moonCost: [1, 2, 3], lightPerLevel: 30 }  // v2.3: fås gratis i Djungeln, uppgraderas med månsten
   },
+
+  // Svårighetsgrader (v2.3). mHp/mDmg = monster, bHp = bossens hälsa, gap = sekunder mellan bossens anfall,
+  // wind = hur länge bossen varnar (1 = som förut), keep = andel malm kvar efter död, minions = hjälpare i bossens andra fas
+  difficulty: {
+    latt:  { mHp: 1.0, mDmg: 1.0, bHp: 1.0, gap: [2.0, 3.5], wind: 1.0,  keep: 0.75, minions: 3 },
+    medel: { mHp: 1.4, mDmg: 1.3, bHp: 2.0, gap: [1.5, 2.5], wind: 0.75, keep: 0.5,  minions: 4 },
+    svar:  { mHp: 1.8, mDmg: 1.7, bHp: 3.0, gap: [1.0, 1.8], wind: 0.55, keep: 0.0,  minions: 5 }
+  },
+
+  // Blixtkraft (v2.3): varje kristall ger en laddning. Q eller Blixt-knappen slår ned blixtar på alla monster.
+  boltPower: { max: 3, damageBase: 10, damagePerLevel: 1.5 },
+
+  // Efter nivå 25 börjar varv 2 (kvällsljus), sedan varv 3+ (natt). Elitmonster har mer hälsa och skada.
+  laps: { eliteChancePerLap: 0.25, eliteMax: 0.6, eliteHp: 1.8, eliteDmg: 1.3 },
 
   monsters: {
     // hp = hpBase + hpPerLevel * nivå ; dmg = dmgBase + dmgPerLevel * nivå

@@ -1,6 +1,18 @@
-# Malm & Monster (Mines & Monsters), version 2.2
+# Malm & Monster (Mines & Monsters), version 2.3
 
-v2.2 hittills:
+v2.3:
+- Svårighet `settings.diff` (latt/medel/svar, `C.difficulty`, `DF()`): monster- och bosshälsa/skada, tid mellan bossanfall, varningstid, malm kvar efter död, antal hjälpare. Väljs på titeln (`BTN_DIFF`, pilar vänster/höger) och i pausmenyn; gäller från nästa nivå.
+- Bossar: `kind` per värld (`BOSS_KIND`: golem, ape, scorpion, yeti, demon), ritas i `drawBoss` (egen form, andas, poser vid varning, yr, röd glöd i andra fasen). Andra fas vid halv hälsa (`phase2`): snabbare, stenregn (`windRain`, fx `rock`), hjälpare. Egna förmågor: ape rusar i serie (`chain`), scorpion gräver ned sig (`burrow/under/emerge`, `hidden`), yeti fryser marken (fx `ice`, `P.icy` ger halka), demon lämnar eld (fx `fire`). Namnskylt `drawBossIntro` (`bossIntro`). Mark-fx ritas i `drawGroundFx`.
+- Djungeln: `treeMul` 1.9, lövtak med ljusfläckar och lianer (`canCv`), ormbunkar. Grottmörker per värld `CAVE_DARK`.
+- Malm-hjälp: `forgeGoal` (Nästa: ... i HUD, Bra att köpa nu i smedjan), `canBuyAny` (! över ugnen). Lykta gratis från nivå 6; uppgraderas med månsten (`P.moon`, föremål `moon`: boss, gömd i grotta var 3:e nivå, spöken 5 %). Lykta max 4.
+- Rustning syns (`drawArmor`): bröstplåt, axelskydd, hjälm, blått stål med plym, guld. Brutaler har rund kropp.
+- Test: `__sg.step(sek)` spolar fram spelet utan bildrutor (panelen kör få bildrutor när den är dold).
+- Balans: max 10 hjärtan (`C.items.maxHearts`, fler ger full hälsa; äldre sparningar behåller sina och visas som mätare), hjärta var 5:e nivå, malm per nivå 8 + 0,6n (max 22), svärdspris med kvadratterm (`upgradeCostSquare`), dyrare rustning/hacka, styrka per kristall ger mindre skada.
+- Blixtkraft: kristall ger laddning (`P.bolts`, max `C.boltPower.max`), `castStorm` (Q eller `BTN_BOLT` på plattan) skadar alla monster, ljusblixt `stormT` (svag ton om blinkningar är av).
+- Varv: `lapOf(n)` (efter nivå 25). Varv 2 kvällston, 3+ natt (multiply-ton i världen), elitmonster (`m.elite`, `C.laps`), fler hjälpare till bossen. HUD: "Nivå N, varv X".
+- Hjärtan i HUD: `drawHeart` (blanka med glans), två rader om fem, röd pulserande kant vid låg hälsa.
+
+v2.2:
 - E-tangent vid köttet i HUD (dator), ät-tips vid låg hälsa (`eatHintT`).
 - Fem världar (`BIOMES`, `biomeOf(n)`, byter var 5:e nivå): Ängen, Djungeln, Öknen, Snölandet, Lavalandet. Styr markfärger, träd (`drawTree`), stenar, grottor, luftpartiklar (`spawnAir`, fx-typ `a`) och musikens tonart (`LJUD.setBiome`).
 - Boss var 5:e nivå (`C.boss`, typ `boss`, `updateBoss`: walk > windCharge/windSlam > charge > stun, chockvåg fx-typ `w`, hjälp vid halv hälsa, `bossDefeated` släpper malm/hjärta/kristall). Varningar ritas i `drawBossExtras`, hälsostapel i HUD.

@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 2.2
+# Malm & Monster (Mines & Monsters), version 2.3
+
+Nytt i 2.3: svårighetsgrad (Lätt, Medel, Svår) på titelskärmen och i pausmenyn, bossar med eget utseende, andra fas och egna förmågor, en tydligare djungel, mörkare grottor längre fram, lyktan får du i Djungeln och uppgraderar med sällsynt månsten, ugnen visar ! när du har råd med något, och rustningen syns på gubben. Dessutom: max 10 hjärtan, mindre malm och dyrare uppgraderingar så att det tar längre tid att bli max, kristaller ger blixtkraft (Q eller Blixt-knappen slår ned blixtar på alla monster), och efter nivå 25 kommer varv 2 med kvällsljus och elitmonster.
 
 Nytt i 2.2: fem världar (äng, djungel, öken, snö, lava), en boss var femte nivå, spindlar som skjuter nät och spöken som går genom väggar, fler monster, smedjan vid ugnen (svärd upp till nivå 15, rustning, hacka, lykta) och tips om att äta när hälsan är låg.
 
