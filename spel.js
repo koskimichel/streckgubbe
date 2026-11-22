@@ -1,6 +1,7 @@
-// Malm & Monster (Mines & Monsters), version 3.3 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 3.4 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
+// v3.4 nytt: tre sparplatser med spara fil och hämta fil, tydligare lin, annat byte från monster.
 // v3.3 nytt: lin, damm och fiske, jaktkniv och bytesdjur, portal tillbaka, smedjan med två flikar.
 // v3.2 nytt: snällare Lätt (svagare monster, behåll all malm, läkning när det är lugnt, längre skydd efter träff).
 // v3.1 nytt: stenhacka krävs för koppar, sköld (parera), pilbåge med pilar och auto-sikte.
@@ -66,7 +67,7 @@
 
   // inställningar som spelaren ändrar i pausmenyn (sparas per enhet)
   var SET_KEY = 'mm-installningar';
-  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true, diff: 'latt' };
+  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true, diff: 'latt', slot: 1 };
   try { var ss = JSON.parse(localStorage.getItem(SET_KEY)); if (ss) Object.keys(settings).forEach(function (k) { if (ss[k] !== undefined) settings[k] = ss[k]; }); } catch (e) {}
   function applySettings() {
     FXC.shake = settings.shake; FXC.flash = settings.flash; FXC.damageNumbers = settings.numbers;
@@ -118,7 +119,7 @@
       x: 2.5 * TS, y: 2.5 * TS, r: 10, hearts: C.player.startHearts,
       hp: C.player.startHearts * C.player.hpPerHeart,
       str: C.player.startStrength, ore: 0, meat: 1, sword: 0,
-      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, backSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
+      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, backSeen: false, flaxSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
     };
   }
   function maxHp() { return P.hearts * C.player.hpPerHeart; }
@@ -160,8 +161,8 @@
 
   function save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({
-        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chests: P.chests, minedMap: P.minedMap, maxLevel: P.maxLevel, flax: P.flax, hide: P.hide, rod: P.rod, knife: P.knife, quiver: P.quiver, arrowHead: P.arrowHead, backSeen: P.backSeen, hasPick: P.hasPick, shield: P.shield, bow: P.bow, arrows: P.arrows, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen
+      localStorage.setItem(slotKey(slot), JSON.stringify({ diff: settings.diff, savedAt: Date.now(),
+        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chests: P.chests, minedMap: P.minedMap, maxLevel: P.maxLevel, flax: P.flax, hide: P.hide, rod: P.rod, knife: P.knife, quiver: P.quiver, arrowHead: P.arrowHead, backSeen: P.backSeen, flaxSeen: P.flaxSeen, hasPick: P.hasPick, shield: P.shield, bow: P.bow, arrows: P.arrows, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen
       }));
     } catch (e) {}
   }
@@ -362,10 +363,11 @@
     }
   }
   function ensureOre(n) {                                        // aldrig fastna: saknar du metallen till svärdet eller hackan får nivån sådan malm
-    var rows = allRows(), need = [];
+    var rows = allRows(), need = [], mix = C.crafting.oreMix[lapOf(n) > 0 ? 4 : Math.min(4, Math.floor((n - 1) / 5))], minT = 0;
+    while (minT < 3 && !mix[minT]) minT++;                       // bara metaller som världen har "lämnat bakom sig", aldrig guld i Ängen
     ['sword', 'pick'].forEach(function (k) {
       var c = rowByKey(rows, k).cost;
-      if (c && c.metal != null && metalAmt(c.metal) < c.n && need.indexOf(c.metal) < 0 && (c.metal <= P.pick || (c.metal === 0 && !P.hasPick))) need.push(c.metal);
+      if (c && c.metal != null && c.metal <= minT && metalAmt(c.metal) < c.n && need.indexOf(c.metal) < 0 && (c.metal <= P.pick || (c.metal === 0 && !P.hasPick))) need.push(c.metal);
     });
     if (!need.length) return;
     var re = mulberry(n * 4241 + 11), ores = [], x, y;
@@ -407,6 +409,18 @@
       if (p.moving && p.x === ox && p.y === oy) move(p, -vy * dt, vx * dt);   // fast mot en vägg: glid åt sidan
       if (p.moving) p.hop += dt * 14;
     });
+  }
+  function dropLoot(m) {                                         // kött, annars ibland metall eller pilar; spindlar tappar lin
+    var Dr = C.drops, r = Math.random(), pm = C.items.meatDropChance;
+    if (r < pm) items.push({ t: 'meat', x: m.x, y: m.y });
+    else if (r < pm + Dr.ore) items.push({ t: 'ore', k: lootMetal(), x: m.x, y: m.y });
+    else if (P.bow && r < pm + Dr.ore + Dr.arrows) items.push({ t: 'arrows', x: m.x, y: m.y });
+    if (m.type === 'spider' && Math.random() < Dr.spiderFlax) items.push({ t: 'flax', x: m.x + 12, y: m.y + 4 });
+  }
+  function lootMetal() {
+    var mix = C.crafting.oreMix[lapOf(level) > 0 ? 4 : Math.min(4, Math.floor((level - 1) / 5))], rv = Math.random(), acc = 0;
+    for (var i = 0; i < 4; i++) { acc += mix[i]; if (rv < acc) return i; }
+    return 3;
   }
   function catchPrey(p) {
     p.dead = true; p.moving = false; sparks(p.x, p.y, '#ffffff', 8); sfx('hit');
@@ -577,7 +591,8 @@
 
   function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); }
   function continueGame(s) {
-    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiver || 0; P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
+    if (s.diff && C.difficulty[s.diff]) { settings.diff = s.diff; applySettings(); }   // svårigheten följer sparplatsen
+    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiver || 0; P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.flaxSeen = !!s.flaxSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
     startLevel(s.level);
   }
 
@@ -817,6 +832,10 @@
         else if (P.fish.t <= 0) { P.fish = null; say('Fisken slapp. Försök igen!'); } }
     }
     updatePrey(dt);
+    if (!P.flaxSeen && level <= 3) {                            // första gången: berätta vad de blå blommorna är
+      var ftx = Math.floor(P.x / TS), fty = Math.floor(P.y / TS);
+      for (var fy = -2; fy <= 2 && !P.flaxSeen; fy++) for (var fxx = -2; fxx <= 2; fxx++) if (map[fty + fy] && map[fty + fy][ftx + fxx] === FLAX) { P.flaxSeen = true; say('De blå blommorna är lin! Slå på dem för att plocka. Lin blir fiskelina och koger.'); break; }
+    }
     // spindelnät i luften
     shots = shots.filter(function (sh) {
       sh.t -= dt; sh.x += sh.vx * dt; sh.y += sh.vy * dt;
@@ -859,7 +878,7 @@
       kills++; sparks(m.x, m.y, monColor(m), 18); sparks(m.x, m.y, PAL.bolt, 6);
       if (m.type === 'boss') { bossDefeated(m); return false; }
       addTrauma(0.3); freeze(0.08); sfx('kill');
-      if (Math.random() < C.items.meatDropChance) items.push({ t: 'meat', x: m.x, y: m.y });
+      dropLoot(m);
       if (m.type === 'ghost' && Math.random() < 0.05) items.push({ t: 'moon', x: m.x, y: m.y });   // sällsynt månsten
       return false;
     });
@@ -868,6 +887,8 @@
       if (Math.hypot(it.x - P.x, it.y - P.y) > 18) return true;
       if (it.t === 'meat') { if (P.meat >= C.items.maxMeat) return true; P.meat++; say('+ köttklubba'); sfx('meat'); floatText(it.x, it.y - 14, '+1 kött', '#ffb38a'); }
       else if (it.t === 'moon') { P.moon++; P.moonEver = true; say('Månsten! Lyktan kan bli starkare i smedjan.'); sfx('heart'); floatText(it.x, it.y - 14, '+1 månsten', '#cfe6ff'); }
+      else if (it.t === 'arrows') { if (P.arrows >= maxArrows()) return true; P.arrows = Math.min(maxArrows(), P.arrows + C.drops.arrowsN); sfx('meat'); floatText(it.x, it.y - 14, '+' + C.drops.arrowsN + ' pilar', '#e1e4ea'); }
+      else if (it.t === 'flax') { P.flax++; sfx('meat'); floatText(it.x, it.y - 14, '+1 lin', '#a8c8ff'); }
       else if (it.t === 'ore') { var okk = it.k || 0; addMetal(okk, 1); sfx('ore'); floatText(it.x, it.y - 14, '+1 ' + MET[okk].name, MET[okk].c2); }
       else if (it.t === 'heart') {
         if (P.hearts >= C.items.maxHearts) { P.hp = maxHp(); say('Full hälsa! Du har redan max antal hjärtan'); floatText(it.x, it.y - 14, 'full hälsa', PAL.heart); }
@@ -1367,12 +1388,16 @@
         else if (dd[0] === -1) { c.moveTo(px + 1.5, py); c.lineTo(px + 1.5, py + TS); } else { c.moveTo(px + TS - 1.5, py); c.lineTo(px + TS - 1.5, py + TS); }
         c.stroke();
       });
-    } else if (t === FLAX) {                                     // lin: tunna stjälkar med blå blommor
-      for (i = 0; i < 4; i++) {
-        var sx2 = px + 9 + i * 4.5 + hash(x, y, 170 + i) * 3, top = py + 8 + hash(x, y, 180 + i) * 6, tipx = sx2 + (i % 2 ? 1.5 : -1.5);
-        c.strokeStyle = '#4f8a32'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(sx2, py + 27); c.quadraticCurveTo(sx2 - 2, (top + py + 27) / 2, tipx, top); c.stroke();
-        c.fillStyle = '#7ab0ff'; c.beginPath(); c.arc(tipx, top, 2.6, 0, 7); c.fill();
-        c.fillStyle = '#fff2a0'; c.beginPath(); c.arc(tipx, top, 0.9, 0, 7); c.fill();
+    } else if (t === FLAX) {                                     // lin: tuva med höga stjälkar, stora blå blommor och frökapslar
+      c.fillStyle = 'rgba(0,0,0,0.22)'; c.beginPath(); c.ellipse(px + 16, py + 28, 11, 3.5, 0, 0, 7); c.fill();
+      c.fillStyle = '#3f7a2c'; c.beginPath(); c.ellipse(px + 16, py + 26, 9, 4, 0, 0, 7); c.fill();
+      for (i = 0; i < 5; i++) {
+        var bx3 = px + 8 + i * 4, tipx = px + 4 + i * 6 + (hash(x, y, 170 + i) - 0.5) * 3, top = py + 5 + hash(x, y, 180 + i) * 7;
+        c.strokeStyle = '#5a9a3a'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(bx3, py + 26); c.quadraticCurveTo((bx3 + tipx) / 2, (top + py + 26) / 2 + 2, tipx, top); c.stroke();
+        c.strokeStyle = '#6fb04a'; c.lineWidth = 1; c.beginPath(); var my2 = (top + py + 26) / 2; c.moveTo((bx3 + tipx) / 2, my2); c.lineTo((bx3 + tipx) / 2 + (i % 2 ? 3 : -3), my2 - 3); c.stroke();
+        if (i === 1 || i === 3) { c.fillStyle = '#c9a86a'; c.beginPath(); c.arc(tipx, top, 1.8, 0, 7); c.fill(); continue; }   /* frökapsel */
+        for (var pe = 0; pe < 5; pe++) { var pa = pe * 1.2566 - 1.57; c.fillStyle = pe % 2 ? '#7fa8ff' : '#5b8bff'; c.beginPath(); c.arc(tipx + Math.cos(pa) * 2.6, top + Math.sin(pa) * 2.6, 2.1, 0, 7); c.fill(); }
+        c.fillStyle = '#ffe680'; c.beginPath(); c.arc(tipx, top, 1.1, 0, 7); c.fill();
       }
     } else if (t === DOOR) {                                     // skattkammarens dörr med runa
       c.fillStyle = '#5c6069'; c.fillRect(px, py, TS, TS);
@@ -1888,6 +1913,8 @@
         g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.ellipse(it.x - 4, it.y + bob - 4, 2.2, 1.3, -0.6, 0, 7); g.fill();
       } else if (it.t === 'ore') iconMetal(it.x, it.y + bob, it.k || 0);
       else if (it.t === 'moon') moonShape(it.x, it.y + bob, 1);
+      else if (it.t === 'arrows') { iconArrowSmall(it.x - 3, it.y + bob); iconArrowSmall(it.x + 3, it.y + bob + 2); }
+      else if (it.t === 'flax') { g.save(); g.translate(it.x, it.y + bob); g.scale(1.3, 1.3); iconFlaxS(0, 0); g.restore(); }
       else crystalShape(it.x, it.y + bob, 1);
     });
   }
@@ -2338,39 +2365,146 @@
     g.fillStyle = PAL.chalk; g.fillText(text, x, y);
     g.globalAlpha = 0.35; g.fillText(text, x + 1.2, y - 1); g.globalAlpha = 1;   // kritstruktur
   }
-  function overlayTitle() {
-    g.fillStyle = 'rgba(8,16,10,0.72)'; g.fillRect(0, 0, LW, LH);
-    var cx = LW / 2, cy = LH / 2 - 70;
-    // hjälten med blixtar, spelets kännetecken
-    for (var i = 0; i < 7; i++) {
-      var a = time * 1.6 + i * 0.898, b = a + 0.55;
-      drawBolt(cx + Math.cos(a) * 34, cy + Math.sin(a) * 34, cx + Math.cos(b) * 70, cy + Math.sin(b) * 70, Math.floor(time * 10) + i * 7, 2);
+  // ---------- sparplatser (v3.4) ----------
+  var SLOT_N = 3, slot = 1, slots = [null, null, null], titleSel = 0, confirmDel = { i: -1, until: 0 }, titleMsg = '', titleMsgUntil = 0, importSlot = 0, importPending = false, newPick = -1, diffSel = 0, moreSlot = -1;   // moreSlot: platsen som visar Fler val   // newPick: platsen där man väljer svårighet för nytt spel
+  var DIFF_DESC = { latt: 'Bra att börja med', medel: 'Lite svårare', svar: 'För den som vill ha en utmaning' };
+  function slotKey(i) { return 'mm-plats-' + i; }
+  function loadSlot(i) { try { var s = JSON.parse(localStorage.getItem(slotKey(i))); if (s && s.level >= 1) return s; } catch (e) {} return null; }
+  function refreshSlots() { for (var i = 0; i < SLOT_N; i++) slots[i] = loadSlot(i + 1); }
+  function migrateOldSave() {                                     // den gamla sparningen flyttas till första lediga plats
+    try {
+      var old = localStorage.getItem(SAVE_KEY); if (!old) return;
+      for (var i = 1; i <= SLOT_N; i++) if (!localStorage.getItem(slotKey(i))) { localStorage.setItem(slotKey(i), old); localStorage.removeItem(SAVE_KEY); return; }
+    } catch (e) {}
+  }
+  function tmsg(t) { titleMsg = t; titleMsgUntil = time + 4; }
+  function playSlot(i) { slot = i; titleSel = i - 1; settings.slot = i; applySettings(); var s = loadSlot(i); if (s) continueGame(s); else newGame(); }
+  function cardRect(i) { return { x: 55 + i * 290, y: 262, w: 270, h: 200 }; }
+  function cardBtns(i) {                                         // stor knapp och en liten "Fler val"; där finns kopia och radera med förklaring
+    var c = cardRect(i), del = confirmDel.i === i && time < confirmDel.until, sm = c.y + 162;
+    if (newPick === i) return [0, 1, 2].map(function (j) { return { k: 'd' + j, x: c.x + 12 + j * 84, y: c.y + 70, w: 78, h: 46, t: DIFF_NAME[DIFF_ORDER[j]], main: true }; })
+      .concat([{ k: 'cancel', x: c.x + 70, y: sm, w: 130, h: 28, t: 'Avbryt' }]);
+    if (moreSlot === i) {
+      var back = { k: 'back', x: c.x + 70, y: sm, w: 130, h: 28, t: 'Tillbaka' };
+      if (slots[i]) return [{ k: 'exp', x: c.x + 12, y: c.y + 56, w: 246, h: 44, t: 'Spara en kopia', sub: 'Som fil, för att flytta eller säkra spelet', mid: true },
+        { k: 'del', x: c.x + 12, y: c.y + 106, w: 246, h: 44, t: del ? 'Säker? Tryck igen' : 'Radera spelet', sub: del ? 'Det går inte att ångra' : 'Platsen blir tom', mid: true, red: del }, back];
+      return [{ k: 'imp', x: c.x + 12, y: c.y + 56, w: 246, h: 44, t: 'Hämta en sparad kopia', sub: 'Välj filen du sparat tidigare', mid: true }, back];
     }
-    g.save(); g.translate(cx, cy + 6); g.scale(2.6, 2.6);
+    return [{ k: slots[i] ? 'play' : 'new', x: c.x + 12, y: c.y + 100, w: 246, h: 48, t: slots[i] ? 'Fortsätt spela' : 'Starta nytt spel', main: true },
+      { k: 'more', x: c.x + 70, y: sm, w: 130, h: 28, t: 'Fler val' }];
+  }
+  function startNew(i, d) { settings.diff = d; applySettings(); newPick = -1; playSlot(i + 1); }
+  function chooseSlot(i) {                                       // spela, eller välj svårighet först på en tom plats
+    if (slots[i]) { playSlot(i + 1); return; }
+    newPick = i; diffSel = Math.max(0, DIFF_ORDER.indexOf(settings.diff)); sfx('click');
+  }
+  function inRect(p, r) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+  function askDelete(i) {
+    if (confirmDel.i === i && time < confirmDel.until) { try { localStorage.removeItem(slotKey(i + 1)); } catch (e) {} confirmDel.i = -1; moreSlot = -1; refreshSlots(); sfx('click'); tmsg('Plats ' + (i + 1) + ' är tom nu.'); }
+    else { confirmDel = { i: i, until: time + 3 }; sfx('deny'); tmsg('Tryck Radera igen för att radera plats ' + (i + 1) + '. Det går inte att ångra.'); }
+  }
+  function exportSlot(i) {
+    var s = slots[i]; if (!s) { tmsg('Plats ' + (i + 1) + ' är tom.'); return; }
+    try {
+      var blob = new Blob([JSON.stringify({ game: 'malm-och-monster', v: 1, save: s })], { type: 'application/json' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'Malm och Monster - plats ' + (i + 1) + ' - nivå ' + s.level + '.mms';
+      document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      sfx('craft'); tmsg('Sparfilen hamnar bland dina hämtade filer.');
+    } catch (e) { tmsg('Det gick inte att spara filen.'); }
+  }
+  var fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = '.mms,.json'; fileIn.style.display = 'none'; document.body.appendChild(fileIn);
+  function openImport(i) { importSlot = i; fileIn.value = ''; fileIn.click(); }
+  fileIn.addEventListener('change', function () {
+    var f = fileIn.files && fileIn.files[0]; if (!f) return;
+    if (f.size > 300000) { sfx('deny'); tmsg('Filen är för stor för att vara en sparfil.'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var s = null; try { var o = JSON.parse(rd.result); s = o && o.game === 'malm-och-monster' ? o.save : o; } catch (e) {}
+      if (!s || typeof s !== 'object' || typeof s.level !== 'number' || s.level < 1 || s.level > 999 || typeof s.hearts !== 'number') { sfx('deny'); tmsg('Det där är ingen sparfil från Malm & Monster.'); return; }
+      refreshSlots(); if (slots[importSlot]) { sfx('deny'); tmsg('Plats ' + (importSlot + 1) + ' är inte tom.'); return; }
+      try { localStorage.setItem(slotKey(importSlot + 1), JSON.stringify(s)); } catch (e) { tmsg('Det gick inte att spara.'); return; }
+      refreshSlots(); titleSel = importSlot; moreSlot = -1; sfx('heart'); tmsg('Spelet lästes in i plats ' + (importSlot + 1) + ' (nivå ' + s.level + ').');
+    };
+    rd.readAsText(f);
+  });
+  function titleHit(p, isTouch) {
+    for (var i = 0; i < SLOT_N; i++) {
+      var c = cardRect(i); if (!inRect(p, c)) continue;
+      if (newPick >= 0 && newPick !== i) newPick = -1;
+      if (moreSlot >= 0 && moreSlot !== i) moreSlot = -1;
+      titleSel = i;
+      var bs = cardBtns(i);
+      for (var j = 0; j < bs.length; j++) if (inRect(p, bs[j])) {
+        var k = bs[j].k;
+        if (k.charAt(0) === 'd' && k.length === 2) startNew(i, DIFF_ORDER[+k.charAt(1)]);
+        else if (k === 'cancel') { newPick = -1; sfx('click'); }
+        else if (k === 'more') { moreSlot = i; sfx('click'); }
+        else if (k === 'back') { moreSlot = -1; confirmDel.i = -1; sfx('click'); }
+        else if (k === 'del') askDelete(i); else if (k === 'exp') exportSlot(i);
+        else if (k === 'imp') { if (isTouch) { importPending = true; importSlot = i; } else openImport(i); }   // på plattan öppnas filväljaren när fingret släpper
+        else chooseSlot(i);
+        return;
+      }
+      if (newPick !== i && moreSlot !== i) chooseSlot(i);         // tryck var som helst på kortet
+      return;
+    }
+    newPick = -1; moreSlot = -1;
+  }
+  function titleButton(b, hi) {
+    if (b.main) {
+      rr(g, b.x, b.y, b.w, b.h, 10); g.fillStyle = hi ? '#fff0a0' : PAL.bolt; g.fill(); g.strokeStyle = 'rgba(10,20,10,0.6)'; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = '#1a2a1a'; g.font = 'bold ' + (b.w > 120 ? 21 : 17) + 'px ' + TXT;
+    } else if (b.mid) {                                         // knapp med förklaring under
+      rr(g, b.x, b.y, b.w, b.h, 9); g.fillStyle = b.red ? 'rgba(200,40,60,0.85)' : 'rgba(250,250,242,0.13)'; g.fill(); g.strokeStyle = 'rgba(250,250,242,0.5)'; g.lineWidth = 1.2; g.stroke();
+      g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 16px ' + TXT; g.fillText(b.t, b.x + b.w / 2, b.y + 15);
+      g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.fillText(b.sub, b.x + b.w / 2, b.y + 32); return;
+    } else {
+      rr(g, b.x, b.y, b.w, b.h, 7); g.fillStyle = 'rgba(250,250,242,0.08)'; g.fill();
+      g.strokeStyle = 'rgba(250,250,242,0.35)'; g.lineWidth = 1; g.stroke();
+      g.fillStyle = 'rgba(250,250,242,0.85)'; g.font = 'bold 13px ' + TXT;
+    }
+    g.textAlign = 'center'; g.fillText(b.t, b.x + b.w / 2, b.y + b.h / 2 + 1);
+  }
+  function overlayTitle() {
+    g.fillStyle = 'rgba(8,16,10,0.9)'; g.fillRect(0, 0, LW, LH);
+    var cx = LW / 2, cy = 100;
+    for (var i = 0; i < 7; i++) {                               // hjälten med blixtar, spelets kännetecken
+      var a = time * 1.6 + i * 0.898, b = a + 0.55;
+      drawBolt(cx + Math.cos(a) * 28, cy + Math.sin(a) * 28, cx + Math.cos(b) * 56, cy + Math.sin(b) * 56, Math.floor(time * 10) + i * 7, 2);
+    }
+    g.save(); g.translate(cx, cy + 6); g.scale(2.1, 2.1);
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
-    chalkTitle('Malm & Monster', cx, cy + 112, 64);
-    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.3', cx, cy + 156);
-    g.font = '15px ' + UI; g.fillStyle = 'rgba(250,250,242,0.85)';
-    if (touchMode) {
-      g.fillText('Dra med vänster tumme för att gå. Tryck på Slå för att slå och hacka.', cx, cy + 196);
-      g.fillText('Knappen med kött äter, vid ugnen blir den en hammare som smider. Paus finns uppe till höger.', cx, cy + 218);
-    } else {
-      g.fillText('Piltangenter eller WASD för att gå. Mellanslag eller musklick för att slå och hacka.', cx, cy + 196);
-      g.fillText('E smider och äter, Q blixtstorm, Shift parerar med skölden, F skjuter, Esc pausar.', cx, cy + 218);
+    chalkTitle('Malm & Monster', cx, 194, 56);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.4', cx, 232);
+    for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
+      var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
+      tag(c.x, c.y, c.w, c.h);
+      if (del) { rr(g, c.x, c.y, c.w, c.h, 9); g.fillStyle = 'rgba(200,40,60,0.35)'; g.fill(); }
+      if (i === titleSel && !touchMode) { rr(g, c.x, c.y, c.w, c.h, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
+      g.textAlign = 'left'; g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Plats ' + (i + 1), c.x + 14, c.y + 20);
+      g.font = 'bold 20px ' + TXT; g.fillStyle = PAL.chalk;
+      if (moreSlot === i) {
+        g.font = 'bold 17px ' + TXT; g.fillText('Fler val', c.x + 90, c.y + 20);
+      } else if (pick) {
+        g.fillText('Välj svårighet', c.x + 14, c.y + 50);
+        g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.8)'; g.fillText(DIFF_DESC[DIFF_ORDER[diffSel]] + (touchMode ? '' : ' (Enter startar)'), c.x + 14, c.y + 136);
+      } else if (s) {
+        g.fillText('Nivå ' + s.level + ', ' + biomeOf(s.level).name, c.x + 14, c.y + 50);
+        g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.8)';
+        g.fillText((s.sword ? swordName(s.sword) : 'Pinne') + ', ' + (DIFF_NAME[s.diff] || DIFF_NAME[settings.diff]), c.x + 14, c.y + 76);
+      } else {
+        g.fillText('Tom plats', c.x + 14, c.y + 50);
+        g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.6)'; g.fillText('Inget sparat spel här', c.x + 14, c.y + 76);
+      }
+      cardBtns(i).forEach(function (bt) { titleButton(bt, pick && bt.k === 'd' + diffSel && !touchMode); });
+      g.textAlign = 'left';
     }
-    var pulse = 0.65 + 0.35 * Math.sin(time * 4), start;
-    if (touchMode) start = saved ? 'Tryck för att fortsätta på nivå ' + saved.level : 'Tryck för att börja';
-    else start = saved ? 'Enter eller klick fortsätter på nivå ' + saved.level : 'Tryck Enter eller klicka för att börja';
-    g.globalAlpha = pulse; g.font = 'bold 20px ' + TXT; g.fillStyle = PAL.chalk;
-    g.fillText(start, cx, cy + 262);
-    g.globalAlpha = 1;
-    if (saved) {
-      tag(BTN_NEW.x - BTN_NEW.w / 2, BTN_NEW.y - BTN_NEW.h / 2, BTN_NEW.w, BTN_NEW.h);
-      g.font = 'bold 17px ' + TXT; g.fillStyle = PAL.chalk; g.fillText('Nytt spel', BTN_NEW.x, BTN_NEW.y + 1);
-    }
-    tag(BTN_DIFF.x - BTN_DIFF.w / 2, BTN_DIFF.y - BTN_DIFF.h / 2, BTN_DIFF.w, BTN_DIFF.h);
-    g.font = 'bold 17px ' + TXT; g.fillStyle = PAL.bolt; g.textAlign = 'center'; g.fillText('Svårighet: ' + DIFF_NAME[settings.diff], BTN_DIFF.x, BTN_DIFF.y + 1);
+    g.textAlign = 'center';
+    g.font = '14px ' + UI; g.fillStyle = 'rgba(250,250,242,0.6)';
+    g.fillText(touchMode ? 'Vänster tumme går, Slå-knappen slår. Paus finns uppe till höger.' : 'Pilar eller WASD går, mellanslag slår, E smider och äter, Esc pausar.', cx, 494);
+    var tm = time < titleMsgUntil ? titleMsg : (touchMode ? '' : 'Vänster och höger väljer plats, Enter spelar.');
+    g.font = 'bold 15px ' + TXT; g.fillStyle = time < titleMsgUntil ? PAL.bolt : 'rgba(250,250,242,0.45)'; g.fillText(tm, cx, 526);
     g.textAlign = 'left';
   }
   function overlayDead() {
@@ -2413,7 +2547,7 @@
     if (state === 'paused') inBox960(overlayPause);
     if (state === 'forge') inBox960(overlayForge);
     if (state === 'dead') inBox960(overlayDead);
-    if (state === 'title') inBox960(overlayTitle);
+    if (state === 'title') { g.fillStyle = 'rgba(8,16,10,0.9)'; g.fillRect(0, 0, LW, LH); inBox960(overlayTitle); }   // mörkt över hela skärmen, även utanför menyrutan
     if (touchMode && window.innerHeight > window.innerWidth * 1.05) {
       g.fillStyle = 'rgba(8,16,10,0.88)'; g.fillRect(0, 0, LW, LH);
       inBox960(function () {
@@ -2519,9 +2653,8 @@
   var PX = LW / 2 - 220, PW = 440, PY0 = 146, PH = 38, PSTEP = 44, PBY = PY0 + 7 * PSTEP + 26;
   var PB_GO = { x: LW / 2 - 112, y: PBY, w: 200, h: 48 }, PB_NEW = { x: LW / 2 + 112, y: PBY, w: 200, h: 48 };
   function inBox(p, b) { return Math.abs(p.x - b.x) < b.w / 2 + 6 && Math.abs(p.y - b.y) < b.h / 2 + 6; }
-  function askNew() {                                       // första trycket frågar, andra börjar om
-    if (confirmNew > 0) { confirmNew = 0; sfx('click'); newGame(); }
-    else { confirmNew = 3; sfx('deny'); }
+  function askNew() {                                       // v3.4: till titeln (spelet är sparat), där väljer man plats
+    save(); confirmNew = 0; state = 'title'; refreshSlots(); titleSel = slot - 1; if (window.LJUD) LJUD.duck(false); sfx('click');
   }
   function onPauseBtn(p) { return Math.hypot(p.x - BTN_PAUSE.x, p.y - BTN_PAUSE.y) < BTN_PAUSE.r + 14; }
   function pauseGame() {
@@ -2558,7 +2691,7 @@
       g.font = 'bold 18px ' + TXT; g.textAlign = 'left'; g.fillStyle = PAL.chalk; g.fillText(r.label, PX + 18, y + PH / 2 + 1);
       g.textAlign = 'right'; g.fillStyle = PAL.bolt; g.fillText(r.names[idx < 0 ? 0 : idx], PX + PW - 18, y + PH / 2 + 1);
     });
-    [[PB_GO, 'Fortsätt', PROWS.length], [PB_NEW, confirmNew > 0 ? 'Säker? Tryck igen' : 'Nytt spel', PROWS.length + 1]].forEach(function (b) {
+    [[PB_GO, 'Fortsätt', PROWS.length], [PB_NEW, 'Till titeln', PROWS.length + 1]].forEach(function (b) {
       var B = b[0]; tag(B.x - B.w / 2, B.y - B.h / 2, B.w, B.h);
       if (b[2] === PROWS.length + 1 && confirmNew > 0) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.fillStyle = 'rgba(200,40,60,0.55)'; g.fill(); }
       if (pauseSel === b[2] && !touchMode) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
@@ -2566,7 +2699,7 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.3', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.4', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
@@ -2819,7 +2952,7 @@
       else if ('123456'.indexOf(k) >= 0 && k.length === 1 && +k <= forgeRows().length) { forgeSel = +k - 1; buy(forgeSel); }
       return;
     }
-    if (k === 'Escape' || k === 'p') { if (state === 'play') pauseGame(); else if (state === 'paused') resumeGame(); return; }
+    if (k === 'Escape' || k === 'p') { if (state === 'play') pauseGame(); else if (state === 'paused') resumeGame(); else if (state === 'title') { newPick = -1; moreSlot = -1; } return; }
     if (state === 'paused') {
       var NR = PROWS.length, NSEL = NR + 2, GO = NR, NEWB = NR + 1;
       if (k === 'ArrowUp' || k === 'w') pauseSel = pauseSel === NEWB ? NR - 1 : (pauseSel + NSEL - 1) % NSEL;
@@ -2832,15 +2965,25 @@
       return;
     }
     if (k === ' ') attack();                            // slå direkt, så att korta tryck aldrig missas
-    if (state === 'title' && (k === 'ArrowLeft' || k === 'ArrowRight')) { cycleDiff(k === 'ArrowLeft' ? -1 : 1); return; }
+    if (state === 'title') {                               // sparplatser
+      if (moreSlot >= 0 && (k === 'Enter' || k === ' ')) return;
+      if (newPick >= 0) {                                   // välj svårighet för nytt spel
+        if (k === 'ArrowLeft' || k === 'a') diffSel = (diffSel + 2) % 3; else if (k === 'ArrowRight' || k === 'd') diffSel = (diffSel + 1) % 3;
+        else if (k === 'Enter' || k === ' ') startNew(newPick, DIFF_ORDER[diffSel]); else if (k === 'Backspace') newPick = -1;
+        return;
+      }
+      if (k === 'ArrowLeft' || k === 'a') { titleSel = (titleSel + SLOT_N - 1) % SLOT_N; sfx('click'); }
+      else if (k === 'ArrowRight' || k === 'd') { titleSel = (titleSel + 1) % SLOT_N; sfx('click'); }
+      else if (k === 'Enter' || k === ' ') chooseSlot(titleSel);
+      else if ((k === 'Delete' || k === 'Backspace') && slots[titleSel]) askDelete(titleSel);
+      return;
+    }
     if (k === 'q') castStorm();
     if (k === 'f') shoot();
     if (k === 'e') useE();
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
-      else if (state === 'title') { var s = load(); if (s) continueGame(s); else newGame(); }
     }
-    if (k === 'n' && state === 'title') newGame();
   });
   window.addEventListener('keyup', function (e) { keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false; });
   window.addEventListener('blur', function () { keys = {}; mouse.down = false; mouse.rdown = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; pauseGame(); });
@@ -2860,7 +3003,7 @@
     var mp = { x: mouse.x, y: mouse.y };
     if (state === 'forge') { forgeHit(toBox(mp)); return; }
     if (state === 'paused') { pauseHit(toBox(mp)); return; }
-    if (state === 'title') { if (inBox(toBox(mp), BTN_DIFF)) { cycleDiff(1); return; } var s0 = load(); if (saved && inBox(toBox(mp), BTN_NEW)) newGame(); else if (s0) continueGame(s0); else newGame(); return; }
+    if (state === 'title') { titleHit(toBox(mp), false); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
     if (e.button === 2) { mouse.rdown = true; return; }       // höger musknapp: skölden
@@ -2892,9 +3035,7 @@
     if (state === 'play' && onPauseBtn(p)) { pauseGame(); return; }
     if (state === 'title') {
       goFullscreen();
-      if (inBox(toBox(p), BTN_DIFF)) { cycleDiff(1); return; }
-      if (saved && Math.abs(toBox(p).x - BTN_NEW.x) < BTN_NEW.w / 2 + 10 && Math.abs(toBox(p).y - BTN_NEW.y) < BTN_NEW.h / 2 + 10) newGame();
-      else { var s = load(); if (s) continueGame(s); else newGame(); }
+      titleHit(toBox(p), true);
       return;
     }
     if (state === 'dead') {
@@ -2922,6 +3063,7 @@
     touch.jx = dx / JOY_R; touch.jy = dy / JOY_R;
   }, { passive: false });
   function endTouch(e) {
+    if (importPending) { importPending = false; openImport(importSlot); }   // filväljaren kräver att fingret släpper
     if (e.pointerId === touch.joyId) { touch.joyId = null; touch.jx = touch.jy = 0; }
     if (e.pointerId === touch.atkId) touch.atkId = null;
     if (e.pointerId === touch.eId) touch.eId = null;
@@ -2934,7 +3076,7 @@
 
   // ---------- huvudloop ----------
   P = newPlayer(); level = 1; buildLevel(1, 0); state = 'title'; applySettings();
-  saved = load();
+  migrateOldSave(); refreshSlots(); titleSel = Math.max(0, Math.min(SLOT_N - 1, (settings.slot || 1) - 1)); slot = titleSel + 1;
   resize();
   var last = performance.now();
   function frame(now) {
@@ -2949,6 +3091,6 @@
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
     step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
-    get bossIntro() { return bossIntro; }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
+    get bossIntro() { return bossIntro; }, get slots() { return slots; }, get slot() { return slot; }, playSlot: function (i) { playSlot(i); }, titleHit: function (x, y, t) { titleHit({ x: x, y: y }, t); }, toTitle: function () { askNew(); }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
     get fx() { return { trauma: trauma, hitStop: hitStop, texts: texts.length, particles: fx.length }; } };
 })();

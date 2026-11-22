@@ -1,4 +1,12 @@
-# Malm & Monster (Mines & Monsters), version 3.3
+# Malm & Monster (Mines & Monsters), version 3.4
+
+v3.4:
+- Tre sparplatser: localStorage `mm-plats-1..3` (`slotKey`, `slot`, `slots`, `loadSlot`, `refreshSlots`, `playSlot`). Gamla `streckgubbe-save-v1` flyttas till första lediga plats (`migrateOldSave`). Sparningen innehåller `diff`, och `continueGame` sätter svårigheten från platsen. `settings.slot` minns senaste plats.
+- Titeln (`overlayTitle`, `titleHit`, `cardRect`, `cardBtns`): kort per plats med Spara fil (`exportSlot`, laddar ned `.mms` med {game, v, save}) och Radera (`askDelete`, tryck två gånger inom 3 s), tom plats har Hämta fil (`openImport`, dold `fileIn`, kontrollerar innehållet; på pekskärm öppnas den vid pointerup via `importPending`). Varje kort har en stor knapp (Fortsätt spela eller Starta nytt spel, `titleButton`) och en liten Fler val (`moreSlot`) med Spara en kopia, Radera spelet och Hämta en sparad kopia, var och en med förklarande text; på en tom plats väljer man svårighet i kortet (`newPick`, `diffSel`, `startNew`, `chooseSlot`). Tangenter: vänster/höger plats, Enter spela, Delete radera; i svårighetsvalet vänster/höger och Enter, Esc avbryter.
+- Fix: `ensureOre` ger bara metaller som världen redan lämnat bakom sig (sorten <= lägsta sorten i världens `oreMix`), aldrig guld i Ängen när man har järnhacka.
+- Pausmenyns andra knapp är Till titeln (`askNew` sparar och går till titeln).
+- Lin ritas som en tuva med stora blå blommor och frökapslar; första gången nära lin förklaras det (`P.flaxSeen`).
+- Byte från monster (`dropLoot`, `C.drops`): kött 15 %, annars metall (`lootMetal`, världens blandning) eller två pilar; spindlar tappar lin. Föremål `arrows` och `flax`.
 
 v3.3:
 - Nya rutor: `FLAX 8` (lin, går att gå på, ett slag ger `P.flax`), `WATER 9` (damm, fast hinder), `BACK 10` (portal tillbaka vid (1,1) från nivå 2). `placePond` (var 3:e nivå, n % 3 === 2, egen slump, kontrollerar nåbarhet och strand), `placeFlax` (egen slump), `pond.fish` fiskar kvar.

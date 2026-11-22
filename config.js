@@ -43,7 +43,7 @@ const CONFIG = {
 
   items: {
     meatHeal: 12,          // hälsa per köttklubba
-    meatDropChance: 0.35,  // chans att monster tappar kött
+    meatDropChance: 0.15,  // chans att monster tappar kött (v3.4: lägre, mat finns hos djur och i dammar)
     heartMaxHpGain: 1,     // hjärtan som läggs till (1 = ett helt hjärta)
     crystalStrengthGain: 0,    // v3.0: kristaller ger bara blixtkraft (äldre sparningar behåller sin styrka)
     maxMeat: 9,
@@ -115,6 +115,9 @@ const CONFIG = {
   nature: { flaxPerLevel: 4, flaxByPond: 3, pondEvery: 3 },
   fishing: { fishPerPond: 4, waitMin: 1.5, waitMax: 4, biteWindow: 0.9 },
   prey: { perLevel: 3, radius: 7, speed: 105, fear: 100, runTime: 1.6, restTime: 1.1, wander: 22, meat: 1, hideChance: 0.5 },
+
+  // Byte från monster (v3.4), utöver kött: en bit metall, två pilar (om du har båge), spindlar tappar lin (tråd).
+  drops: { ore: 0.15, arrows: 0.15, arrowsN: 2, spiderFlax: 0.5 },
 
   // Svårighetsgrader (v2.3). mHp/mDmg = monster, bHp = bossens hälsa, gap = sekunder mellan bossens anfall,
   // wind = hur länge bossen varnar (1 = som förut), keep = andel malm kvar efter död, minions = hjälpare i bossens andra fas

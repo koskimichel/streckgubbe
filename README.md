@@ -3,7 +3,8 @@
 Ett 2D-monsterspel i webbläsaren. En streckgubbe hackar malm, smider svärd vid ugnen, slåss mot monster i grottor och blir starkare. Fungerar med tangentbord och mus, och med pekskärm på plattor. Kan installeras som app (PWA) och spelas offline.
 
 ## Versioner
-- **v3.3** (denna): lin, fiske, jakt, portal tillbaka, smedja med flikar.
+- **v3.4** (denna): tre sparplatser, spara och hämta fil.
+- **v3.3**: lin, fiske, jakt, portal tillbaka, smedja med flikar.
 - **v3.2**: snällare Lätt.
 - **v3.1**: stenhacka, sköld och pilbåge.
 - **v3.0**: taggen [`v3.0`](../../tree/v3.0), hantverk med trä och fyra malmsorter, recept i smedjan, ny skadebalans, skattkammare med runstenar och block.

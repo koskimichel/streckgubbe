@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 3.3
+# Malm & Monster (Mines & Monsters), version 3.4
+
+Nytt i 3.4: tre sparplatser på titelskärmen. Varje plats kan sparas som fil (Spara fil) och läsas in på en annan dator eller platta (Hämta fil). Monstren tappar mindre kött men ibland metall eller pilar.
 
 Nytt i 3.3: plocka lin, fiska vid dammar med ett fiskespö, fånga djur och flå dem med en jaktkniv. En blå portal vid starten tar dig tillbaka till förra nivån. Smedjan har två flikar: Vapen och skydd, och Verktyg.
 
