@@ -1,6 +1,6 @@
 // Enkel offline-cache. Höj VERSION när filer ändras.
-const VERSION = 'streckgubbe-v2';
-const FILER = ['./', 'index.html', 'spel.js', 'config.js', 'manifest.webmanifest', 'icon.svg'];
+const VERSION = 'streckgubbe2-v3';
+const FILER = ['./', 'index.html', 'spel.js', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(FILER); }));

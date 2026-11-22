@@ -5,6 +5,14 @@ const CONFIG = {
   cols: 30,
   rows: 18,
 
+  // Effekter (v2). Sänk eller stäng av om något känns obehagligt.
+  effects: {
+    shake: 1,              // skärmskakning, 0 = av, 1 = full
+    hitStop: true,         // kort frysning vid träff
+    flash: true,           // vit blinkning på monster vid träff (false = svag färgton)
+    damageNumbers: true    // flygande skadetal och plock-texter
+  },
+
   player: {
     speed: 130,            // pixlar/sekund
     startHearts: 3,        // varje hjärta = hpPerHeart hälsa

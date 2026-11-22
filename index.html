@@ -2,15 +2,19 @@
 <html lang="sv">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Streckgubbe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Malm &amp; Monster</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1b2a1b">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <style>
-  html, body { margin:0; height:100%; background:#101810; color:#eee; font-family:Segoe UI, Arial, sans-serif; }
+  html, body { margin:0; height:100%; background:#0c140c; color:#eee; font-family:Segoe UI, Arial, sans-serif; overflow:hidden; }
   body { display:flex; align-items:center; justify-content:center; }
-  canvas { background:#000; max-width:100vw; max-height:100vh; image-rendering:pixelated; cursor:crosshair; }
+  /* spel.js skalar canvasen till fönstret och ritar i skärmens upplösning */
+  canvas { display:block; background:#0c140c; cursor:crosshair;
+    touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }
+  html, body { overscroll-behavior:none; }
 </style>
 </head>
 <body>
