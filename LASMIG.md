@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 2.4
+# Malm & Monster (Mines & Monsters), version 3.0
+
+Nytt i 3.0: hugg träd för trä, bryt grå stenar för sten och gör ett stensvärd, som behövs för att bryta malm. Det finns fyra sorters malm (koppar, järn, guld, stjärnmalm). Svärd, hacka och rustning smids av trä och metall, och en bättre hacka behövs för ädlare malm. Monstren tar 2–4 slag. Varje värld har en skattkammare med runstenar eller block att knuffa; kistan ger trä, metall och en månsten.
 
 Nytt i 2.4: spelet fungerar på mobil. På små skärmar fyller spelet hela skärmen, kameran zoomar in och följer gubben, knappar och text blir större och en liten karta i hörnet visar portalen och monstren. På dator och platta är allt som förut.
 

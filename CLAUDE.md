@@ -1,4 +1,12 @@
-# Malm & Monster (Mines & Monsters), version 2.4
+# Malm & Monster (Mines & Monsters), version 3.0
+
+v3.0 (hantverk och skattkammare):
+- Material: trä (`P.wood`, hugg träd: `treeHp`, `C.crafting.treeHits`), sten (`P.stone`, bryt grå stenar inne på kartan: `stoneHp`, `breakableStone` utesluter kanten och skattkammarens väggar), metall i fyra sorter (`MET`: 0 koppar = `P.ore`, 1 järn `P.iron`, 2 guld `P.gold`, 3 stjärnmalm `P.star`; `metalAmt`/`addMetal`). Malmsort per ruta i `oreT`, blandning per värld `C.crafting.oreMix`. Hackans nivå (`P.pick`, `PICK_NAME`) avgör vilken sort som går att bryta (sort <= hacka), annars meddelandet "För hård!".
+- Recept i `C.crafting` (kostnad för att NÅ en nivå): `sword` (1-2 stensvärd av trä + sten, malm kräver minst stensvärd; 3-5 koppar, 6-8 järn, 9-11 guld, 12-15 stjärnmalm), `pick`, `armor`, `lantern0`; lyktans högre nivåer kostar månsten. Smedjan: `recipe`, `forgeRows`, `canAfford`, `costText`, `missingText`, `pay`, `forgeGoal` (föreslår hackan om svärdet kräver malm man inte kan bryta).
+- Skadebalans: svärd 2.5 + 1.0 per nivå, monstrens hpPerLevel höjda; mål 2-4 slag per vanligt monster med världens svärd.
+- Svärdets utseende följer materialet (`swordLook`): trä (brunt, ådring), koppar, järn, guld (sken), stjärnmalm (blått, glitter). Rustningen har fyra delar (`ARMOR_PART`: bröstplåt, hjälm, axelskydd, benskydd) som byggs och byts en i taget: nivå 1-4 koppar, 5-8 järn, 9-12 guld, 13-16 stjärnmalm (`armorPartTier`, `ARMOR_MAT`); hel rustning av guld eller bättre glimmar. Äldre sparningar (utan `armorV: 2`) räknas om. Guidetexten (`drawGuideText`) ligger nere i mitten och visas 5 s när instruktionen ändras (`guideShowT`); pilen finns kvar.
+- Sparningen minns besegrad boss (`P.bossDone`), tagen kista (`P.chestDone`) och brutna rutor (`P.mined` + `P.minedLevel`, `markMined`) för nivån, så att omladdning inte ger belöningen igen; `buildLevel` hoppar då över bossen/kammaren.
+- Skattkammare: en per värld, nivå `tw*5 + 1 + hash%4` (aldrig boss). `placeTreasure` ristar rum 7x4 (stenväggar, `DOOR`-ruta, kista) + plan 7x5 och kontrollerar nåbarhet (ångrar annars). `puzzle.kind` växlar per värld: `runes` (`runeHit`, ordning `seq` visas med toner `LJUD.note`) eller `blocks` (`pushBlocks`, `blockAt` i `blockedAt`, block låses på platta, spaken `resetBlocks`). `solvePuzzle` öppnar dörren, `openChest` ger trä, metall av nästa sort och månsten (+2 vid perfekt). Första gången visas en notis (`P.treasureSeen`), sedan ingen varning; kistan syns på minikartan när kammaren hittats.
 
 v2.4 (mobil):
 - `WW`/`WH` = världens mått (960 x 576), `LW`/`LH` = vyns mått i logiska enheter. Dator/platta: vy = värld, kameran visar hela kartan (som förut). Mobil (`PHONE`, minsta skärmsida < 520 CSS-px): vyn fyller skärmen (`LH` = 430, `LW` efter bildformat), större HUD och knappar.
@@ -15,9 +23,9 @@ v2.3:
 - Rustning syns (`drawArmor`): bröstplåt, axelskydd, hjälm, blått stål med plym, guld. Brutaler har rund kropp.
 - Test: `__sg.step(sek)` spolar fram spelet utan bildrutor (panelen kör få bildrutor när den är dold).
 - Balans: max 10 hjärtan (`C.items.maxHearts`, fler ger full hälsa; äldre sparningar behåller sina och visas som mätare), hjärta var 5:e nivå, malm per nivå 8 + 0,6n (max 22), svärdspris med kvadratterm (`upgradeCostSquare`), dyrare rustning/hacka, styrka per kristall ger mindre skada.
-- Blixtkraft: kristall ger laddning (`P.bolts`, max `C.boltPower.max`), `castStorm` (Q eller `BTN_BOLT` på plattan) skadar alla monster, ljusblixt `stormT` (svag ton om blinkningar är av).
+- Blixtkraft: kristall ger laddning (v3.0: och ingen styrka längre, styrka visas inte i HUD) (`P.bolts`, max `C.boltPower.max`), `castStorm` (Q eller `BTN_BOLT` på plattan) skadar alla monster, ljusblixt `stormT` (svag ton om blinkningar är av).
 - Varv: `lapOf(n)` (efter nivå 25). Varv 2 kvällston, 3+ natt (multiply-ton i världen), elitmonster (`m.elite`, `C.laps`), fler hjälpare till bossen. HUD: "Nivå N, varv X".
-- Hjärtan i HUD: `drawHeart` (blanka med glans), två rader om fem, röd pulserande kant vid låg hälsa.
+- Hjärtan i HUD: `drawHeart` (blanka med glans, tomma hjärtan har ljus kontur), två rader om fem, röd pulserande kant vid låg hälsa.
 
 v2.2:
 - E-tangent vid köttet i HUD (dator), ät-tips vid låg hälsa (`eatHintT`).
@@ -68,6 +76,7 @@ Starta `python -m http.server <port> --bind 127.0.0.1` i mappen och öppna sidan
 Kontrollera nåbarhet för många nivåer med en loop över `build(n)`. Stoppa servern efteråt. Den inbyggda webbläsaren blockerar service workers; felet "unknown error when fetching the script" därifrån är väntat.
 
 ## Arbetssätt
+- Kommentarer med // får aldrig hamna mitt på en rad med flera satser (resten av raden blir kommentar). Använd /* */ eller lägg kommentaren sist. Testa alltid att ett sparat spel läses in rätt (spara, ladda om, Enter, jämför alla fält i P) efter ändringar i save/continueGame.
 - Kostnadseffektivt: små ändringar görs direkt. Delegera bara stora, avgränsade uppgifter, och till billigast lämpliga modell.
 - Säkerhet: inga dolda filer, hooks eller skript som körs automatiskt. Granska skills och kod från GitHub innan installation. Fråga innan nya filer sparas.
 

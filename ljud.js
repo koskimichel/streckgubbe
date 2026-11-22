@@ -65,6 +65,8 @@ var LJUD = (function () {
     level: function (t) { noise(0.5, 0.14, t, 'bandpass', 300, 3000, 1.5); [392, 523, 659, 784].forEach(function (f, i) { tone('triangle', f, 0, 0.22, 0.18, t + 0.15 + i * 0.09); }); },
     death: function (t) { [392, 330, 262, 196].forEach(function (f, i) { tone('triangle', f, f * 0.97, 0.3, 0.22, t + i * 0.18); }); },
     click: function (t) { tone('triangle', 900, 1200, 0.04, 0.15, t); },
+    chop: function (t) { noise(0.08, 0.35, t, 'bandpass', 900, 500, 2); tone('square', 180, 120, 0.06, 0.1, t); },
+    push: function (t) { noise(0.25, 0.3, t, 'lowpass', 600, 200); tone('sine', 90, 70, 0.2, 0.15, t); },
     storm: function (t) { noise(0.08, 0.55, t, 'highpass', 4000); noise(1.3, 0.5, t + 0.02, 'lowpass', 2500, 110); tone('sawtooth', 95, 38, 0.9, 0.28, t); },
     charge: function (t) { tone('sawtooth', 70, 160, 0.6, 0.22, t); noise(0.6, 0.15, t, 'lowpass', 300, 1200); },
     slam: function (t) { tone('sine', 120, 35, 0.5, 0.7, t); noise(0.4, 0.4, t, 'lowpass', 900, 150); },
@@ -126,11 +128,16 @@ var LJUD = (function () {
     if (!ac || b === cave) return;
     cave = b; musicFilter.frequency.setTargetAtTime(b ? 850 : 3200, ac.currentTime, 0.4);
   }
+  function note(i) {                                        // runstenarnas toner
+    if (!ac || vol.sfx <= 0 || ac.state !== 'running') return;
+    var sc = [0, 2, 4, 7, 9, 12, 14], f = mtof(72 + sc[i % 7]), t = ac.currentTime + 0.005;
+    tone('triangle', f, 0, 0.5, 0.28, t); tone('sine', f * 2, 0, 0.3, 0.06, t);
+  }
   function setBiome(i) { trans = [0, -2, 3, 2, -3][i] || 0; }      // ny tonart i varje miljö
   function duck(on) { ducked = on; if (ac) musicBus.gain.setTargetAtTime(musicGain(), ac.currentTime, 0.15); }
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume().then(function () { nextT = Math.max(nextT, ac.currentTime + 0.1); }); }
 
-  return { init: init, play: play, setVolumes: setVolumes, setCave: setCave, setBiome: setBiome, duck: duck, suspend: suspend, resume: resume,
+  return { init: init, play: play, note: note, setVolumes: setVolumes, setCave: setCave, setBiome: setBiome, duck: duck, suspend: suspend, resume: resume,
     get state() { return ac ? ac.state : 'ingen'; } };
 })();

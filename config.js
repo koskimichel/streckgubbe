@@ -26,8 +26,8 @@ const CONFIG = {
 
   weapon: {
     stickDamage: 1,        // utan svärd
-    swordBaseDamage: 3,    // svärd nivå 1
-    damagePerSwordLevel: 1.5,
+    swordBaseDamage: 2.5,  // svärd nivå 1 (v3.0: var 3)
+    damagePerSwordLevel: 1.0,  // v3.0: var 1.5
     damagePerStrength: 0.4,  // v2.3: var 0.8 (kristaller ger nu blixtkraft)
     maxSwordLevel: 15,    // v2.2: höjt från 10
     craftCost: 4,          // malm för första svärdet
@@ -45,7 +45,7 @@ const CONFIG = {
     meatHeal: 12,          // hälsa per köttklubba
     meatDropChance: 0.35,  // chans att monster tappar kött
     heartMaxHpGain: 1,     // hjärtan som läggs till (1 = ett helt hjärta)
-    crystalStrengthGain: 1,
+    crystalStrengthGain: 0,    // v3.0: kristaller ger bara blixtkraft (äldre sparningar behåller sin styrka)
     maxMeat: 9,
     maxHearts: 10          // v2.3: tak; fler hjärtan ger full hälsa i stället
   },
@@ -74,10 +74,29 @@ const CONFIG = {
 
   // Smedjan (v2.2). Kostnad = costBase + costStep * nuvarande nivå
   upgrades: {
-    armor:   { max: 5, costBase: 8, costStep: 6, reducePerLevel: 0.12 },   // mindre skada per nivå
+    armor:   { max: 16, reducePerLevel: 0.0375 },   // v3.0: fyra delar x fyra material, totalt 60 % mindre skada
     pickaxe: { max: 3, costBase: 6, costStep: 6 },                         // färre slag per malm, nivå 3 ger dubbel malm
     lantern: { max: 4, oreCost: 4, moonCost: [1, 2, 3], lightPerLevel: 30 }  // v2.3: fås gratis i Djungeln, uppgraderas med månsten
   },
+
+  // Hantverk (v3.0). Malmsort: 0 koppar, 1 järn, 2 guld, 3 stjärnmalm. Hackans nivå n bryter sort 0..n.
+  // Recepten anger kostnaden för att NÅ en nivå: trä (wood) och metall (metal = sort, n = antal), eller månsten (moon).
+  crafting: {
+    treeHits: 3, woodPerTree: 1, stoneHits: 3,   // grå stenar inne på kartan ger sten
+    oreMix: [[0.92, 0.08, 0, 0], [0.35, 0.55, 0.10, 0], [0, 0.40, 0.50, 0.10], [0, 0, 0.45, 0.55], [0, 0, 0.30, 0.70]],   // andel per värld
+    sword: [null, { wood: 2, stone: 3 }, { wood: 2, stone: 4 },   // stensvärd (nivå 1-2) av trä och sten
+      { wood: 2, metal: 0, n: 4 }, { wood: 2, metal: 0, n: 5 }, { wood: 2, metal: 0, n: 6 },
+      { wood: 3, metal: 1, n: 4 }, { wood: 3, metal: 1, n: 5 }, { wood: 3, metal: 1, n: 6 },
+      { wood: 3, metal: 2, n: 4 }, { wood: 3, metal: 2, n: 5 }, { wood: 4, metal: 2, n: 6 },
+      { wood: 4, metal: 3, n: 4 }, { wood: 4, metal: 3, n: 5 }, { wood: 5, metal: 3, n: 6 }, { wood: 5, metal: 3, n: 7 }],
+    pick: [null, { wood: 2, metal: 0, n: 4 }, { wood: 3, metal: 1, n: 5 }, { wood: 3, metal: 2, n: 6 }],
+    // Rustningen: delarna 0 bröstplåt, 1 hjälm, 2 axelskydd, 3 benskydd byggs/byts en i taget, först koppar, sedan järn, guld, stjärnmalm.
+    armor: (function () { var a = [null]; for (var t = 0; t < 4; t++) for (var p = 0; p < 4; p++) a.push({ wood: 1 + (t >= 2 ? 1 : 0), metal: t, n: 2 + t + (p === 0 ? 1 : 0) }); return a; })(),
+    lantern0: { metal: 0, n: 4 }
+  },
+
+  // Skattkammare (v3.0): en per värld på en slumpad nivå. Kistan ger trä, metall av nästa sort och en månsten.
+  treasure: { chestWood: 3, moon: 1 },
 
   // Svårighetsgrader (v2.3). mHp/mDmg = monster, bHp = bossens hälsa, gap = sekunder mellan bossens anfall,
   // wind = hur länge bossen varnar (1 = som förut), keep = andel malm kvar efter död, minions = hjälpare i bossens andra fas
@@ -95,11 +114,11 @@ const CONFIG = {
 
   monsters: {
     // hp = hpBase + hpPerLevel * nivå ; dmg = dmgBase + dmgPerLevel * nivå
-    slime: { from: 1, hpBase: 2,  hpPerLevel: 1.4, dmgBase: 3, dmgPerLevel: 0.9, speed: 38, speedPerLevel: 3,   maxSpeed: 85,  radius: 11, weight: 6, color: '#58c24a' },
-    bat:   { from: 3, hpBase: 1,  hpPerLevel: 0.9, dmgBase: 2, dmgPerLevel: 0.8, speed: 70, speedPerLevel: 3.5, maxSpeed: 115, radius: 8,  weight: 3, color: '#8a5fc4' },
-    spider: { from: 7, hpBase: 3, hpPerLevel: 1.1, dmgBase: 2, dmgPerLevel: 0.6, speed: 55, speedPerLevel: 2, maxSpeed: 90, radius: 10, weight: 3, color: '#3b3b48' },
-    ghost:  { from: 9, hpBase: 2, hpPerLevel: 1.0, dmgBase: 4, dmgPerLevel: 0.9, speed: 34, speedPerLevel: 1.5, maxSpeed: 60, radius: 11, weight: 2, color: '#cfd8ff' },
-    brute: { from: 5, hpBase: 6,  hpPerLevel: 2.2, dmgBase: 6, dmgPerLevel: 1.2, speed: 30, speedPerLevel: 2,   maxSpeed: 70,  radius: 15, weight: 2, color: '#c2503f' },
+    slime: { from: 1, hpBase: 2,  hpPerLevel: 2.0, dmgBase: 3, dmgPerLevel: 0.9, speed: 38, speedPerLevel: 3,   maxSpeed: 85,  radius: 11, weight: 6, color: '#58c24a' },
+    bat:   { from: 3, hpBase: 1,  hpPerLevel: 1.3, dmgBase: 2, dmgPerLevel: 0.8, speed: 70, speedPerLevel: 3.5, maxSpeed: 115, radius: 8,  weight: 3, color: '#8a5fc4' },
+    spider: { from: 7, hpBase: 3, hpPerLevel: 1.6, dmgBase: 2, dmgPerLevel: 0.6, speed: 55, speedPerLevel: 2, maxSpeed: 90, radius: 10, weight: 3, color: '#3b3b48' },
+    ghost:  { from: 9, hpBase: 2, hpPerLevel: 1.4, dmgBase: 4, dmgPerLevel: 0.9, speed: 34, speedPerLevel: 1.5, maxSpeed: 60, radius: 11, weight: 2, color: '#cfd8ff' },
+    brute: { from: 5, hpBase: 6,  hpPerLevel: 3.0, dmgBase: 6, dmgPerLevel: 1.2, speed: 30, speedPerLevel: 2,   maxSpeed: 70,  radius: 15, weight: 2, color: '#c2503f' },
     aggroRange: 200,       // monster ser spelaren inom detta avstånd
     caveAggroRange: 150,
     attackCooldown: 0.9,

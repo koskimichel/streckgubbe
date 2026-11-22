@@ -3,7 +3,8 @@
 Ett 2D-monsterspel i webbläsaren. En streckgubbe hackar malm, smider svärd vid ugnen, slåss mot monster i grottor och blir starkare. Fungerar med tangentbord och mus, och med pekskärm på plattor. Kan installeras som app (PWA) och spelas offline.
 
 ## Versioner
-- **v2.4** (denna): mobilanpassning med kamera som följer gubben, större knappar och text, karta i hörnet.
+- **v3.0** (denna): hantverk med trä och fyra malmsorter, recept i smedjan, ny skadebalans, skattkammare med runstenar och block.
+- **v2.4**: taggen [`v2.4`](../../tree/v2.4), mobilanpassning med kamera som följer gubben, större knappar och text, karta i hörnet.
 - **v2.3**: taggen [`v2.3`](../../tree/v2.3), svårighetsgrader, nya bossar med andra fas, tydligare djungel, månsten och lykta, synlig rustning, malm-hjälp.
 - **v2.2**: taggen [`v2.2`](../../tree/v2.2), fem världar, boss var femte nivå, spindlar och spöken, fler monster, smedjan (svärd till nivå 15, rustning, hacka, lykta), ät-tips.
 - **v2.1**: taggen [`v2.1`](../../tree/v2.1), ljud och musik, paus och inställningar, guide på nivå 1, tydligare pekknappar.
