@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 3.1
+# Malm & Monster (Mines & Monsters), version 3.2
+
+Nytt i 3.2: Lätt är lättare. Monstren är svagare, man behåller all malm när man dör och gubben läker långsamt när inga monster är nära.
 
 Nytt i 3.1: en stenhacka behövs för att bryta koppar. Skölden parerar skada framifrån (Shift, höger musknapp eller Sköld-knappen). Pilbågen skjuter på avstånd och siktar själv (F eller Skjut-knappen); pilar görs av trä och koppar i smedjan.
 

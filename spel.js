@@ -1,6 +1,7 @@
-// Malm & Monster (Mines & Monsters), version 3.1 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 3.2 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
+// v3.2 nytt: snällare Lätt (svagare monster, behåll all malm, läkning när det är lugnt, längre skydd efter träff).
 // v3.1 nytt: stenhacka krävs för koppar, sköld (parera), pilbåge med pilar och auto-sikte.
 // v3.0 nytt: hantverk (trä och fyra malmsorter, hackan styr vad som går att bryta, recept i smedjan), ny skadebalans, skattkammare med runstenar och block.
 // v2.4 nytt: mobilanpassning (kamera som följer gubben, större knappar och text, karta i hörnet).
@@ -115,7 +116,7 @@
       x: 2.5 * TS, y: 2.5 * TS, r: 10, hearts: C.player.startHearts,
       hp: C.player.startHearts * C.player.hpPerHeart,
       str: C.player.startStrength, ore: 0, meat: 1, sword: 0,
-      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chestDone: 0, mined: [], minedLevel: 0, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0
+      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chestDone: 0, mined: [], minedLevel: 0, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
     };
   }
   function maxHp() { return P.hearts * C.player.hpPerHeart; }
@@ -602,6 +603,11 @@
     if (state !== 'play') return;
     P.cd -= dt; P.inv -= dt; P.swing -= dt; P.shootCd -= dt; P.shotT -= dt; P.blockFlash -= dt;
     P.blocking = P.shield > 0 && !!(keys.Shift || mouse.rdown || touch.shieldId != null);   // håller skölden uppe
+    P.calmT += dt;
+    if (DF().regen && P.calmT > 3 && P.hp < maxHp() && !mons.some(function (m) { return !m.hidden && dist(m, P) < 170; })) {   /* Lätt: läker när det är lugnt */
+      P.hp = Math.min(maxHp(), P.hp + DF().regen * C.player.hpPerHeart * dt);
+      if (Math.random() < dt * 3) sparks(P.x + (Math.random() - 0.5) * 14, P.y - 10, PAL.heart, 1);
+    }
     if (P.pu > 0) P.pu -= dt; if (P.slow > 0) P.slow -= dt; if (P.icy > 0) P.icy -= dt; if (bossIntro > 0) bossIntro -= dt;
     // gnistor runt gubben, fler ju starkare han är
     var pw = power();
@@ -784,7 +790,7 @@
       sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 10); floatText(P.x, P.y - 40, 'parerad!', '#e6f5ff');
     }
     var d = dmg * (1 - C.upgrades.armor.reducePerLevel * P.armor);
-    P.hp -= d; P.inv = C.player.invulnAfterHit;
+    P.hp -= d; P.inv = C.player.invulnAfterHit * (DF().invMul || 1); P.calmT = 0;
     addTrauma(0.5); sparks(P.x, P.y, '#ff4d4d', 10); sfx('hurt');
     floatText(P.x, P.y - 26, '-' + fmt(d), '#ff6b6b');
     if (P.hp <= 0) die();
@@ -2095,7 +2101,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, cy + 112, 64);
-    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.1', cx, cy + 156);
+    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.2', cx, cy + 156);
     g.font = '15px ' + UI; g.fillStyle = 'rgba(250,250,242,0.85)';
     if (touchMode) {
       g.fillText('Dra med vänster tumme för att gå. Tryck på Slå för att slå och hacka.', cx, cy + 196);
@@ -2124,7 +2130,7 @@
     g.fillStyle = vg; g.fillRect(0, 0, LW, LH);
     chalkTitle('Du föll!', LW / 2, LH / 2 - 24, 52);
     g.font = '16px ' + UI; g.fillStyle = 'rgba(250,250,242,0.9)';
-    g.fillText((DF().keep >= 0.75 ? 'Du tappade en fjärdedel av malmen. ' : DF().keep > 0 ? 'Du tappade halva malmen. ' : 'Du tappade all malm. ') + (touchMode ? 'Tryck på skärmen' : 'Tryck Enter') + ' för att försöka nivå ' + level + ' igen.', LW / 2, LH / 2 + 30);
+    g.fillText((DF().keep >= 1 ? 'Du behöll all malm. ' : DF().keep >= 0.75 ? 'Du tappade en fjärdedel av malmen. ' : DF().keep > 0 ? 'Du tappade halva malmen. ' : 'Du tappade all malm. ') + (touchMode ? 'Tryck på skärmen' : 'Tryck Enter') + ' för att försöka nivå ' + level + ' igen.', LW / 2, LH / 2 + 30);
     g.textAlign = 'left';
   }
 
@@ -2286,7 +2292,7 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.1', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.2', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 

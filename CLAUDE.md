@@ -1,4 +1,7 @@
-# Malm & Monster (Mines & Monsters), version 3.1
+# Malm & Monster (Mines & Monsters), version 3.2
+
+v3.2:
+- Lätt är snällare (`C.difficulty.latt`): monster 70 % hälsa och 60 % skada, boss 70 % hälsa, längre tid mellan bossanfall och längre varning, all malm kvar vid död, 2 hjälpare. `regen` (hjärtan/s) läker när `P.calmT` > 3 s och inget monster är inom 170 px; `invMul` förlänger skyddet efter träff. Medel och Svår oförändrade.
 
 v3.1:
 - Stenhacka (`P.hasPick`, recept `stonePick`) krävs för all malm; äldre sparningar får `hasPick = true`. Hackraden i smedjan visar nivå 0-4 (0 = ingen hacka).
