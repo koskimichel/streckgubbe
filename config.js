@@ -95,7 +95,11 @@ const CONFIG = {
     stonePick: { wood: 2, stone: 3 },                            // v3.1: stenhacka krävs för koppar
     shield: [null, { wood: 2, metal: 0, n: 4 }, { wood: 2, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 3, metal: 3, n: 7 }],
     bow: [null, { wood: 4, stone: 1 }, { wood: 3, metal: 1, n: 4 }, { wood: 3, metal: 2, n: 5 }],   // träbåge, järnbåge, guldbåge
-    arrows: { wood: 1, metal: 0, n: 1 },                         // ger bow.arrowsPerCraft pilar
+    arrows: { wood: 1, stone: 1 },                               // v3.3: stenspetsar, ger bow.arrowsPerCraft pilar (ingen metall)
+    arrowHead: [null, { wood: 1, metal: 0, n: 4 }, { wood: 1, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 2, metal: 3, n: 7 }],   // pilspetsar: koppar, järn, guld, stjärnmalm
+    rod: { wood: 2, flax: 3 },                                   // v3.3: fiskespö
+    knife: { wood: 1, stone: 2 },                                // v3.3: jaktkniv av sten
+    quiver: { flax: 2, hide: 3 },                                // v3.3: stort koger (fler pilar)
     lantern0: { metal: 0, n: 4 }
   },
 
@@ -104,7 +108,13 @@ const CONFIG = {
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
   shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5 },
-  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, maxArrows: 30, arrowsPerCraft: 5 },
+  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, maxArrows: 30, arrowsPerCraft: 5, quiverExtra: 20,
+    headDmg: [3, 5, 8, 11, 15], bowMul: [0, 1.0, 1.15, 1.3], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
+
+  // Natur (v3.3): lin på marken, en damm var tredje nivå (2, 5, 8 ...), bytesdjur på de andra nivåerna.
+  nature: { flaxPerLevel: 4, flaxByPond: 3, pondEvery: 3 },
+  fishing: { fishPerPond: 4, waitMin: 1.5, waitMax: 4, biteWindow: 0.9 },
+  prey: { perLevel: 3, radius: 7, speed: 105, fear: 100, runTime: 1.6, restTime: 1.1, wander: 22, meat: 1, hideChance: 0.5 },
 
   // Svårighetsgrader (v2.3). mHp/mDmg = monster, bHp = bossens hälsa, gap = sekunder mellan bossens anfall,
   // wind = hur länge bossen varnar (1 = som förut), keep = andel malm kvar efter död, minions = hjälpare i bossens andra fas

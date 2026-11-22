@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 3.2
+# Malm & Monster (Mines & Monsters), version 3.3
+
+Nytt i 3.3: plocka lin, fiska vid dammar med ett fiskespö, fånga djur och flå dem med en jaktkniv. En blå portal vid starten tar dig tillbaka till förra nivån. Smedjan har två flikar: Vapen och skydd, och Verktyg.
 
 Nytt i 3.2: Lätt är lättare. Monstren är svagare, man behåller all malm när man dör och gubben läker långsamt när inga monster är nära.
 

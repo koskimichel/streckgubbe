@@ -1,4 +1,18 @@
-# Malm & Monster (Mines & Monsters), version 3.2
+# Malm & Monster (Mines & Monsters), version 3.3
+
+v3.3:
+- Nya rutor: `FLAX 8` (lin, går att gå på, ett slag ger `P.flax`), `WATER 9` (damm, fast hinder), `BACK 10` (portal tillbaka vid (1,1) från nivå 2). `placePond` (var 3:e nivå, n % 3 === 2, egen slump, kontrollerar nåbarhet och strand), `placeFlax` (egen slump), `pond.fish` fiskar kvar.
+- Fiske: `P.rod`, E vid vatten (`waterNear`, `fishE`), `P.fish` = {phase wait/bite}, napp i `C.fishing.biteWindow` (längre på Lätt), fisk = +1 kött. Ritas i `drawRodLine`.
+- Bytesdjur i `prey` (inte i `mons`, räknas inte till kvoten) på nivåer utan damm: kanin, ödla, hare, salamander efter värld (`PREY_KIND`). `updatePrey` (flyr, blir trött), `catchPrey` (svärd, pil; `shoot` siktar på djur om inget monster finns), `skinPrey` kräver `P.knife`, ger kött och ibland skinn (`P.hide`). Skinn används till `quiver` (stort koger, `maxArrows()`).
+- E gör olika saker (`eMode`: forge, skin, fish, eat); pekknappen byter ikon. `drawEHint` visar en lapp på datorn.
+- Portal tillbaka: `P.maxLevel` (högsta nivån), `exitOpen()` (kvot klar eller tidigare nivå), `startLevel(n, back)` sätter gubben vid utgången och `P.portalLock` tills man gått av portalen. Ingen boss på nivåer under `maxLevel`.
+- Sparning: `P.chests` (lista, ersätter `chestDone`; äldre sparningar via `oldChests`), `P.minedMap` (per nivå, ersätter `mined`/`minedLevel`, nivåer < maxLevel - 12 glöms), `flax`, `hide`, `rod`, `knife`, `quiver`, `maxLevel`, `backSeen`.
+- Smedjan har två flikar (`forgeTab`, `TABS`, `allRows`/`forgeRows`, `switchTab`, Tab/vänster/höger): Vapen och skydd (svärd, rustning, sköld, båge, pilar) och Verktyg (hacka, lykta, fiskespö, jaktkniv, stort koger). Fliken med något köpbart får ett !.
+- Pilar kostar trä + sten (ingen metall). Pilspetsar (`P.arrowHead` 0-4, recept `arrowHead`, rad `head`) ger skada `C.bow.headDmg` x `bowMul` (`arrowDamage`, minst som förut med svärdets skada). Första fliken har sex rader.
+- Aldrig fastna: `ensureOre(n)` gör om malm till den metall som svärdet eller hackan behöver om du saknar den (minst `C.bow.scarceOre` stenar, egen slump). Kopparn tar annars slut från Öknen (nivå 11).
+- När man går till en tidigare nivå genom en portal raderas `P.minedMap` för den nivån: malm, träd, sten och lin växer tillbaka.
+- Nästa-rutan i HUD visas 6 s när målet ändras och alltid när du har råd (`goalLast`, `goalUntil`).
+- Fix: rustningsikonen i smedjan ritades aldrig färdigt (`//`-kommentar mitt på raden).
 
 v3.2:
 - Lätt är snällare (`C.difficulty.latt`): monster 70 % hälsa och 60 % skada, boss 70 % hälsa, längre tid mellan bossanfall och längre varning, all malm kvar vid död, 2 hjälpare. `regen` (hjärtan/s) läker när `P.calmT` > 3 s och inget monster är inom 170 px; `invMul` förlänger skyddet efter träff. Medel och Svår oförändrade.
