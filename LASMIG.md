@@ -1,4 +1,6 @@
-# Malm & Monster (Mines & Monsters), version 2
+# Malm & Monster (Mines & Monsters), version 2.1
+
+Nytt i 2.1: ljud och bakgrundsmusik, paus med inställningar (musik, ljud, skak, blinkningar, skadetal, guide), automatisk paus när appen hamnar i bakgrunden, en guide på nivå 1 och tydligare knappar på plattan.
 
 2D-monsterfighting i webbläsaren. Streckgubbe med hacka, malm, smältstation, blixtar och monster i grottor.
 

@@ -1,4 +1,5 @@
-// Malm & Monster (Mines & Monsters), version 2 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 2.1 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // Stil: "krita på sommaräng". Kritvit hjälte, målad äng, blåsvarta grottor. Blixtgult är enda starka accenten.
 // v2 nytt: förrenderad karta, ljus i grottor, skuggor, animerade figurer, träffkänsla (skak, hit-stop, skadetal), ny HUD.
 (function () {
@@ -8,7 +9,8 @@
   var cv = document.getElementById('c'), g = cv.getContext('2d');
   var GRASS = 0, STONE = 1, TREE = 2, CAVE = 3, ORE = 4, SMELT = 5, EXIT = 6;
   var SAVE_KEY = 'streckgubbe-save-v1';
-  var HAND = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+  var HAND = '"Segoe Print", "Trebuchet MS", Roboto, sans-serif';   // bara stora rubriker; ingen skrivstilsreserv (Android)
+  var TXT = '"Trebuchet MS", "Segoe UI", Roboto, Arial, sans-serif'; // all text som ska läsas snabbt, även av barn
   var UI = '"Segoe UI", Arial, sans-serif';
   var PAL = { chalk: '#fafaf2', bolt: '#ffe14d', gold: '#f0c94a', heart: '#ff4d6a', night: '#1a1c2b', forest: '#1f4f1d' };
 
@@ -49,7 +51,19 @@
   // pekskärm: joystick under vänster tumme, knappar för höger tumme
   var touchMode = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), lastTouch = 0, deadAt = 0;
   var touch = { joyId: null, jx0: 0, jy0: 0, jx: 0, jy: 0, atkId: null, eId: null };
-  var JOY_R = 56, BTN_ATK = { x: LW - 96, y: LH - 96, r: 56 }, BTN_E = { x: LW - 204, y: LH - 62, r: 36 }, BTN_NEW = { x: LW / 2, y: LH - 44, w: 170, h: 40 };
+  var JOY_R = 56, BTN_ATK = { x: LW - 96, y: LH - 96, r: 56 }, BTN_E = { x: LW - 214, y: LH - 66, r: 42 }, BTN_PAUSE = { x: LW - 30, y: 23, r: 17 }, BTN_NEW = { x: LW / 2, y: LH - 44, w: 170, h: 40 };
+
+  // inställningar som spelaren ändrar i pausmenyn (sparas per enhet)
+  var SET_KEY = 'mm-installningar';
+  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true };
+  try { var ss = JSON.parse(localStorage.getItem(SET_KEY)); if (ss) Object.keys(settings).forEach(function (k) { if (ss[k] !== undefined) settings[k] = ss[k]; }); } catch (e) {}
+  function applySettings() {
+    FXC.shake = settings.shake; FXC.flash = settings.flash; FXC.damageNumbers = settings.numbers;
+    if (window.LJUD) LJUD.setVolumes(settings.music, settings.sfx);
+    try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch (e) {}
+  }
+  function sfx(n) { if (window.LJUD) LJUD.play(n); }
+  var guideMoved = 0;
 
   function newPlayer() {
     return {
@@ -80,7 +94,7 @@
   }
   // Power-up: blixtarna används bara här, som en kort smäll när gubben blir starkare.
   function powerUp() {
-    P.pu = 0.6; addTrauma(0.25);
+    P.pu = 0.6; addTrauma(0.25); sfx('powerup');
     for (var i = 0; i < 6; i++) {
       var a = i / 6 * 6.283 + Math.random() * 0.4;
       bolt(P.x + Math.cos(a) * 8, P.y - 3 + Math.sin(a) * 8, P.x + Math.cos(a) * 52, P.y - 3 + Math.sin(a) * 52, 2);
@@ -230,11 +244,12 @@
   function startLevel(n) {
     level = n; buildLevel(n, 0);
     P.x = 2.5 * TS; P.y = 3.5 * TS; P.inv = 1; fx = []; texts = []; fade = 1;
-    state = 'play'; save();
+    state = 'play'; save(); sfx('level');
+    if (n >= 2 && settings.guide) { settings.guide = false; applySettings(); }   // guiden behövs bara första gången
     say('Nivå ' + n + ': besegra ' + quota + ' monster');
   }
 
-  function newGame() { P = newPlayer(); startLevel(1); }
+  function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); }
   function continueGame(s) {
     P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = s.sword; P.hp = maxHp();
     startLevel(s.level);
@@ -259,7 +274,7 @@
 
   function attack() {
     if (P.cd > 0 || state !== 'play') return;
-    P.cd = C.player.attackCooldown; P.swing = 0.18;
+    P.cd = C.player.attackCooldown; P.swing = 0.18; sfx('swing');
     var rc = reach(), hitAny = false, dmg = damage();
     mons.forEach(function (m) {
       var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy);
@@ -271,16 +286,16 @@
       sparks(m.x, m.y, PAL.bolt, 6);
       floatText(m.x, m.y - m.r - 8, fmt(dmg), '#ffffff');
     });
-    if (hitAny) { addTrauma(0.32); freeze(0.05); }
+    if (hitAny) { addTrauma(0.32); freeze(0.05); sfx('hit'); }
     // hacka malm framför
     var tx = P.x + P.fx * (P.r + 10), ty = P.y + P.fy * (P.r + 10), t = tileAt(tx, ty);
     if (t.x >= 0 && t.y >= 0 && t.x < W && t.y < H && map[t.y][t.x] === ORE) {
       var key = t.x + ',' + t.y; oreHp[key]--;
-      sparks((t.x + 0.5) * TS, (t.y + 0.5) * TS, PAL.gold, 7); addTrauma(0.1);
+      sparks((t.x + 0.5) * TS, (t.y + 0.5) * TS, PAL.gold, 7); addTrauma(0.1); sfx('mine');
       if (oreHp[key] <= 0) {
         map[t.y][t.x] = isCave[t.y][t.x] ? CAVE : GRASS; delete oreHp[key]; mapDirty = true;
         sparks((t.x + 0.5) * TS, (t.y + 0.5) * TS, '#9a9ea6', 12);
-        P.ore += C.mining.oreYield; say('+ malm');
+        P.ore += C.mining.oreYield; say('+ malm'); sfx('ore');
         floatText((t.x + 0.5) * TS, t.y * TS, '+' + C.mining.oreYield + ' malm', PAL.gold);
       }
     }
@@ -294,12 +309,12 @@
       if (P.ore >= cost) {
         P.ore -= cost; P.sword++;
         say(P.sword === 1 ? 'Du smidde ett svärd!' : 'Svärdet uppgraderat till nivå ' + P.sword);
-        sparks(smeltPos.x, smeltPos.y, '#ffb347', 24); powerUp(); save();
-      } else say('Behöver ' + cost + ' malm (du har ' + P.ore + ')');
+        sparks(smeltPos.x, smeltPos.y, '#ffb347', 24); sfx('craft'); powerUp(); save();
+      } else { say('Behöver ' + cost + ' malm (du har ' + P.ore + ')'); sfx('deny'); }
       return;
     }
     if (P.meat > 0 && P.hp < maxHp()) {
-      P.meat--; P.hp = Math.min(maxHp(), P.hp + C.items.meatHeal); say('Mums! + hälsa'); sparks(P.x, P.y, '#ff7a7a', 8);
+      P.meat--; P.hp = Math.min(maxHp(), P.hp + C.items.meatHeal); say('Mums! + hälsa'); sparks(P.x, P.y, '#ff7a7a', 8); sfx('eat');
       floatText(P.x, P.y - 24, '+' + C.items.meatHeal, '#7dff8a'); save();
     } else if (P.meat > 0) say('Full hälsa'); else say('Ingen mat. Stå vid smältstationen för att smida.');
   }
@@ -352,10 +367,11 @@
     if (ax || ay) {
       var l = Math.hypot(ax, ay), sp = Math.min(1, l * 1.4); ax /= l; ay /= l; P.fx = ax; P.fy = ay;
       move(P, ax * C.player.speed * sp * dt, ay * C.player.speed * sp * dt);
-      P.walk += dt * 12 * sp;
+      P.walk += dt * 12 * sp; if (level === 1) guideMoved += C.player.speed * sp * dt;
     } else if (mouse.has && mouse.down) {
       var mdx = mouse.x - P.x, mdy = mouse.y - P.y, ml = Math.hypot(mdx, mdy) || 1; P.fx = mdx / ml; P.fy = mdy / ml;
     }
+    if (window.LJUD) LJUD.setCave(isCave[clamp(Math.floor(P.y / TS), 0, H - 1)][clamp(Math.floor(P.x / TS), 0, W - 1)]);
     if (touch.atkId !== null && !P.moving) aimNearest();
     if (keys[' '] || mouse.down || touch.atkId !== null) attack();
 
@@ -377,7 +393,7 @@
       }
       if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) {
         P.hp -= m.dmg; P.inv = C.player.invulnAfterHit; m.cd = C.monsters.attackCooldown;
-        addTrauma(0.5); sparks(P.x, P.y, '#ff4d4d', 10);
+        addTrauma(0.5); sparks(P.x, P.y, '#ff4d4d', 10); sfx('hurt');
         floatText(P.x, P.y - 26, '-' + fmt(m.dmg), '#ff6b6b');
         if (P.hp <= 0) die();
       }
@@ -386,15 +402,15 @@
     mons = mons.filter(function (m) {
       if (m.hp > 0) return true;
       kills++; sparks(m.x, m.y, C.monsters[m.type].color, 18); sparks(m.x, m.y, PAL.bolt, 6);
-      addTrauma(0.3); freeze(0.08);
+      addTrauma(0.3); freeze(0.08); sfx('kill');
       if (Math.random() < C.items.meatDropChance) items.push({ t: 'meat', x: m.x, y: m.y });
       return false;
     });
     // plocka upp
     items = items.filter(function (it) {
       if (Math.hypot(it.x - P.x, it.y - P.y) > 18) return true;
-      if (it.t === 'meat') { if (P.meat >= C.items.maxMeat) return true; P.meat++; say('+ köttklubba'); floatText(it.x, it.y - 14, '+1 kött', '#ffb38a'); }
-      else if (it.t === 'heart') { P.hearts += C.items.heartMaxHpGain; P.hp += C.player.hpPerHeart * C.items.heartMaxHpGain; say('+ hjärta! Maxhälsan ökade'); floatText(it.x, it.y - 14, '+ hjärta', PAL.heart); }
+      if (it.t === 'meat') { if (P.meat >= C.items.maxMeat) return true; P.meat++; say('+ köttklubba'); sfx('meat'); floatText(it.x, it.y - 14, '+1 kött', '#ffb38a'); }
+      else if (it.t === 'heart') { P.hearts += C.items.heartMaxHpGain; P.hp += C.player.hpPerHeart * C.items.heartMaxHpGain; say('+ hjärta! Maxhälsan ökade'); sfx('heart'); floatText(it.x, it.y - 14, '+ hjärta', PAL.heart); }
       else if (it.t === 'crystal') { P.str += C.items.crystalStrengthGain; say('+ kristall! Du känner dig starkare'); floatText(it.x, it.y - 14, '+ styrka', '#8ff0ff'); powerUp(); }
       sparks(it.x, it.y, '#ffffff', 12); save(); return false;
     });
@@ -419,6 +435,7 @@
   function realUpdate(dt) {
     trauma = Math.max(0, trauma - 1.3 * dt); shakeT += dt * 30;
     if (fade > 0) fade = Math.max(0, fade - dt * 2.2);
+    if (confirmNew > 0) confirmNew = Math.max(0, confirmNew - dt);
     texts = texts.filter(function (t) { t.t += dt; t.y -= 32 * dt; t.x += t.vx * dt; return t.t < t.life; });
   }
 
@@ -432,7 +449,7 @@
   function die() {
     state = 'dead'; deadAt = performance.now();
     P.ore = Math.floor(P.ore / 2); save();
-    addTrauma(1); sparks(P.x, P.y, '#ffffff', 26);
+    addTrauma(1); sparks(P.x, P.y, '#ffffff', 26); sfx('death');
   }
 
   // ---------- skala till fönstret (skarp grafik på alla skärmar) ----------
@@ -862,7 +879,7 @@
     texts.forEach(function (t) {
       var k = t.t / t.life, sc = easeOutBack(Math.min(1, t.t / 0.15));
       g.save(); g.translate(t.x, t.y); g.scale(sc, sc);
-      g.globalAlpha = 1 - k * k; g.font = 'bold 15px ' + HAND;
+      g.globalAlpha = 1 - k * k; g.font = 'bold 15px ' + TXT;
       g.strokeStyle = 'rgba(10,15,10,0.85)'; g.lineWidth = 4; g.strokeText(t.txt, 0, 0);
       g.fillStyle = t.col; g.fillText(t.txt, 0, 0);
       g.restore();
@@ -904,7 +921,7 @@
       [function (x, y) { meatShape(x + 2, y, 0.6); }, String(P.meat)],
       [iconSword, P.sword ? 'nivå ' + P.sword : 'pinne']
     ];
-    g.font = 'bold 15px ' + HAND;
+    g.font = 'bold 15px ' + TXT;
     var x0 = 10 + w1 + 10, wStats = 14;
     stats.forEach(function (s) { wStats += 22 + g.measureText(s[1]).width + 16; });
     tag(x0, 8, wStats, 30);
@@ -916,14 +933,21 @@
     // nivå och monster kvar, högerställt
     var left = quota - kills, t2 = 'Nivå ' + level, t3 = left > 0 ? String(left) : 'portalen är öppen';
     var w2 = g.measureText(t2).width, w3 = g.measureText(t3).width, wR = w2 + w3 + 62;
-    tag(LW - 10 - wR, 8, wR, 30);
-    g.fillStyle = PAL.chalk; g.fillText(t2, LW - wR + 6, 24);
-    if (left > 0) iconSkull(LW - w3 - 30, 23);
-    g.fillStyle = left > 0 ? PAL.chalk : '#c9bfff'; g.fillText(t3, LW - w3 - 18, 24);
+    var RX = LW - 44;                                        // plats för pausknappen längst till höger
+    tag(RX - 10 - wR, 8, wR, 30);
+    g.fillStyle = PAL.chalk; g.fillText(t2, RX - wR + 6, 24);
+    if (left > 0) iconSkull(RX - w3 - 30, 23);
+    g.fillStyle = left > 0 ? PAL.chalk : '#c9bfff'; g.fillText(t3, RX - w3 - 18, 24);
+    // pausknapp
+    if (state === 'play') {
+      g.fillStyle = 'rgba(16,36,18,0.85)'; g.beginPath(); g.arc(BTN_PAUSE.x, BTN_PAUSE.y, BTN_PAUSE.r, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(250,250,242,0.7)'; g.lineWidth = 1.5; g.stroke();
+      g.save(); g.translate(BTN_PAUSE.x, BTN_PAUSE.y); g.scale(0.6, 0.6); iconPause(); g.restore();
+    }
     // meddelande
     if (msgT > 0) {
       var a = Math.min(1, msgT / 0.4), k = easeOutCubic(Math.min(1, (3 - msgT) / 0.25));
-      g.save(); g.globalAlpha = a; g.font = 'bold 17px ' + HAND;
+      g.save(); g.globalAlpha = a; g.font = 'bold 17px ' + TXT;
       var mw = g.measureText(msg).width + 34, my = 30 + 22 * k;
       tag(LW / 2 - mw / 2, my, mw, 32);
       g.textAlign = 'center'; g.fillStyle = PAL.bolt; g.fillText(msg, LW / 2, my + 17);
@@ -932,7 +956,7 @@
     // hint vid smältstation
     if (state === 'play' && smeltPos && Math.hypot(smeltPos.x - P.x, smeltPos.y - P.y) < TS * 2) {
       var ht = 'E: ' + (P.sword === 0 ? 'smid svärd' : P.sword >= C.weapon.maxSwordLevel ? 'max' : 'uppgradera') + ' (' + upgradeCost() + ' malm)';
-      g.font = 'bold 13px ' + HAND;
+      g.font = 'bold 13px ' + TXT;
       var hw2 = g.measureText(ht).width + 20, hx = clamp(smeltPos.x - hw2 / 2, 6, LW - hw2 - 6), hy = smeltPos.y + 26;
       tag(hx, hy, hw2, 24);
       g.fillStyle = PAL.chalk; g.textAlign = 'center'; g.fillText(ht, hx + hw2 / 2, hy + 13); g.textAlign = 'left';
@@ -968,24 +992,24 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, cy + 112, 64);
-    g.font = 'bold 16px ' + HAND; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 2', cx, cy + 156);
+    g.font = 'bold 16px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 2.1', cx, cy + 156);
     g.font = '15px ' + UI; g.fillStyle = 'rgba(250,250,242,0.85)';
     if (touchMode) {
-      g.fillText('Dra med vänster tumme för att gå. Tryck på högra halvan för att slå och hacka.', cx, cy + 196);
-      g.fillText('Knappen bredvid smider vid ugnen och äter kött annars.', cx, cy + 218);
+      g.fillText('Dra med vänster tumme för att gå. Tryck på Slå för att slå och hacka.', cx, cy + 196);
+      g.fillText('Knappen med kött äter, vid ugnen blir den en hammare som smider. Paus finns uppe till höger.', cx, cy + 218);
     } else {
       g.fillText('Piltangenter eller WASD för att gå. Mellanslag eller musklick för att slå och hacka.', cx, cy + 196);
-      g.fillText('E smider vid ugnen och äter kött annars.', cx, cy + 218);
+      g.fillText('E smider vid ugnen och äter kött annars. Esc eller P pausar.', cx, cy + 218);
     }
     var pulse = 0.65 + 0.35 * Math.sin(time * 4), start;
     if (touchMode) start = saved ? 'Tryck för att fortsätta på nivå ' + saved.level : 'Tryck för att börja';
-    else start = saved ? 'Enter fortsätter på nivå ' + saved.level + ', N börjar om' : 'Tryck Enter för att börja';
-    g.globalAlpha = pulse; g.font = 'bold 20px ' + HAND; g.fillStyle = PAL.chalk;
+    else start = saved ? 'Enter eller klick fortsätter på nivå ' + saved.level : 'Tryck Enter eller klicka för att börja';
+    g.globalAlpha = pulse; g.font = 'bold 20px ' + TXT; g.fillStyle = PAL.chalk;
     g.fillText(start, cx, cy + 262);
     g.globalAlpha = 1;
-    if (touchMode && saved) {
+    if (saved) {
       tag(BTN_NEW.x - BTN_NEW.w / 2, BTN_NEW.y - BTN_NEW.h / 2, BTN_NEW.w, BTN_NEW.h);
-      g.font = 'bold 17px ' + HAND; g.fillStyle = PAL.chalk; g.fillText('Nytt spel', BTN_NEW.x, BTN_NEW.y + 1);
+      g.font = 'bold 17px ' + TXT; g.fillStyle = PAL.chalk; g.fillText('Nytt spel', BTN_NEW.x, BTN_NEW.y + 1);
     }
     g.textAlign = 'left';
   }
@@ -1012,11 +1036,13 @@
     }
     g.drawImage(mapCv, 0, 0, LW, LH);
     drawDynamicTiles(); drawItems(); drawMonsters(); drawPlayer(); drawFx();
-    drawLighting(); drawCaveEyes(); drawTexts();
+    var gd = guideNow();
+    drawLighting(); drawCaveEyes(); drawTexts(); drawGuideArrow(gd);
     g.restore();
     drawVignette();
-    if (state !== 'title') { drawHud(); drawTouch(); }
+    if (state !== 'title') { drawHud(); drawGuideText(gd); drawTouch(); }
     if (fade > 0) { g.fillStyle = 'rgba(0,0,0,' + fade + ')'; g.fillRect(0, 0, LW, LH); }
+    if (state === 'paused') overlayPause();
     if (state === 'dead') overlayDead();
     if (state === 'title') overlayTitle();
     if (touchMode && window.innerHeight > window.innerWidth * 1.05) {
@@ -1027,13 +1053,137 @@
   }
 
   // ---------- pekskärmskontroller ----------
-  function touchButton(b, pressed, label) {
-    g.globalAlpha = pressed ? 0.8 : 0.5;
-    g.fillStyle = 'rgba(16,36,18,0.9)'; g.beginPath(); g.arc(b.x, b.y, b.r, 0, 7); g.fill();
-    g.strokeStyle = pressed ? PAL.bolt : PAL.chalk; g.lineWidth = 2.5; g.stroke();
-    g.globalAlpha = pressed ? 1 : 0.85; g.fillStyle = pressed ? PAL.bolt : PAL.chalk;
-    g.font = 'bold ' + (b.r > 45 ? 22 : 16) + 'px ' + HAND; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(label, b.x, b.y + 1); g.textAlign = 'left';
+  // Knappar för barn: tydlig ritad ikon och ett kort ord i fet, rak stil (ingen skrivstil, inga emoji som ser olika ut på olika plattor).
+  function touchButton(b, pressed, icon, label, dim, badge) {
+    g.globalAlpha = dim ? 0.35 : pressed ? 0.95 : 0.7;
+    g.fillStyle = 'rgba(16,36,18,0.92)'; g.beginPath(); g.arc(b.x, b.y, b.r, 0, 7); g.fill();
+    g.strokeStyle = pressed ? PAL.bolt : PAL.chalk; g.lineWidth = 3; g.stroke();
+    g.globalAlpha = dim ? 0.45 : 1;
+    var s = b.r / 28, iy = b.y - b.r * 0.16;
+    g.save(); g.translate(b.x, iy); g.scale(s, s); icon(); g.restore();
+    g.font = 'bold ' + Math.round(b.r * 0.3) + 'px ' + TXT; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineJoin = 'round'; g.strokeStyle = 'rgba(10,20,10,0.9)'; g.lineWidth = 3;
+    g.strokeText(label, b.x, b.y + b.r * 0.55); g.fillStyle = pressed ? PAL.bolt : PAL.chalk; g.fillText(label, b.x, b.y + b.r * 0.55);
+    if (badge != null) {                                     // antal kött
+      var bx = b.x + b.r * 0.72, by = b.y - b.r * 0.72;
+      g.fillStyle = PAL.heart; g.beginPath(); g.arc(bx, by, 12, 0, 7); g.fill();
+      g.fillStyle = '#fff'; g.font = 'bold 14px ' + TXT; g.fillText(String(badge), bx, by + 1);
+    }
+    g.textAlign = 'left'; g.globalAlpha = 1;
+  }
+  function iconSwordBig() {                                  // svärd snett uppåt höger, ca 40 px
+    var col = P.sword >= 7 ? '#ffe14d' : P.sword >= 4 ? '#8fd3ff' : '#e4e8ef';
+    g.save(); g.rotate(-Math.PI / 4); g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(-3.5, -4); g.lineTo(-3.5, -20); g.lineTo(0, -25); g.lineTo(3.5, -20); g.lineTo(3.5, -4); g.closePath();
+    g.fillStyle = col; g.fill(); g.strokeStyle = 'rgba(10,15,30,0.8)'; g.lineWidth = 1.5; g.stroke();
+    g.fillStyle = '#8a6a2a'; g.fillRect(-10, -4, 20, 4.5);            // parerstång
+    g.fillStyle = '#5b3a1e'; g.fillRect(-2.5, 0.5, 5, 10);             // grepp
+    g.fillStyle = '#d9b24a'; g.beginPath(); g.arc(0, 12.5, 3.2, 0, 7); g.fill();
+    g.restore();
+  }
+  function iconHammer() {
+    g.save(); g.rotate(-Math.PI / 5);
+    g.fillStyle = '#8a5a2b'; g.fillRect(-2.5, -6, 5, 26);
+    rr(g, -12, -16, 24, 11, 3); g.fillStyle = '#b8bcc6'; g.fill(); g.strokeStyle = 'rgba(10,15,30,0.8)'; g.lineWidth = 1.5; g.stroke();
+    g.restore();
+  }
+  function iconMeat() { meatShape(1, 0, 1.2); }
+  function iconPause() { g.fillStyle = PAL.chalk; rr(g, -9, -11, 6, 22, 2); g.fill(); rr(g, 3, -11, 6, 22, 2); g.fill(); }
+
+  // ---------- paus och inställningar ----------
+  var pauseSel = 0, confirmNew = 0;                       // confirmNew: tid kvar för "Säker?"-läget
+  var PROWS = [
+    { k: 'music', label: 'Musik', vals: [0, 0.25, 0.5], names: ['Av', 'Låg', 'Hög'] },
+    { k: 'sfx', label: 'Ljudeffekter', vals: [0, 0.4, 0.8], names: ['Av', 'Låg', 'Hög'] },
+    { k: 'shake', label: 'Skärmskak', vals: [0, 0.5, 1], names: ['Av', 'Lite', 'Full'] },
+    { k: 'flash', label: 'Blinkningar vid träff', vals: [true, false], names: ['På', 'Av'] },
+    { k: 'numbers', label: 'Skadetal', vals: [true, false], names: ['På', 'Av'] },
+    { k: 'guide', label: 'Guide på nivå 1', vals: [true, false], names: ['På', 'Av'] }
+  ];
+  var PX = LW / 2 - 220, PW = 440, PY0 = 160, PH = 40, PSTEP = 47, PBY = PY0 + 6 * PSTEP + 30;
+  var PB_GO = { x: LW / 2 - 112, y: PBY, w: 200, h: 48 }, PB_NEW = { x: LW / 2 + 112, y: PBY, w: 200, h: 48 };
+  function inBox(p, b) { return Math.abs(p.x - b.x) < b.w / 2 + 6 && Math.abs(p.y - b.y) < b.h / 2 + 6; }
+  function askNew() {                                       // första trycket frågar, andra börjar om
+    if (confirmNew > 0) { confirmNew = 0; sfx('click'); newGame(); }
+    else { confirmNew = 3; sfx('deny'); }
+  }
+  function onPauseBtn(p) { return Math.hypot(p.x - BTN_PAUSE.x, p.y - BTN_PAUSE.y) < BTN_PAUSE.r + 14; }
+  function pauseGame() {
+    if (state !== 'play') return;
+    state = 'paused'; pauseSel = 0; confirmNew = 0; keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null;
+    if (window.LJUD) LJUD.duck(true);
+  }
+  function resumeGame() {
+    if (state !== 'paused') return;
+    state = 'play'; if (window.LJUD) LJUD.duck(false); sfx('click');
+  }
+  function cycleRow(i, dir) {
+    var r = PROWS[i], idx = r.vals.indexOf(settings[r.k]); if (idx < 0) idx = 0;
+    idx = (idx + (dir || 1) + r.vals.length) % r.vals.length;
+    settings[r.k] = r.vals[idx]; applySettings(); sfx('click');
+  }
+  function pauseHit(p) {
+    for (var i = 0; i < PROWS.length; i++) {
+      var y = PY0 + i * PSTEP;
+      if (p.x > PX && p.x < PX + PW && p.y > y - 3 && p.y < y + PH + 3) { pauseSel = i; cycleRow(i, 1); return; }
+    }
+    if (inBox(p, PB_GO)) resumeGame();
+    else if (inBox(p, PB_NEW)) { pauseSel = 7; askNew(); }
+  }
+  function overlayPause() {
+    g.fillStyle = 'rgba(8,16,10,0.82)'; g.fillRect(0, 0, LW, LH);
+    chalkTitle('Paus', LW / 2, 100, 48);
+    g.textBaseline = 'middle';
+    PROWS.forEach(function (r, i) {
+      var y = PY0 + i * PSTEP, idx = r.vals.indexOf(settings[r.k]);
+      tag(PX, y, PW, PH);
+      if (i === pauseSel && !touchMode) { rr(g, PX, y, PW, PH, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
+      g.font = 'bold 18px ' + TXT; g.textAlign = 'left'; g.fillStyle = PAL.chalk; g.fillText(r.label, PX + 18, y + PH / 2 + 1);
+      g.textAlign = 'right'; g.fillStyle = PAL.bolt; g.fillText(r.names[idx < 0 ? 0 : idx], PX + PW - 18, y + PH / 2 + 1);
+    });
+    [[PB_GO, 'Fortsätt', 6], [PB_NEW, confirmNew > 0 ? 'Säker? Tryck igen' : 'Nytt spel', 7]].forEach(function (b) {
+      var B = b[0]; tag(B.x - B.w / 2, B.y - B.h / 2, B.w, B.h);
+      if (b[2] === 7 && confirmNew > 0) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.fillStyle = 'rgba(200,40,60,0.55)'; g.fill(); }
+      if (pauseSel === b[2] && !touchMode) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
+      g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold ' + (b[2] === 7 && confirmNew > 0 ? 18 : 22) + 'px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
+    });
+    g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
+    g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
+    g.textAlign = 'left';
+  }
+
+  // ---------- guide på nivå 1 ----------
+  function nearest(list) {
+    var b = null, bd = 1e9;
+    list.forEach(function (o) { var d = Math.hypot(o.x - P.x, o.y - P.y); if (d < bd) { bd = d; b = o; } });
+    return b;
+  }
+  function guideNow() {
+    if (!settings.guide || level !== 1 || state !== 'play') return null;
+    var T = touchMode;
+    if (guideMoved < 80 && P.sword === 0 && P.ore === 0) return { t: T ? 'Dra med vänster tumme för att gå.' : 'Gå med piltangenterna eller WASD.' };
+    if (P.sword === 0 && P.ore < upgradeCost()) {
+      var ores = oreTiles.filter(function (o) { return map[o.y][o.x] === ORE; }).map(function (o) { return { x: (o.x + 0.5) * TS, y: (o.y + 0.5) * TS }; });
+      return { t: 'Gå till en guldsten och ' + (T ? 'tryck Slå' : 'slå med mellanslag') + '. Malm: ' + P.ore + ' av ' + upgradeCost() + '.', target: nearest(ores) };
+    }
+    if (P.sword === 0) return { t: 'Gå till ugnen och ' + (T ? 'tryck Smid' : 'tryck E') + ' för att göra ett svärd.', target: smeltPos };
+    if (kills < quota) return { t: 'Besegra monstren. Många gömmer sig i grottorna. ' + (quota - kills) + ' kvar.', target: nearest(mons) };
+    return { t: 'Portalen är öppen! Gå in i den.', target: exitPos };
+  }
+  function drawGuideArrow(gd) {
+    if (!gd || !gd.target) return;
+    var x = gd.target.x, y = gd.target.y - 30 + Math.sin(time * 5) * 4;
+    g.save(); g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(x, y + 12); g.lineTo(x - 11, y); g.lineTo(x - 5, y); g.lineTo(x - 5, y - 13); g.lineTo(x + 5, y - 13); g.lineTo(x + 5, y); g.lineTo(x + 11, y); g.closePath();
+    g.strokeStyle = 'rgba(10,20,10,0.85)'; g.lineWidth = 4; g.stroke(); g.fillStyle = PAL.bolt; g.fill();
+    g.restore();
+  }
+  function drawGuideText(gd) {
+    if (!gd) return;
+    g.font = 'bold 18px ' + TXT; g.textBaseline = 'middle';
+    var w = g.measureText(gd.t).width + 36, x = LW / 2 - w / 2, y = 92;
+    tag(x, y, w, 36); rr(g, x, y, w, 36, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2; g.stroke();
+    g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.fillText(gd.t, LW / 2, y + 19); g.textAlign = 'left';
   }
   function drawTouch() {
     if (!touchMode || state !== 'play') return;
@@ -1046,12 +1196,13 @@
     } else {                                                  // tyst ledtråd där tummen brukar vara
       g.globalAlpha = 0.22; g.strokeStyle = PAL.chalk; g.lineWidth = 3;
       g.beginPath(); g.arc(110, LH - 110, JOY_R, 0, 7); g.stroke();
-      g.globalAlpha = 0.4; g.font = '15px ' + HAND; g.fillStyle = PAL.chalk; g.textAlign = 'center';
+      g.globalAlpha = 0.4; g.font = '15px ' + TXT; g.fillStyle = PAL.chalk; g.textAlign = 'center';
       g.fillText('dra för att gå', 110, LH - 110); g.textAlign = 'left';
     }
     var nearSmelt = smeltPos && Math.hypot(smeltPos.x - P.x, smeltPos.y - P.y) < TS * 2;
-    touchButton(BTN_ATK, touch.atkId !== null, 'slå');
-    touchButton(BTN_E, touch.eId !== null, nearSmelt ? 'smid' : 'ät');
+    touchButton(BTN_ATK, touch.atkId !== null, iconSwordBig, 'Slå');
+    if (nearSmelt) touchButton(BTN_E, touch.eId !== null, iconHammer, 'Smid', P.ore < upgradeCost() || P.sword >= C.weapon.maxSwordLevel);
+    else touchButton(BTN_E, touch.eId !== null, iconMeat, 'Ät', P.meat === 0 || P.hp >= maxHp(), P.meat);
     g.restore();
   }
 
@@ -1059,8 +1210,21 @@
   window.addEventListener('keydown', function (e) {
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(k) >= 0) e.preventDefault();
+    if (window.LJUD) LJUD.init();                        // ljud får starta först efter en tangent eller ett tryck
     if (keys[k]) return; keys[k] = true;
-    if (k === ' ') attack();                             // slå direkt, så att korta tryck aldrig missas
+    if (k === 'Escape' || k === 'p') { if (state === 'play') pauseGame(); else if (state === 'paused') resumeGame(); return; }
+    if (state === 'paused') {
+      var NSEL = PROWS.length + 2;
+      if (k === 'ArrowUp' || k === 'w') pauseSel = pauseSel === 7 ? 5 : (pauseSel + NSEL - 1) % NSEL;
+      else if (k === 'ArrowDown' || k === 's') pauseSel = pauseSel === 6 ? 0 : (pauseSel + 1) % NSEL;
+      else if (pauseSel >= 6 && (k === 'ArrowLeft' || k === 'a' || k === 'ArrowRight' || k === 'd')) pauseSel = pauseSel === 6 ? 7 : 6;
+      else if (pauseSel === 6 && (k === 'Enter' || k === ' ')) resumeGame();
+      else if (pauseSel === 7 && (k === 'Enter' || k === ' ')) askNew();
+      else if (k === 'ArrowLeft' || k === 'a') cycleRow(pauseSel, -1);
+      else if (k === 'ArrowRight' || k === 'd' || k === 'Enter' || k === ' ') cycleRow(pauseSel, 1);
+      return;
+    }
+    if (k === ' ') attack();                            // slå direkt, så att korta tryck aldrig missas
     if (k === 'e') useE();
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
@@ -1069,7 +1233,11 @@
     if (k === 'n' && state === 'title') newGame();
   });
   window.addEventListener('keyup', function (e) { keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false; });
-  window.addEventListener('blur', function () { keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null; });
+  window.addEventListener('blur', function () { keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null; pauseGame(); });
+  document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
+    if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
+    else if (window.LJUD) LJUD.resume();
+  });
   function mpos(e) {
     var r = cv.getBoundingClientRect();
     mouse.x = (e.clientX - r.left) * LW / r.width; mouse.y = (e.clientY - r.top) * LH / r.height; mouse.has = true;
@@ -1077,7 +1245,14 @@
   cv.addEventListener('mousemove', mpos);
   cv.addEventListener('mousedown', function (e) {
     if (performance.now() - lastTouch < 800) return;     // webbläsarens låtsas-musklick efter en touch
-    mpos(e); mouse.down = true;
+    if (window.LJUD) LJUD.init();
+    mpos(e);
+    var mp = { x: mouse.x, y: mouse.y };
+    if (state === 'paused') { pauseHit(mp); return; }
+    if (state === 'title') { var s0 = load(); if (saved && inBox(mp, BTN_NEW)) newGame(); else if (s0) continueGame(s0); else newGame(); return; }
+    if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
+    if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
+    mouse.down = true;
     if (state === 'play' && !P.moving) { var dx = mouse.x - P.x, dy = mouse.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
     attack();
   });
@@ -1098,7 +1273,10 @@
     if (e.pointerType === 'mouse') return;
     e.preventDefault(); touchMode = true; lastTouch = performance.now();
     try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+    if (window.LJUD) LJUD.init();
     var p = lpos(e);
+    if (state === 'paused') { pauseHit(p); return; }
+    if (state === 'play' && onPauseBtn(p)) { pauseGame(); return; }
     if (state === 'title') {
       goFullscreen();
       if (saved && Math.abs(p.x - BTN_NEW.x) < BTN_NEW.w / 2 + 10 && Math.abs(p.y - BTN_NEW.y) < BTN_NEW.h / 2 + 10) newGame();
@@ -1135,7 +1313,7 @@
   cv.addEventListener('pointercancel', endTouch);
 
   // ---------- huvudloop ----------
-  P = newPlayer(); level = 1; buildLevel(1, 0); state = 'title';
+  P = newPlayer(); level = 1; buildLevel(1, 0); state = 'title'; applySettings();
   saved = load();
   resize();
   var last = performance.now();
