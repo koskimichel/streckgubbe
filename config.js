@@ -99,7 +99,7 @@ const CONFIG = {
     arrowHead: [null, { wood: 1, metal: 0, n: 4 }, { wood: 1, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 2, metal: 3, n: 7 }],   // pilspetsar: koppar, järn, guld, stjärnmalm
     rod: { wood: 2, flax: 3 },                                   // v3.3: fiskespö
     knife: { wood: 1, stone: 2 },                                // v3.3: jaktkniv av sten
-    quiver: { flax: 2, hide: 3 },                                // v3.3: stort koger (fler pilar)
+    quiver: [null, { wood: 1, flax: 2 }, { flax: 2, hide: 2 }, { flax: 3, hide: 3 }],   // v3.5: kogret i tre steg (kostnad för att nå steg 1-3)
     lantern0: { metal: 0, n: 4 }
   },
 
@@ -108,7 +108,7 @@ const CONFIG = {
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
   shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5 },
-  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, maxArrows: 30, arrowsPerCraft: 5, quiverExtra: 20,
+  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 20, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
     headDmg: [3, 5, 8, 11, 15], bowMul: [0, 1.0, 1.15, 1.3], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
 
   // Natur (v3.3): lin på marken, en damm var tredje nivå (2, 5, 8 ...), bytesdjur på de andra nivåerna.
@@ -122,7 +122,7 @@ const CONFIG = {
   // Svårighetsgrader (v2.3). mHp/mDmg = monster, bHp = bossens hälsa, gap = sekunder mellan bossens anfall,
   // wind = hur länge bossen varnar (1 = som förut), keep = andel malm kvar efter död, minions = hjälpare i bossens andra fas
   difficulty: {
-    latt:  { mHp: 0.7, mDmg: 0.6, bHp: 0.7, gap: [2.5, 4.5], wind: 1.3,  keep: 1.0,  minions: 2, regen: 0.25, invMul: 1.6 },   // v3.2: snällare
+    latt:  { mHp: 0.7, mDmg: 0.6, bHp: 0.7, gap: [2.5, 4.5], wind: 1.3,  keep: 1.0,  minions: 2, regen: 0.25, invMul: 1.6, quiverCap: [10, 15, 25, 40] },   // v3.2: snällare
     //       regen = hjärtan per sekund när inget monster är nära och man inte blivit träffad på 3 s; invMul = längre skydd efter träff
     medel: { mHp: 1.4, mDmg: 1.3, bHp: 2.0, gap: [1.5, 2.5], wind: 0.75, keep: 0.5,  minions: 4 },
     svar:  { mHp: 1.8, mDmg: 1.7, bHp: 3.0, gap: [1.0, 1.8], wind: 0.55, keep: 0.0,  minions: 5 }

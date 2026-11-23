@@ -1,4 +1,9 @@
-# Malm & Monster (Mines & Monsters), version 3.4
+# Malm & Monster (Mines & Monsters), version 3.5
+
+v3.5:
+- **Koden ligger i `src/` (12 delar i nummerordning, en sektion var). `spel.js` byggs av dem: `python -I verktyg/bygg.py`. Ändra alltid i `src/`, aldrig direkt i `spel.js`.** `--kolla` kontrollerar att `spel.js` stämmer med `src/`, `--publicera` bygger och kopierar spelets filer till `publicera/`. Delarna är bitar av samma IIFE och är inte giltig JS var för sig; patchskript ska rikta sig mot `src/`-filen där koden finns.
+  `00-start` hjälpmedel, `01-spelstate` spelare och sparning, `02-nivaer` nivåer och natur, `03-skattkammare` (+ `continueGame`), `04-handlingar` rörelse, slag, effekter, `05-uppdatering` update och monster, `06-karta` skala, kartcache, ljus, `07-figurer`, `08-hud`, `09-titel` titel, sparplatser, pekknappar, `10-meny` paus, smedja, guide, `11-indata` tangenter, huvudloop, `__sg`.
+- Kogret har steg 0-3 (`P.quiver`, recept `crafting.quiver[1..3]`, rad Större koger / Läderkoger / Stort koger i Verktyg). `maxArrows(q)` = `DF().quiverCap || C.bow.quiverCap`: 5/10/20/30, på Lätt 10/15/25/40. Sparningen har `quiverV: 2`; äldre sparningar med stort koger får steg 3. Pilar över taket behålls (taket hindrar bara nya).
 
 v3.4:
 - Tre sparplatser: localStorage `mm-plats-1..3` (`slotKey`, `slot`, `slots`, `loadSlot`, `refreshSlots`, `playSlot`). Gamla `streckgubbe-save-v1` flyttas till första lediga plats (`migrateOldSave`). Sparningen innehåller `diff`, och `continueGame` sätter svårigheten från platsen. `settings.slot` minns senaste plats.
@@ -68,7 +73,7 @@ v2.2:
 - Smedjan (`state = 'forge'`, `openForge`/`buy`/`overlayForge`): svärd (max 15), rustning (`P.armor`, `hurtPlayer` minskar skada), hacka (`P.pick`), lykta (`P.lamp`). Sparas i sparfilen.
 - Fler monster per nivå (config `level`). All skada på spelaren går via `hurtPlayer`. Tidigare: `../Streckgubbe v2.1` (tagg `v2.1`).
 
-2D-monsterspel sett uppifrån. Ren HTML5-canvas och vanilla JavaScript. Inga beroenden, inget byggsteg, ingen server-backend. Svara och skriv kommentarer på svenska.
+2D-monsterspel sett uppifrån. Ren HTML5-canvas och vanilla JavaScript. Inga beroenden, ingen server-backend. Enda byggsteget är `verktyg/bygg.py` som sätter ihop `src/` till `spel.js` (från v3.5). Svara och skriv kommentarer på svenska.
 
 ## Version 2: mål och regler
 - Mål: snyggare grafik och bättre spelkänsla (ljus/skugga i grottor, variation i rutor, animerade monster, glöd, snyggare HUD, träffeffekter). Spelregler och balans ändras inte i onödan.
@@ -119,4 +124,4 @@ Kontrollera nåbarhet för många nivåer med en loop över `build(n)`. Stoppa s
 - Vänstra halvan: flytande joystick (`touch.jx/jy`, radie `JOY_R`, analog fart). Högra halvan: slå (med `aimNearest` när man står still). `BTN_E`: smid/ät. Titel: tryck = fortsätt, `BTN_NEW` = nytt spel. Död: tryck (spärr 700 ms).
 - Stående läge visar "Vrid plattan". Manifestet: `display: fullscreen`, `orientation: landscape`.
 - Testa: emulera bredd < 768 i webbläsarpanelen och skicka `PointerEvent` med `pointerType: 'touch'` till canvasen. Panelen pausar nästan bilduppdateringen när den är dold; mät rörelse över ~2 s.
-- Publicering: webbhotell (one.com) med https. Mappen `publicera/` (ignoreras av git) innehåller exakt det som ska upp: `index.html`, `spel.js`, `config.js`, `sw.js`, `manifest.webmanifest`, `icon.svg`, `icon-192.png`, `icon-512.png`, `ljud.js`. Aldrig `CLAUDE.md`, `.claude/`, `.git/`, `verktyg/` eller `.bat`. Bygg om mappen efter varje ändring och höj `VERSION` i `sw.js`.
+- Publicering: webbhotell (one.com) med https. Mappen `publicera/` (ignoreras av git) innehåller exakt det som ska upp: `index.html`, `spel.js`, `config.js`, `sw.js`, `manifest.webmanifest`, `icon.svg`, `icon-192.png`, `icon-512.png`, `ljud.js`. Aldrig `CLAUDE.md`, `.claude/`, `.git/`, `verktyg/` eller `.bat`. Bygg om mappen efter varje ändring (`python -I verktyg/bygg.py --publicera`) och höj `VERSION` i `sw.js`.
