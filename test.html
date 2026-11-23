@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>Malm &amp; Monster: tester</title>
+<style>
+  body { margin: 0; padding: 16px; background: #10180f; color: #f2f2ea; font: 15px "Trebuchet MS", "Segoe UI", Arial, sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { margin: 4px 0 12px; color: #c9cfc4; }
+  button { font: bold 15px inherit; padding: 8px 18px; border-radius: 8px; border: 1px solid #ffe14d; background: #ffe14d; color: #1a2a1a; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #sum { margin: 12px 0; font-weight: bold; font-size: 17px; }
+  table { border-collapse: collapse; width: 100%; max-width: 980px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #2a3a28; vertical-align: top; }
+  td.ok { color: #7dff8a; width: 60px; } td.fel { color: #ff8a8a; width: 60px; font-weight: bold; }
+  td.grp { color: #ffe14d; padding-top: 14px; font-weight: bold; }
+  td.info { color: #aab3a6; font-size: 13px; }
+  iframe { width: 480px; height: 288px; border: 1px solid #2a3a28; margin-top: 14px; }
+</style>
+</head>
+<body>
+<!-- Testsida för utvecklaren. Laddas aldrig upp (finns inte i publicera/). Körs bara på testporten 8777, eftersom den rensar sparningarna. -->
+<h1>Malm &amp; Monster: automatiska tester</h1>
+<p>Kör alla kontroller mot spelet i rutan nedanför. Testerna rensar sparningarna på den här adressen, därför körs de bara på testporten 8777.</p>
+<button id="run" disabled>Kör alla tester</button>
+<div id="sum">Laddar spelet ...</div>
+<table id="res"></table>
+<iframe id="game"></iframe>
+<script>
+(function () {
+  'use strict';
+  var TS = 32, W = 30, H = 18, SOLID = [1, 2, 5, 7, 9];
+  var frame = document.getElementById('game'), btn = document.getElementById('run'), sum = document.getElementById('sum'), tbl = document.getElementById('res');
+  var results = [];
+  window.__testResults = results;
+  var safe = location.port === '8777';
+  if (!safe) { sum.textContent = 'Testerna körs bara på testporten 8777 (http://localhost:8777/test.html), så att inga riktiga sparningar rensas.'; frame.remove(); return; }
+  frame.src = 'index.html';                                      // spelet laddas bara på testporten
+
+  function w() { return frame.contentWindow; }
+  function S() { return w().__sg; }
+  function CFG() { return w().eval('CONFIG'); }                   // const i config.js hamnar inte på window
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function frames(n) { return Promise.race([wait(400), new Promise(function (r) { var k = 0; (function f() { if (++k > (n || 2)) r(); else w().requestAnimationFrame(f); })(); })]); }   // dold flik: inga bildrutor, så vänta högst 0,4 s
+  function key(k) { var ww = w(); ww.dispatchEvent(new ww.KeyboardEvent('keydown', { key: k })); ww.dispatchEvent(new ww.KeyboardEvent('keyup', { key: k })); }
+  function keyDown(k) { var ww = w(); ww.dispatchEvent(new ww.KeyboardEvent('keydown', { key: k })); }
+  function keyUp(k) { var ww = w(); ww.dispatchEvent(new ww.KeyboardEvent('keyup', { key: k })); }
+  function ensurePlay() { if (S().state === 'paused') key('Escape'); }
+  function reloadGame() {
+    return new Promise(function (r) { frame.onload = function () { wait(300).then(r); }; w().location.reload(); });
+  }
+  function clearSaves() { var ks = []; for (var i = 0; i < localStorage.length; i++) ks.push(localStorage.key(i)); ks.forEach(function (k) { localStorage.removeItem(k); }); }
+  function near(a, b, eps) { return Math.abs(a - b) <= (eps || 0.001); }
+
+  var group = '';
+  function grp(name) { group = name; results.push({ group: name }); }
+  function check(name, ok, info) { results.push({ group: group, name: name, ok: !!ok, info: info == null ? '' : String(info) }); }
+
+  function bfsOpen(m) {                                          // rutor man kan nå från start; malm räknas som öppen
+    var open = [], q = [[2, 2]], y, x;
+    for (y = 0; y < H; y++) { open[y] = []; for (x = 0; x < W; x++) open[y][x] = false; }
+    open[2][2] = true;
+    while (q.length) {
+      var c = q.pop();
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        var nx = c[0] + d[0], ny = c[1] + d[1];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H || open[ny][nx] || SOLID.indexOf(m[ny][nx]) >= 0) return;
+        open[ny][nx] = true; q.push([nx, ny]);
+      });
+    }
+    return open;
+  }
+  function oreCount() { var s = S(), c = [0, 0, 0, 0]; for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (s.map[y][x] === 4) c[s.oreT[x + ',' + y]]++; return c; }
+  function mixOf(n) { var C = CFG(); return C.crafting.oreMix[Math.floor((n - 1) / 25) > 0 ? 4 : Math.min(4, Math.floor((n - 1) / 5))]; }
+  function richPlayer(P) { Object.assign(P, { sword: 15, armor: 16, hasPick: true, pick: 3, ore: 99, iron: 99, gold: 99, star: 99, wood: 99, stone: 99 }); }
+
+  // ---------- 1. nivåerna ----------
+  function testLevels() {
+    grp('Nivåer 1 till 100 går att klara');
+    var s = S(), P = s.P, bad = [], ponds = 0, bossBad = [];
+    richPlayer(P);
+    for (var n = 1; n <= 100; n++) {
+      P.maxLevel = n; s.build(n);
+      var m = s.map, open = bfsOpen(m), ok = function (o) { return open[Math.floor(o.y / TS)][Math.floor(o.x / TS)]; };
+      if (!open[15][27]) bad.push(n + ': portalen');
+      s.mons.forEach(function (o) { if (o.type !== 'ghost' && !ok(o)) bad.push(n + ': ' + o.type); });
+      s.items.forEach(function (o) { if (!ok(o)) bad.push(n + ': föremål ' + o.t); });
+      s.prey.forEach(function (o) { if (!ok(o)) bad.push(n + ': djur'); });
+      if ((m[1][1] === 10) !== (n >= 2)) bad.push(n + ': portal tillbaka');
+      var water = 0; for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (m[y][x] === 9) water++;
+      if (n % 3 === 2) {
+        if (!s.pond) bad.push(n + ': ingen damm');
+        else { ponds++; var p = s.pond, shore = 0; for (y = p.y0; y <= p.y0 + p.wh + 1; y++) for (x = p.x0; x <= p.x0 + p.ww + 1; x++) if (m[y][x] !== 9 && open[y][x]) shore++; if (shore < 3) bad.push(n + ': strand'); }
+      } else if (water) bad.push(n + ': vatten utan damm');
+      if (s.puzzle) { var pz = s.puzzle; for (y = pz.ry; y <= pz.ry + 8; y++) for (x = pz.x0; x <= pz.x0 + 6; x++) if (m[y][x] === 9) bad.push(n + ': vatten i skattkammaren'); }
+      var hasBoss = s.mons.some(function (o) { return o.type === 'boss'; });
+      if (hasBoss !== (n % 5 === 0)) bossBad.push(n);
+      if (n % 5 === 0) { P.maxLevel = n + 1; s.build(n); if (s.mons.some(function (o) { return o.type === 'boss'; })) bossBad.push(n + ' (tillbaka)'); }
+    }
+    check('portal, monster, föremål, djur och strand går att nå', !bad.length, bad.slice(0, 6).join(', ') || '100 nivåer, ' + ponds + ' dammar');
+    check('boss var 5:e nivå, ingen boss när man går tillbaka', !bossBad.length, bossBad.join(', '));
+  }
+
+  // ---------- 2. malm ----------
+  function testOre() {
+    grp('Malm i rätt värld');
+    var s = S(), P = s.P, bad = [];
+    richPlayer(P);
+    for (var n = 1; n <= 60; n++) {
+      P.maxLevel = n; s.build(n); var c = oreCount(), mx = mixOf(n);
+      for (var t = 0; t < 4; t++) if (c[t] > 0 && !mx[t]) bad.push(n + ': ' + ['koppar', 'järn', 'guld', 'stjärnmalm'][t]);
+    }
+    check('bara malm som världen har (när man inte saknar något)', !bad.length, bad.slice(0, 6).join(', '));
+    Object.assign(P, { sword: 2, hasPick: true, pick: 0, ore: 0, iron: 0, gold: 0, maxLevel: 12 }); s.build(12);
+    check('Öknen utan koppar: minst 6 kopparstenar', oreCount()[0] >= 6, oreCount().join('/'));
+    Object.assign(P, { sword: 6, hasPick: true, pick: 1, ore: 10, iron: 0, gold: 0, maxLevel: 17 }); s.build(17);
+    check('Snölandet utan järn: minst 6 järnstenar', oreCount()[1] >= 6, oreCount().join('/'));
+    Object.assign(P, { sword: 3, hasPick: true, pick: 2, ore: 10, iron: 0, gold: 0, maxLevel: 2 }); s.build(2);
+    check('Ängen med järnhacka: inget guld', oreCount()[2] === 0, oreCount().join('/'));
+  }
+
+  // ---------- 3. konfiguration ----------
+  function testConfig() {
+    grp('Inställningar och recept');
+    var C = CFG(), cr = C.crafting, miss = [];
+    for (var i = 1; i <= C.weapon.maxSwordLevel; i++) if (!cr.sword[i]) miss.push('svärd ' + i);
+    for (i = 1; i <= C.upgrades.armor.max; i++) if (!cr.armor[i]) miss.push('rustning ' + i);
+    for (i = 1; i <= 3; i++) if (!cr.pick[i]) miss.push('hacka ' + i);
+    for (i = 1; i <= 4; i++) { if (!cr.shield[i]) miss.push('sköld ' + i); if (!cr.arrowHead[i]) miss.push('pilspets ' + i); }
+    for (i = 1; i <= 3; i++) if (!cr.bow[i]) miss.push('båge ' + i);
+    ['stonePick', 'arrows', 'rod', 'knife', 'quiver', 'lantern0'].forEach(function (k) { if (!cr[k]) miss.push(k); });
+    check('alla recept finns för varje nivå', !miss.length, miss.join(', '));
+    check('pilar kostar ingen metall', cr.arrows.metal == null, JSON.stringify(cr.arrows));
+    check('tre svårighetsgrader', ['latt', 'medel', 'svar'].every(function (k) { return !!C.difficulty[k]; }));
+    check('oreMix summerar till 1 i varje värld', cr.oreMix.every(function (mx) { return near(mx.reduce(function (a, b) { return a + b; }, 0), 1, 0.01); }));
+  }
+
+  // ---------- 4. smedjan ----------
+  function costSum(list, from, to) { var t = { wood: 0, stone: 0, metal: [0, 0, 0, 0], flax: 0, hide: 0 }; for (var i = from; i <= to; i++) { var c = list[i]; t.wood += c.wood || 0; t.stone += c.stone || 0; t.flax += c.flax || 0; t.hide += c.hide || 0; if (c.metal != null) t.metal[c.metal] += c.n; } return t; }
+  function spent(P, before) { return { wood: before.wood - P.wood, stone: before.stone - P.stone, metal: [before.ore - P.ore, before.iron - P.iron, before.gold - P.gold, before.star - P.star], flax: before.flax - P.flax, hide: before.hide - P.hide }; }
+  function stock(P) { return { wood: P.wood, stone: P.stone, ore: P.ore, iron: P.iron, gold: P.gold, star: P.star, flax: P.flax, hide: P.hide }; }
+  function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  async function testForge() {
+    grp('Smedjan');
+    var s = S(); clearSaves(); s.playSlot(1); await wait(100); ensurePlay();
+    var P = s.P, C = CFG(), cr = C.crafting;
+    Object.assign(P, { wood: 999, stone: 999, ore: 999, iron: 999, gold: 999, star: 999, flax: 99, hide: 99, moon: 9 });
+    s.forge(); s.tab(0);
+    var b = stock(P); for (var i = 0; i < 15; i++) s.buy(0);
+    check('svärd nivå 1 till 15 kostar exakt receptet', P.sword === 15 && same(spent(P, b), costSum(cr.sword, 1, 15)), 'nivå ' + P.sword);
+    b = stock(P); for (i = 0; i < 16; i++) s.buy(1);
+    check('rustning 16 delar kostar exakt receptet', P.armor === 16 && same(spent(P, b), costSum(cr.armor, 1, 16)), 'nivå ' + P.armor);
+    b = stock(P); for (i = 0; i < 4; i++) s.buy(2);
+    check('sköld nivå 1 till 4', P.shield === 4 && same(spent(P, b), costSum(cr.shield, 1, 4)), 'nivå ' + P.shield);
+    b = stock(P); for (i = 0; i < 3; i++) s.buy(3);
+    check('pilbåge nivå 1 till 3', P.bow === 3 && same(spent(P, b), costSum(cr.bow, 1, 3)), 'nivå ' + P.bow);
+    b = stock(P); for (i = 0; i < 4; i++) s.buy(4);
+    check('pilspetsar nivå 1 till 4', P.arrowHead === 4 && same(spent(P, b), costSum(cr.arrowHead, 1, 4)), 'nivå ' + P.arrowHead);
+    P.arrows = 0; for (i = 0; i < 20; i++) s.buy(5);
+    check('pilar stannar vid ' + C.bow.maxArrows, P.arrows === C.bow.maxArrows, P.arrows);
+    s.tab(1); P.hasPick = false; P.pick = 0; b = stock(P); for (i = 0; i < 4; i++) s.buy(0);
+    var pickCost = costSum([null, cr.stonePick, cr.pick[1], cr.pick[2], cr.pick[3]], 1, 4);
+    check('stenhacka och sedan koppar-, järn- och guldhacka', P.hasPick && P.pick === 3 && same(spent(P, b), pickCost), 'hacka ' + P.pick);
+    s.buy(2); s.buy(3); s.buy(4);
+    check('fiskespö, jaktkniv och stort koger', P.rod === 1 && P.knife === 1 && P.quiver === 1);
+    s.tab(0); for (i = 0; i < 10; i++) s.buy(5);
+    check('stort koger: pilar stannar vid ' + (C.bow.maxArrows + C.bow.quiverExtra), P.arrows === C.bow.maxArrows + C.bow.quiverExtra, P.arrows);
+    Object.assign(P, { sword: 2, wood: 0, stone: 0, ore: 0 }); b = stock(P); s.buy(0);
+    check('utan material händer ingenting', P.sword === 2 && same(stock(P), b));
+    key('Escape');
+  }
+
+  // ---------- 5. strid ----------
+  function freshMon(s, x, y) { return { type: 'slime', x: x, y: y, r: 11, hp: 999, maxHp: 999, dmg: 0, speed: 0, cd: 99, kx: 0, ky: 0, hit: 0, pop: 9, ph: 0 }; }
+  async function testCombat() {
+    grp('Strid, sköld och båge');
+    var s = S(); ensurePlay(); var P = s.P, C = CFG();
+    s.mons.length = 0; s.prey.length = 0; P.x = 300; P.y = 300; P.fx = 1; P.fy = 0; P.str = 1; P.sword = 4; P.inv = 0; P.blocking = false; P.shield = 0;
+    var m = freshMon(s, 330, 300); s.mons.push(m); P.cd = 0; key(' ');
+    var exp = C.weapon.swordBaseDamage + C.weapon.damagePerSwordLevel * 3;
+    check('svärd nivå 4 gör ' + exp + ' i skada', near(999 - m.hp, exp), (999 - m.hp).toFixed(2));
+    s.mons.length = 0;
+    P.shield = 1; P.armor = 0; keyDown('Shift'); s.step(0.2);   // låt träffens korta frysning (hit-stop) gå över först
+    var h0 = P.hp; P.inv = 0; s.hurt(4, P.x + 30, P.y); var front = h0 - P.hp;
+    h0 = P.hp; P.inv = 0; s.hurt(4, P.x - 30, P.y); var back = h0 - P.hp;
+    keyUp('Shift'); s.step(0.04);
+    check('kopparsköld stoppar hälften framifrån, inget bakifrån', near(front, 4 * (1 - C.shield.block[1])) && near(back, 4), 'fram ' + front.toFixed(2) + ', bak ' + back.toFixed(2));
+    P.hp = 30; P.bow = 2; P.arrowHead = 2; P.arrows = 5; P.shootCd = 0; m = freshMon(s, 420, 300); s.mons.push(m); s.shoot();
+    var a = s.arrows[s.arrows.length - 1], expA = Math.max(C.bow.headDmg[2] * C.bow.bowMul[2], (C.weapon.swordBaseDamage + C.weapon.damagePerSwordLevel * 3) * C.bow.dmgMul[2]);
+    check('pil med järnspets och järnbåge gör ' + expA.toFixed(2), a && near(a.dmg, expA), a ? a.dmg.toFixed(2) : 'ingen pil');
+    s.step(0.6);
+    check('pilen träffar monstret', m.hp < 999, (999 - m.hp).toFixed(2));
+    s.mons.length = 0;
+  }
+
+  // ---------- 6. hacka, lin, fiske och jakt ----------
+  async function testNature() {
+    grp('Hacka, lin, fiske och jakt');
+    var s = S(); ensurePlay(); var P = s.P; P.maxLevel = 2;
+    s.build(1); s.mons.length = 0;
+    var m = s.map, t = null;
+    for (var y = 2; y < 16 && !t; y++) for (var x = 2; x < 28; x++) if (m[y][x] === 4 && (s.oreT[x + ',' + y] || 0) === 0 && SOLID.indexOf(m[y][x - 1]) < 0 && m[y][x - 1] !== 4) { t = { x: x, y: y }; break; }
+    function hitTile(n) { for (var i = 0; i < n; i++) { P.x = (t.x - 0.5) * TS; P.y = (t.y + 0.5) * TS; P.fx = 1; P.fy = 0; P.cd = 0; key(' '); s.step(0.05); } }
+    P.hasPick = false; P.pick = 0; var o0 = P.ore; hitTile(8);
+    check('utan stenhacka går koppar inte att bryta', m[t.y][t.x] === 4 && P.ore === o0);
+    P.hasPick = true; hitTile(8);
+    check('med stenhacka går koppar att bryta', m[t.y][t.x] !== 4 && P.ore > o0, '+' + (P.ore - o0));
+    var f = null; for (y = 2; y < 16 && !f; y++) for (x = 3; x < 28; x++) if (m[y][x] === 8 && SOLID.indexOf(m[y][x - 1]) < 0 && m[y][x - 1] !== 4) { f = { x: x, y: y }; break; }
+    var fl = P.flax; P.x = (f.x - 0.5) * TS; P.y = (f.y + 0.5) * TS; P.fx = 1; P.fy = 0; P.cd = 0; key(' '); s.step(0.05);
+    check('ett slag på lin ger 1 lin', P.flax === fl + 1 && s.map[f.y][f.x] === 0);
+    var pr = s.prey.find(function (p) { return !p.dead; });
+    if (pr) {
+      P.knife = 0; P.x = 300; P.y = 300; pr.x = 322; pr.y = 300; pr.rest = 9; P.fx = 1; P.fy = 0; P.cd = 0; key(' '); s.step(0.05);
+      var meat0 = P.meat; s.useE(); var noKnife = s.prey.indexOf(pr) >= 0 && P.meat === meat0;
+      P.knife = 1; P.meat = 0; s.useE();
+      check('djur fångas, flås bara med kniv och ger kött', pr.dead && noKnife && s.prey.indexOf(pr) < 0 && P.meat === 1);
+    } else check('djur finns på nivå 1', false);
+    s.build(2); s.mons.length = 0; var pd = s.pond; P.rod = 1; P.meat = 0;
+    P.x = (pd.x0 + 1.5) * TS; P.y = (pd.y0 + 0.5) * TS; P.moving = false; s.useE();
+    var started = P.fish && P.fish.phase === 'wait', tries = 0;
+    while (P.fish && P.fish.phase === 'wait' && tries++ < 400) s.step(0.02);
+    var bite = P.fish && P.fish.phase === 'bite'; s.useE();
+    check('fiske: vänta, napp, fisk = 1 mat', started && bite && P.meat === 1 && pd.fish === 3, 'väntade ' + (tries * 0.02).toFixed(1) + ' s');
+  }
+
+  // ---------- 7. portaler ----------
+  async function testPortals() {
+    grp('Portal framåt och tillbaka');
+    var s = S(); clearSaves(); s.playSlot(1); await wait(100); ensurePlay();
+    var P = s.P; s.mons.length = 0; P.maxLevel = 2;
+    P.x = 27.5 * TS; P.y = 15.5 * TS; s.step(0.05);
+    check('portalen tar en till nivå 2', s.level === 2);
+    await frames(3);
+    check('portalen tillbaka finns vid starten', s.map[1][1] === 10);
+    P.x = 1.5 * TS; P.y = 1.5 * TS; s.step(0.05);                // portalen tillbaka ligger på ruta (1,1)
+    check('blå portalen tar en tillbaka till nivå 1, vid utgången', s.level === 1 && Math.floor(P.x / TS) === 26 && Math.floor(P.y / TS) === 15);
+    s.step(0.2);
+    check('man åker inte direkt vidare', s.level === 1);
+    P.x = 27.5 * TS; P.y = 15.5 * TS; s.step(0.05);
+    check('portalen framåt är öppen på en klarad nivå', s.level === 2);
+  }
+
+  // ---------- 8. sparning och sparplatser ----------
+  var SKIP = ['x', 'y', 'fx', 'fy', 'cd', 'inv', 'swing', 'walk', 'moving', 'pu', 'spk', 'vx', 'vy', 'shootCd', 'blocking', 'slow', 'icy', 'shotT', 'blockFlash', 'calmT', 'fish', 'portalLock', 'hp'];
+  function snapP(P) { var o = {}; for (var k in P) if (SKIP.indexOf(k) < 0) o[k] = JSON.parse(JSON.stringify(P[k])); return o; }
+  async function testSaves() {
+    grp('Sparning och sparplatser');
+    clearSaves(); await reloadGame();
+    var s = S(); s.playSlot(1); await wait(100);
+    var P = s.P;
+    Object.assign(P, { hearts: 5, sword: 7, armor: 6, pick: 2, lamp: 2, moon: 3, moonEver: true, bolts: 2, wood: 11, stone: 12, ore: 13, iron: 14, gold: 15, star: 1, hasPick: true, shield: 2, bow: 2, arrows: 17, arrowHead: 1, flax: 4, hide: 3, rod: 1, knife: 1, quiver: 1, maxLevel: 9, chests: [2, 8], minedMap: { '1': ['3,3'] }, backSeen: true, flaxSeen: true, treasureSeen: true, bossDone: 5 });
+    var before = snapP(P); s.toTitle(); await reloadGame(); s = S(); s.playSlot(1); await wait(100);
+    var after = snapP(s.P), diff = [];
+    Object.keys(before).forEach(function (k) { if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) diff.push(k); });
+    check('alla fält finns kvar efter sparning och omladdning', !diff.length, diff.join(', ') || Object.keys(before).length + ' fält');
+    s.toTitle();
+    // gammal sparning från v3.2 flyttas till plats 1
+    clearSaves();
+    localStorage.setItem('streckgubbe-save-v1', JSON.stringify({ level: 10, hearts: 5, str: 1, ore: 12, meat: 3, sword: 6, armor: 5, pick: 2, lamp: 1, bossDone: 5, chestDone: 8, minedLevel: 10, mined: ['3,3', '4,4'], wood: 9, stone: 4, iron: 3, gold: 0, star: 0 }));
+    await reloadGame(); s = S();
+    var moved = s.slots[0] && s.slots[0].level === 10 && !localStorage.getItem('streckgubbe-save-v1');
+    s.playSlot(1); await wait(100); P = s.P;
+    check('gammal sparning flyttas till plats 1', moved);
+    check('gammal sparning: stenhacka, kistor och brutna rutor tolkas rätt', P.hasPick === true && JSON.stringify(P.chests) === '[2,8]' && P.minedMap['10'] && P.minedMap['10'].length === 2 && P.maxLevel === 10, JSON.stringify(P.chests));
+    s.toTitle();
+    // nytt spel på plats 3 med Svår, via titeln
+    var cx = 55 + 2 * 290, cy = 262;
+    s.titleHit(cx + 130, cy + 124, false); s.titleHit(cx + 12 + 2 * 84 + 30, cy + 90, false); await wait(100);
+    var slot3 = s.slot === 3 && s.state === 'play' && s.level === 1; s.toTitle();
+    check('nytt spel på plats 3 med vald svårighet', slot3 && s.slots[2] && s.slots[2].diff === 'svar', s.slots[2] && s.slots[2].diff);
+    check('platserna hålls isär', s.slots[0].level === 10 && s.slots[2].level === 1 && !s.slots[1]);
+    // radera kräver två tryck
+    s.titleHit(cx + 130, cy + 175, false); s.titleHit(cx + 130, cy + 125, false);
+    var afterOne = !!s.slots[2]; s.titleHit(cx + 130, cy + 125, false);
+    check('radera kräver två tryck', afterOne && !s.slots[2]);
+    // hämta fil: bara riktiga sparfiler
+    var fi = w().document.querySelector('input[type=file]'), oc = fi.click; fi.click = function () {};
+    async function importText(txt) {
+      key('Escape');                                             // stäng Fler val och svårighetsval
+      s.titleHit(cx + 130, cy + 175, false); s.titleHit(cx + 130, cy + 78, false);
+      var ww = w(), dt = new ww.DataTransfer(); dt.items.add(new ww.File([txt], 'test.mms')); fi.files = dt.files; fi.dispatchEvent(new ww.Event('change')); await wait(250);
+    }
+    await importText('{"hej": 1}');
+    var rejected = !s.slots[2];
+    await importText(JSON.stringify({ game: 'malm-och-monster', v: 1, save: JSON.parse(localStorage.getItem('mm-plats-1')) }));
+    fi.click = oc;
+    check('hämta fil avvisar fel fil och läser in en riktig', rejected && s.slots[2] && s.slots[2].level === 10);
+  }
+
+  async function runAll() {
+    btn.disabled = true; results.length = 0; tbl.innerHTML = ''; sum.textContent = 'Kör ...';
+    var t0 = performance.now();
+    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves];
+    for (var i = 0; i < steps.length; i++) {
+      try { await steps[i](); } catch (e) { check('testet kraschade', false, e && e.message); }
+    }
+    clearSaves();
+    var fails = results.filter(function (r) { return r.name && !r.ok; }).length, total = results.filter(function (r) { return r.name; }).length;
+    results.forEach(function (r) {
+      var tr = tbl.insertRow();
+      if (!r.name) { var c0 = tr.insertCell(); c0.colSpan = 3; c0.className = 'grp'; c0.textContent = r.group; return; }
+      var a = tr.insertCell(), b = tr.insertCell(), c = tr.insertCell();
+      a.className = r.ok ? 'ok' : 'fel'; a.textContent = r.ok ? 'OK' : 'FEL'; b.textContent = r.name; c.className = 'info'; c.textContent = r.info;
+    });
+    sum.textContent = (fails ? fails + ' av ' + total + ' kontroller misslyckades' : 'Alla ' + total + ' kontroller gick igenom') + ' (' + ((performance.now() - t0) / 1000).toFixed(1) + ' s)';
+    sum.style.color = fails ? '#ff8a8a' : '#7dff8a';
+    window.__testDone = { total: total, fails: fails };
+    btn.disabled = false;
+  }
+  window.__runTests = runAll;
+  frame.onload = function () { wait(400).then(function () { btn.disabled = false; sum.textContent = 'Spelet är laddat. Tryck Kör alla tester.'; }); };
+  btn.addEventListener('click', runAll);
+})();
+</script>
+</body>
+</html>
