@@ -1,4 +1,9 @@
-# Malm & Monster (Mines & Monsters), version 3.6
+# Malm & Monster (Mines & Monsters), version 3.7
+
+v3.7:
+- Krafter (`C.powers`, smedjans tredje flik Krafter, kostar månsten 1/2/3 per nivå, max 3): `P.spin`, `P.bash`, `P.parrow` (sparas). Snurrslag: håll in Slå (`chargeSpin`, `P.atkHold`, `P.spinCharge`), släpp när ringen är full (`doSpin`, träffar alla inom `radius`, `P.spinCd`). Sköldknuff: slå med skölden uppe (`attack` -> `shieldBash`, knuff + yr, fx `bash`, `P.bashCd`). Kraftpil: med `P.parrow` laddar F/Skjut när man håller in (`pressBow`/`releaseBow`, `P.bowHold`); full ring = pil som går igenom `pierce` monster (`a.power`, `a.hits`), kort tryck = vanlig pil. Ringar och svep ritas i `drawPowers`. Bash kräver sköld, kraftpil kräver båge. Månsten används bara till krafter.
+- Blockpusslen är handgjorda (`C.treasure.blockMaps`, `iceMaps`, 5 x 4 rutor: P platta, B block, # sten). Planen har mur (`STONE`, går inte att bryta, `breakableStone`) med ingång mitt under och spaken utanför ingången. `blockLayout(tw)`: isbanor i Snölandet (tw % 5 === 3), annars svårare för varje vanligt blockpussel. Isblock glider tills de stöter i något (`puzzle.ice`, `blockStop`), block kan inte knuffas ut genom ingången (`puzzle.gate`). `test.html` har en lösare (`solvePuzzleMap`) som kontrollerar alla banor och placeringen på kartan.
+- Testkroken `__sg` har `pressBow()`, `releaseBow()`.
 
 v3.6:
 - Balans per svårighet i `C.difficulty` (Lätt har dagens värden): `oreMul` (andel malm per nivå, i `buildLevel`), `bonusYield` (dubbel malm med bättre hacka, false på Medel/Svår), `metalDrop` (chans att monster tappar metall, `dropLoot`), `costMul` (metallpriset gånger detta, tal eller lista per metall; `recipe` räknar om `baseRecipe`). Mål: på Medel har man råd med allt runt nivå 28 (förut 18). `test.html` gruppen Balans spelar nivå för nivå med det riktiga nivåbygget (`econSim`) och mäter det.

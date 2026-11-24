@@ -445,9 +445,12 @@
         var bx = b.tx * TS + b.ox, by = b.ty * TS + b.oy;
         g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(bx + 4, by + TS - 5, TS - 4, 5);
         rr(g, bx + 2, by + 1, TS - 4, TS - 4, 4);
-        var gr = g.createLinearGradient(0, by, 0, by + TS); gr.addColorStop(0, '#b4b8c2'); gr.addColorStop(1, '#5c6069'); g.fillStyle = gr; g.fill();
-        g.strokeStyle = '#2f3138'; g.lineWidth = 1.6; g.stroke();
-        g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 1; g.beginPath(); g.moveTo(bx + 8, by + 8); g.lineTo(bx + 14, by + 14); g.lineTo(bx + 12, by + 20); g.stroke();
+        var gr = g.createLinearGradient(0, by, 0, by + TS);
+        if (pz.ice) { gr.addColorStop(0, '#eaf8ff'); gr.addColorStop(1, '#7fb8e0'); } else { gr.addColorStop(0, '#b4b8c2'); gr.addColorStop(1, '#5c6069'); }
+        g.fillStyle = gr; g.fill();
+        g.strokeStyle = pz.ice ? '#3f7fae' : '#2f3138'; g.lineWidth = 1.6; g.stroke();
+        if (pz.ice) { g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 2; g.beginPath(); g.moveTo(bx + 7, by + 18); g.lineTo(bx + 16, by + 7); g.moveTo(bx + 12, by + 22); g.lineTo(bx + 22, by + 10); g.stroke(); }
+        else { g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 1; g.beginPath(); g.moveTo(bx + 8, by + 8); g.lineTo(bx + 14, by + 14); g.lineTo(bx + 12, by + 20); g.stroke(); }
       });
     }
   }
@@ -457,9 +460,29 @@
       [[-4, -6, 4, -6], [4, -6, -4, 6], [-4, 6, 4, 6]]];
     g.beginPath(); G[i % G.length].forEach(function (l) { g.moveTo(x + l[0], y + l[1]); g.lineTo(x + l[2], y + l[3]); }); g.stroke();
   }
+  function drawPowers() {                                     // v3.7: laddningsringar och snurrslagets svep
+    var k;
+    if (P.spinCharge > 0) {
+      k = P.spinCharge; g.lineCap = 'round';
+      g.strokeStyle = k >= 1 ? (Math.sin(time * 22) > 0 ? '#fff6c4' : PAL.bolt) : 'rgba(255,225,77,0.75)'; g.lineWidth = k >= 1 ? 4 : 2.5;
+      g.beginPath(); g.arc(P.x, P.y - 4, 24, -1.571, -1.571 + k * 6.283); g.stroke();
+    }
+    if (P.bowHold > 0 && P.pwrCd <= 0) {
+      k = Math.min(1, P.bowHold / C.powers.arrow.charge); g.lineCap = 'round';
+      g.strokeStyle = k >= 1 ? (Math.sin(time * 22) > 0 ? '#e6f7ff' : '#7cc8ff') : 'rgba(124,200,255,0.75)'; g.lineWidth = k >= 1 ? 4 : 2.5;
+      g.beginPath(); g.arc(P.x, P.y - 4, 20, -1.571, -1.571 + k * 6.283); g.stroke();
+    }
+    if (P.spinT > 0) {
+      var sk = 1 - P.spinT / 0.35, rad = C.powers.spin.radius[Math.max(1, P.spin)] * 0.85, a0 = sk * 9.4;
+      g.save(); g.globalCompositeOperation = 'lighter';
+      for (var i = 0; i < 3; i++) { g.strokeStyle = 'rgba(255,240,170,' + (0.55 - i * 0.15) * (1 - sk * 0.6) + ')'; g.lineWidth = 6 - i * 1.5; g.beginPath(); g.arc(P.x, P.y - 4, rad - i * 6, a0 - 1.6 + i * 0.2, a0); g.stroke(); }
+      g.restore();
+    }
+  }
   function drawArrows() {
     arrows.forEach(function (a) {
       var l = Math.hypot(a.vx, a.vy) || 1, ux = a.vx / l, uy = a.vy / l;
+      if (a.power) { g.save(); g.globalCompositeOperation = 'lighter'; glow(a.x - ux * 4, a.y - uy * 4, 16, '124,200,255', 0.55); g.restore(); }
       g.strokeStyle = '#8a5a2b'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(a.x - ux * 12, a.y - uy * 12); g.lineTo(a.x, a.y); g.stroke();
       g.fillStyle = ['#9a9ea6', '#e0763a', '#c9d0da', '#f0c94a', '#6ab8ff'][a.head || 0]; g.beginPath(); g.moveTo(a.x + ux * 4, a.y + uy * 4); g.lineTo(a.x - uy * 2.5, a.y + ux * 2.5); g.lineTo(a.x + uy * 2.5, a.y - ux * 2.5); g.closePath(); g.fill();
       g.strokeStyle = '#f4f4f4'; g.lineWidth = 1.2; g.beginPath();
@@ -669,6 +692,10 @@
         var wk = 1 - f.t / f.life;
         g.strokeStyle = 'rgba(255,170,80,' + (1 - wk) * 0.9 + ')'; g.lineWidth = 8 * (1 - wk) + 2;
         g.beginPath(); g.arc(f.x, f.y, f.R * wk, 0, 7); g.stroke();
+      } else if (f.k === 'bash') {                         // v3.7: sköldknuffens våg
+        var bk = 1 - f.t / f.life;
+        g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = 'rgba(160,215,255,' + (1 - bk) * 0.9 + ')'; g.lineWidth = 7 * (1 - bk) + 2;
+        g.beginPath(); g.arc(f.x, f.y, 14 + easeOutCubic(bk) * f.R, 0, 7); g.stroke(); g.restore();
       } else if (f.k === 'r') {                            // ljusring vid power-up
         var rk = 1 - f.t / f.life;
         g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = 'rgba(255,225,77,' + (1 - rk) * 0.8 + ')'; g.lineWidth = 4 * (1 - rk) + 1;

@@ -104,7 +104,15 @@ const CONFIG = {
   },
 
   // Skattkammare (v3.0): en per värld på en slumpad nivå. Kistan ger trä, metall av nästa sort och en månsten.
-  treasure: { chestWood: 3, moon: 1 },
+  treasure: { chestWood: 3, moon: 1,
+    // v3.7: blockpusslen är handgjorda, 5 x 4 rutor innanför en mur med ingång under mitten. P platta, B block, # sten, . golv.
+    // Alla är kontrollerade med en lösare (test.html). Plattor får inte ligga mitt under dörren eller mitt över ingången.
+    blockMaps: [['.....', '...P.', '.B...', '.....'],          // första: ett block som ska runt ett hörn
+                ['....#', '.B.B.', '#...P', '....P'],
+                ['P..B.', 'P....', '.#.B.', '#....'],
+                ['...PP', 'P..B.', 'BB##.', '.....']],
+    iceMaps:   [['#...P', '.....', '.B.B.', 'P...#'],          // Snölandet: isblock glider tills de stöter i något
+                ['...PP', '...##', '#B.B.', '.....']] },
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
   shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2] },   // v3.6: arc = hur långt runt skölden skyddar (cos), bounce = knuff, stun = sekunder yr
@@ -128,6 +136,14 @@ const CONFIG = {
     svar:  { mHp: 1.8, mDmg: 1.7, bHp: 3.0, gap: [1.0, 1.8], wind: 0.55, keep: 0.0,  minions: 5, oreMul: 0.8, bonusYield: false, metalDrop: 0.08, costMul: [1.3, 1.7, 2.2, 2.9] }
     // v3.6: oreMul = andel malm per nivå, bonusYield = dubbel malm med bättre hacka (bara Lätt), metalDrop = chans att monster tappar metall,
     //       costMul = metallpriset gånger detta (koppar, järn, guld, stjärnmalm). Lätt har dagens värden. Mål: allt klart runt nivå 28 på Medel (test.html mäter).
+  },
+
+  // Krafter (v3.7): lärs i smedjan för månsten, tre nivåer var. Håll in och släpp.
+  powers: {
+    cost: [null, 1, 2, 3],                                     // månsten för att nå nivå 1-3
+    spin:  { hold: 0.35, charge: 0.55, radius: [0, 62, 72, 84], dmgMul: [0, 1.0, 1.3, 1.6], cooldown: [0, 3, 2.5, 2] },        // snurrslag: håll in Slå, släpp
+    bash:  { radius: [0, 72, 86, 100], push: 380, stun: [0, 1.0, 1.3, 1.6], dmgMul: 0.5, cooldown: [0, 4, 3.5, 3] },        // sköldknuff: slå medan skölden är uppe
+    arrow: { charge: 0.6, dmgMul: [0, 2, 2.5, 3], pierce: [0, 2, 3, 4], rangeMul: 1.3, cooldown: [0, 2.5, 2, 1.5] }           // kraftpil: håll in Skjut, släpp
   },
 
   // Blixtkraft (v2.3): varje kristall ger en laddning. Q eller Blixt-knappen slår ned blixtar på alla monster.

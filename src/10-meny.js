@@ -64,8 +64,8 @@
 
   // ---------- smedjan (v2.2) ----------
   var FX0 = LW / 2 - 270, FW = 540, FY0 = 164, FH = 50, FSTEP = 56, FBY = FY0 + 6 * FSTEP + 18, forgeTab = 0;   // två flikar, högst sex rader
-  var TABS = ['Vapen och skydd', 'Verktyg'], TAB_W = 220, TAB_Y = 118, TAB_H = 36;
-  function tabX(i) { return 480 - TAB_W - 6 + i * (TAB_W + 12); }
+  var TABS = ['Vapen och skydd', 'Verktyg', 'Krafter'], TAB_W = 186, TAB_Y = 118, TAB_H = 36;   // v3.7: tre flikar
+  function tabX(i) { return 480 - (TABS.length * TAB_W + (TABS.length - 1) * 12) / 2 + i * (TAB_W + 12); }
   function recipe(k, lvl) {                                      // v3.6: metallen kostar mer på Medel och Svår (costMul, tal eller lista per metall)
     var c = baseRecipe(k, lvl), m = DF().costMul || 1;
     if (c && c.metal != null && m.length) m = m[c.metal];        // en faktor per metall: koppar, järn, guld, stjärnmalm
@@ -84,6 +84,7 @@
     if (k === 'knife') return Cc.knife;
     if (k === 'quiver') return Cc.quiver[lvl];
     if (k === 'head') return Cc.arrowHead[lvl];
+    if (k === 'spin' || k === 'bash' || k === 'parrow') return { moon: C.powers.cost[lvl] };   // v3.7: krafter kostar månsten
     return Cc.lantern[lvl];                                       // v3.6: lyktan kostar metall, månsten blir kraft
   }
   function swordName(l) { return l <= 2 ? 'Stensvärd' : l <= 5 ? 'Kopparsvärd' : l <= 8 ? 'Järnsvärd' : l <= 11 ? 'Guldsvärd' : 'Stjärnsvärd'; }
@@ -106,6 +107,12 @@
       { tab: 1, k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus i grottorna och på natten', icon: iconLamp },
       { tab: 1, k: 'rod', name: 'Fiskespö', lvl: P.rod, max: 1, desc: 'Fiska vid dammar. En fisk räknas som mat.', icon: iconRod },
       { tab: 1, k: 'knife', name: 'Jaktkniv', lvl: P.knife, max: 1, desc: 'Flå djur som du fångat. Ger kött och ibland skinn.', icon: iconKnife },
+      { tab: 2, k: 'spin', name: 'Snurrslag' + (P.spin ? ', nivå ' + Math.min(3, P.spin + 1) : ''), lvl: P.spin, max: 3,
+        desc: P.spin ? 'Större och starkare snurr' : (touchMode ? 'Håll fingret till höger, släpp: slår alla runt dig' : 'Håll in mellanslag, släpp: slår alla runt dig'), icon: iconSpin },
+      { tab: 2, k: 'bash', name: 'Sköldknuff' + (P.bash ? ', nivå ' + Math.min(3, P.bash + 1) : ''), lvl: P.bash, max: 3,
+        desc: !P.shield ? 'Kräver en sköld' : P.bash ? 'Längre knuff, yrare monster' : 'Slå med skölden uppe: alla runt dig flyger', icon: iconBash },
+      { tab: 2, k: 'parrow', name: 'Kraftpil' + (P.parrow ? ', nivå ' + Math.min(3, P.parrow + 1) : ''), lvl: P.parrow, max: 3,
+        desc: !P.bow ? 'Kräver en pilbåge' : P.parrow ? 'Starkare, går igenom fler' : (touchMode ? 'Håll in Skjut, släpp: pilen går igenom flera' : 'Håll in F, släpp: pilen går igenom flera'), icon: iconPowerArrow },
       { tab: 1, k: 'quiver', name: P.quiver < 3 ? ['Större koger', 'Läderkoger', 'Stort koger'][P.quiver] : 'Koger', lvl: P.quiver, max: 3,
         desc: P.quiver < 3 ? 'Bär ' + maxArrows(P.quiver + 1) + ' pilar i stället för ' + maxArrows() : 'Bär ' + maxArrows() + ' pilar', icon: iconQuiverBig }
     ];
@@ -150,6 +157,8 @@
   function buy(i) {
     var r = forgeRows()[i]; if (!r) return;
     if (r.k === 'arrows' && !P.bow) { sfx('deny'); say('Du behöver en pilbåge först.'); return; }
+    if (r.k === 'bash' && !P.shield) { sfx('deny'); say('Sköldknuffen kräver en sköld. Gör en under Vapen och skydd.'); return; }
+    if (r.k === 'parrow' && !P.bow) { sfx('deny'); say('Kraftpilen kräver en pilbåge. Gör en under Vapen och skydd.'); return; }
     if (!r.cost) { sfx('deny'); say(r.k === 'arrows' ? 'Kogret är fullt. Gör ett större koger under Verktyg.' : r.max === 1 ? 'Du har redan ' + r.name.toLowerCase() + '.' : r.name + ' är redan på högsta nivån'); return; }
     if (!canAfford(r.cost)) { sfx('deny'); say('Behöver ' + missingText(r.cost) + ' till'); return; }
     pay(r.cost);
@@ -163,11 +172,14 @@
     else if (r.k === 'head') { P.arrowHead++; say('Pilspetsar av ' + MET[P.arrowHead - 1].name + '! Pilarna gör nu ' + fmt(arrowDamage()) + ' i skada.'); }
     else if (r.k === 'rod') { P.rod = 1; say('Ett fiskespö! Ställ dig vid en damm och tryck ' + (touchMode ? 'Fiska' : 'E') + '.'); }
     else if (r.k === 'knife') { P.knife = 1; say('En jaktkniv! Fånga ett djur och tryck ' + (touchMode ? 'Flå' : 'E') + ' för att flå det.'); }
+    else if (r.k === 'spin') { P.spin++; say(P.spin === 1 ? 'Snurrslag! ' + (touchMode ? 'Håll fingret på högra sidan tills ringen är full och släpp.' : 'Håll in mellanslag tills ringen är full och släpp.') : 'Snurrslaget är nu nivå ' + P.spin + '.'); }
+    else if (r.k === 'bash') { P.bash++; say(P.bash === 1 ? 'Sköldknuff! Håll upp skölden och ' + (touchMode ? 'tryck på högra sidan.' : 'tryck mellanslag.') : 'Sköldknuffen är nu nivå ' + P.bash + '.'); }
+    else if (r.k === 'parrow') { P.parrow++; say(P.parrow === 1 ? 'Kraftpil! Håll in ' + (touchMode ? 'Skjut' : 'F') + ' tills den blå ringen är full och släpp.' : 'Kraftpilen är nu nivå ' + P.parrow + '.'); }
     else { P.quiver++; say(['Större koger', 'Läderkoger', 'Stort koger'][P.quiver - 1] + '! Nu kan du bära ' + maxArrows() + ' pilar.'); }
     sfx('craft'); powerUp(); save();
   }
   function forgeHit(p) {
-    for (var t = 0; t < 2; t++) if (p.x > tabX(t) && p.x < tabX(t) + TAB_W && p.y > TAB_Y - 4 && p.y < TAB_Y + TAB_H + 4) { switchTab(t); return; }
+    for (var t = 0; t < TABS.length; t++) if (p.x > tabX(t) && p.x < tabX(t) + TAB_W && p.y > TAB_Y - 4 && p.y < TAB_Y + TAB_H + 4) { switchTab(t); return; }
     var n = forgeRows().length;
     for (var i = 0; i < n; i++) { var y = FY0 + i * FSTEP; if (p.x > FX0 && p.x < FX0 + FW && p.y > y - 3 && p.y < y + FH + 3) { forgeSel = i; buy(i); return; } }
     if (Math.abs(p.x - 480) < 100 && Math.abs(p.y - FBY) < 30) closeForge();   // menyrutan är alltid 960 bred
@@ -197,7 +209,7 @@
     if (P.moonEver || P.moon > 0) inv.push('månsten ' + P.moon);
     g.font = 'bold 16px ' + TXT; g.fillText('Du har: ' + inv.join(', '), LW / 2, 94);
     var all = allRows();
-    for (var t = 0; t < 2; t++) {                               // flikar
+    for (var t = 0; t < TABS.length; t++) {                     // flikar
       var tx = tabX(t), on = t === forgeTab;
       tag(tx, TAB_Y, TAB_W, TAB_H);
       if (on) { rr(g, tx, TAB_Y, TAB_W, TAB_H, 9); g.fillStyle = 'rgba(255,225,77,0.16)'; g.fill(); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }

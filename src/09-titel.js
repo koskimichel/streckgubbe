@@ -118,7 +118,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.6', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -172,7 +172,7 @@
     }
     g.scale(ZW, ZW); g.translate(-camX, -camY);                // kameran; på dator och platta visar den hela kartan
     g.drawImage(mapCv, 0, 0, WW, WH);
-    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPrey(); drawPuzzle(); drawMonsters(); drawStuns(); drawShots(); drawArrows(); drawPlayer(); drawEHint(); drawFx();
+    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPrey(); drawPuzzle(); drawMonsters(); drawStuns(); drawShots(); drawArrows(); drawPlayer(); drawPowers(); drawEHint(); drawFx();
     if (biome.canopy) g.drawImage(canCv, 0, 0, WW, WH);          // djungelns lövtak
     var lapT = lapOf(level);                                     // varv 2 kväll, varv 3+ natt
     if (lapT > 0) { g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = lapT === 1 ? 0.5 : 0.75; g.fillStyle = lapT === 1 ? '#ffb07a' : '#6a78c0'; g.fillRect(0, 0, WW, WH); g.restore(); }
@@ -278,6 +278,10 @@
     g.strokeStyle = '#e1e4ea'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(-1, -2); g.lineTo(12, -1); g.stroke();
     g.restore();
   }
+  function powerArc(col) { g.strokeStyle = col; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.arc(0, 0, 21, -2.6, 1.2); g.stroke(); g.beginPath(); g.moveTo(17, 12); g.lineTo(11, 19); g.lineTo(21, 20); g.fillStyle = col; g.fill(); }
+  function iconSpin() { powerArc(PAL.bolt); g.save(); g.scale(0.7, 0.7); iconSwordBig(); g.restore(); }
+  function iconBash() { powerArc('#a0d7ff'); g.save(); g.scale(0.75, 0.75); iconShieldRound(); g.restore(); }
+  function iconPowerArrow() { g.save(); g.globalCompositeOperation = 'lighter'; glow(0, 0, 22, '124,200,255', 0.5); g.restore(); iconArrows(); }
   function iconQuiverBig() { g.save(); g.scale(1.8, 1.8); drawQuiver(0, 2, -1, 3); g.restore(); }
   function iconPause() { g.fillStyle = PAL.chalk; rr(g, -9, -11, 6, 22, 2); g.fill(); rr(g, 3, -11, 6, 22, 2); g.fill(); }
 

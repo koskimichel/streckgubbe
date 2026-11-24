@@ -16,7 +16,44 @@
   // ---------- handlingar ----------
   function tileAt(px, py) { return { x: Math.floor(px / TS), y: Math.floor(py / TS) }; }
 
+  function chargeSpin(held, dt) {                              // v3.7: håll in Slå för att ladda snurrslaget, släpp för att snurra
+    var S = C.powers.spin;
+    if (!P.spin || P.blocking || P.spinCd > 0 || state !== 'play') { P.atkHold = held ? P.atkHold + dt : 0; P.spinCharge = 0; return false; }
+    if (held) { P.atkHold += dt; if (P.atkHold > S.hold) { P.spinCharge = Math.min(1, (P.atkHold - S.hold) / S.charge); return true; } return false; }
+    var fire = P.spinCharge >= 1; P.atkHold = 0; P.spinCharge = 0;
+    if (fire) doSpin();
+    return false;
+  }
+  function doSpin() {                                          // svärdet snurrar runt gubben och träffar alla nära
+    var S = C.powers.spin, L = P.spin, rad = S.radius[L], dmg = damage() * S.dmgMul[L], hit = 0;
+    P.spinCd = S.cooldown[L]; P.spinT = 0.35; P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.3);
+    mons.forEach(function (m) {
+      if (m.hidden) return;
+      var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy);
+      if (d > rad + m.r) return;
+      m.hp -= dmg; m.hit = 0.12; m.pop = 0; hit++;
+      var kb = C.monsters.knockback * 1.5 * (m.type === 'boss' ? 0.25 : 1);
+      if (d > 0) { m.kx = dx / d * kb; m.ky = dy / d * kb; }
+      sparks(m.x, m.y, PAL.bolt, 6); floatText(m.x, m.y - m.r - 8, fmt(dmg), '#ffffff');
+    });
+    fx.push({ k: 'r', x: P.x, y: P.y, t: 0.4, life: 0.4 });
+    if (hit) { sfx('hit'); freeze(0.06); }
+  }
+  function shieldBash() {                                      // v3.7: alla monster runt gubben kastas bort och blir yra
+    var B = C.powers.bash, L = P.bash, rad = B.radius[L], dmg = damage() * B.dmgMul;
+    P.bashCd = B.cooldown[L]; P.blockFlash = 0.3; sfx('block'); addTrauma(0.45);
+    mons.forEach(function (m) {
+      if (m.hidden) return;
+      var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy) || 1, boss = m.type === 'boss';
+      if (d > rad + m.r) return;
+      var kb = B.push * (boss ? 0.3 : 1); m.kx = dx / d * kb; m.ky = dy / d * kb;
+      if (!boss) { m.stunT = B.stun[L]; m.cd = Math.max(m.cd, m.stunT); }
+      m.hp -= dmg; m.hit = 0.12; m.pop = 0; floatText(m.x, m.y - m.r - 8, fmt(dmg), '#e6f5ff');
+    });
+    fx.push({ k: 'bash', x: P.x, y: P.y, t: 0.35, life: 0.35, R: rad });
+  }
   function attack() {
+    if (P.blocking && P.bash > 0 && P.bashCd <= 0 && state === 'play') { shieldBash(); return; }   // slag med skölden uppe = knuff
     if (P.cd > 0 || state !== 'play' || P.blocking) return;
     P.cd = C.player.attackCooldown; P.swing = 0.18; sfx('swing'); P.fish = null;
     var rc = reach(), hitAny = false, dmg = damage();

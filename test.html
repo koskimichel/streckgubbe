@@ -256,6 +256,119 @@
     s.setDiff('latt'); s.toTitle(); clearSaves(); await reloadGame();
   }
 
+  // ---------- blockpussel (v3.7) ----------
+  // Lösare: 5 x 4 rutor, ingång under mitten (2,4), dörren ovanför mitten (2,0). Block på platta sitter fast, isblock glider.
+  function solvePuzzleMap(rows, ice) {
+    var W5 = 5, H4 = 4, rocks = {}, plates = [], blocks = [];
+    rows.forEach(function (r, y) { for (var x = 0; x < W5; x++) { var ch = r.charAt(x), k = x + ',' + y; if (ch === '#') rocks[k] = 1; else if (ch === 'P') plates.push(k); else if (ch === 'B') blocks.push(k); } });
+    if (plates.length !== blocks.length || plates.indexOf('2,0') >= 0 || plates.indexOf('2,3') >= 0) return null;
+    function inside(x, y) { return x >= 0 && y >= 0 && x < W5 && y < H4; }
+    function reach(start, bl) {
+      var seen = {}, q = [start]; seen[start] = 1;
+      while (q.length) { var c = q.shift().split(','), x = +c[0], y = +c[1];
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) { var nx = x + d[0], ny = y + d[1], k = nx + ',' + ny;
+          if (seen[k] || rocks[k] || bl.indexOf(k) >= 0) return; if (!inside(nx, ny) && k !== '2,4') return; seen[k] = 1; q.push(k); }); }
+      return seen;
+    }
+    var start = '2,4|' + blocks.slice().sort().join(';'), seen = {}, q = [[start, 0]]; seen[start] = 1;
+    while (q.length) {
+      var cur = q.shift(), parts = cur[0].split('|'), pl = parts[0], bl = parts[1].split(';'), pushes = cur[1];
+      var rc = reach(pl, bl);
+      if (plates.every(function (k) { return bl.indexOf(k) >= 0; }) && rc['2,0']) return pushes;
+      if (Object.keys(seen).length > 200000) return null;
+      Object.keys(rc).forEach(function (pk) {
+        var pc = pk.split(','), px = +pc[0], py = +pc[1];
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          var bk = (px + d[0]) + ',' + (py + d[1]); if (bl.indexOf(bk) < 0 || plates.indexOf(bk) >= 0) return;
+          var tx = px + 2 * d[0], ty = py + 2 * d[1];
+          function free(x, y) { var k = x + ',' + y; return inside(x, y) && !rocks[k] && bl.indexOf(k) < 0; }
+          if (!free(tx, ty)) return;
+          if (ice) while (free(tx + d[0], ty + d[1])) { tx += d[0]; ty += d[1]; }
+          var nb = bl.filter(function (k) { return k !== bk; }).concat([tx + ',' + ty]).sort();
+          var st = (ice ? pk : bk) + '|' + nb.join(';');
+          if (!seen[st]) { seen[st] = 1; q.push([st, pushes + 1]); }
+        });
+      });
+    }
+    return null;
+  }
+  async function testPuzzles() {
+    grp('Blockpussel');
+    var C = CFG(), T = C.treasure, s = S(), bad = [];
+    T.blockMaps.forEach(function (m, i) { var n = solvePuzzleMap(m, false); if (n == null) bad.push('vanlig ' + i); });
+    T.iceMaps.forEach(function (m, i) { var n = solvePuzzleMap(m, true); if (n == null) bad.push('is ' + i); });
+    check('alla handgjorda banor går att lösa', !bad.length, bad.join(', ') || (T.blockMaps.length + T.iceMaps.length) + ' banor');
+    var first = solvePuzzleMap(T.blockMaps[0], false);
+    check('den första banan är enkel', first != null && first <= 4, first + ' knuffar');
+    clearSaves(); await reloadGame(); s = S(); s.playSlot(1); await wait(100);
+    var P = s.P, placed = 0, wrong = [], layouts = [];
+    P.chests = [];
+    for (var tw = 1; tw < 20; tw += 2) {
+      var n = tw * 5 + 1 + ((Math.imul(tw + 1, 2654435761) >>> 0) % 4);
+      s.build(n); var pz = s.puzzle, map = s.map;
+      if (!pz || pz.kind !== 'blocks') { wrong.push('nivå ' + n + ' saknar blockpussel'); continue; }
+      placed++; layouts.push((pz.ice ? 'is' : '') + pz.layout);
+      if (pz.ice !== (tw % 5 === 3)) wrong.push('nivå ' + n + ' fel is');
+      var rows = [];
+      for (var r = 0; r < 4; r++) { var row = ''; for (var c = 0; c < 5; c++) { var tx = pz.x0 + 1 + c, ty = pz.ry + 4 + r;
+        row += map[ty][tx] === 1 ? '#' : pz.plates.some(function (pl) { return pl.tx === tx && pl.ty === ty; }) ? 'P' : pz.blocks.some(function (b) { return b.tx === tx && b.ty === ty; }) ? 'B' : map[ty][tx] === 0 || map[ty][tx] === 3 ? '.' : '?'; }
+        rows.push(row); }
+      if (solvePuzzleMap(rows, pz.ice) == null) wrong.push('nivå ' + n + ' går inte att lösa: ' + rows.join('/'));
+      if (map[pz.ry + 8][pz.x0 + 3] === 1 || map[pz.ry + 8][pz.x0 + 2] !== 1 || map[pz.ry + 6][pz.x0] !== 1) wrong.push('nivå ' + n + ' muren eller ingången fel');
+    }
+    check('blockpusslen placeras med mur och ingång och går att lösa på kartan', placed === 10 && !wrong.length, wrong.join('; ') || placed + ' nivåer: ' + layouts.join(' '));
+    // isblock glider
+    var iceN = 3 * 5 + 1 + ((Math.imul(4, 2654435761) >>> 0) % 4);
+    P.maxLevel = iceN; s.go(iceN); await wait(50); var iz = s.puzzle, ib = iz && iz.blocks[0];
+    if (ib) {
+      var y0 = ib.ty; s.mons.length = 0; P.x = (ib.tx + 0.5) * 32; P.y = (ib.ty + 1.5) * 32 + 2; P.fx = 0; P.fy = -1; P.inv = 99;
+      keyDown('w'); s.step(0.5); keyUp('w'); s.step(0.05);
+      check('isblock glider mer än en ruta', y0 - ib.ty >= 2, 'från rad ' + y0 + ' till ' + ib.ty);
+    } else check('isblock glider mer än en ruta', false, 'inget pussel');
+    s.toTitle();
+  }
+
+  // ---------- krafter (v3.7) ----------
+  async function testPowers() {
+    grp('Krafter med månsten');
+    clearSaves(); await reloadGame(); var s = S(); s.setDiff('latt'); s.playSlot(1); await wait(100); ensurePlay();
+    var P = s.P, C = CFG(), PW = C.powers, i;
+    Object.assign(P, { moon: 30, shield: 0, bow: 0, sword: 5, wood: 99, stone: 99 });
+    s.forge(); s.tab(2);
+    var m0 = P.moon; s.buy(1);
+    check('sköldknuffen kräver en sköld', P.bash === 0 && P.moon === m0);
+    P.shield = 1; P.bow = 1; P.arrows = 10;
+    for (i = 0; i < 4; i++) { s.buy(0); s.buy(1); s.buy(2); }
+    check('tre krafter i tre nivåer, 1 + 2 + 3 månsten var', P.spin === 3 && P.bash === 3 && P.parrow === 3 && P.moon === 30 - 18, 'kvar ' + P.moon);
+    key('Escape'); s.step(0.05);
+    // snurrslag
+    Object.assign(P, { spin: 1, bash: 0, parrow: 0, x: 300, y: 300, fx: 1, fy: 0, inv: 99, hp: 999, spinCd: 0, cd: 0, blocking: false });
+    s.mons.length = 0; s.prey.length = 0;
+    var ms = [[-40, 0], [0, 40], [40, 0]].map(function (o) { return freshMon(s, P.x + o[0], P.y + o[1]); }), far = freshMon(s, P.x + 200, P.y);
+    ms.concat([far]).forEach(function (m) { s.mons.push(m); });
+    keyDown(' '); s.step(0.25); s.step(1.0); var charged = P.spinCharge >= 1;
+    keyUp(' '); s.step(0.3);
+    check('håll in Slå: ringen laddas', charged, P.spinCharge);
+    check('snurrslaget träffar alla runt gubben men inte långt bort', ms.every(function (m) { return m.hp < 999; }) && far.hp === 999, ms.map(function (m) { return (999 - m.hp).toFixed(1); }).join(' / '));
+    check('snurrslaget laddar om', P.spinCd > 0, P.spinCd.toFixed(2));
+    // sköldknuff
+    s.mons.length = 0; Object.assign(P, { bash: 1, bashCd: 0, cd: 0 });
+    var bm = [freshMon(s, P.x - 40, P.y), freshMon(s, P.x, P.y + 45)], bx0 = bm[0].x;
+    bm.forEach(function (m) { s.mons.push(m); });
+    keyDown('Shift'); s.step(0.05); keyDown(' '); s.step(0.05); keyUp(' '); s.step(0.3); keyUp('Shift'); s.step(0.05);
+    check('sköldknuffen kastar bort alla runt och gör dem yra', bm.every(function (m) { return m.stunT > 0; }) && bm[0].x < bx0 - 10, 'knuff ' + (bx0 - bm[0].x).toFixed(1) + ' px');
+    // kraftpil
+    s.step(0.3); s.mons.length = 0; Object.assign(P, { parrow: 1, bow: 1, arrows: 10, pwrCd: 0, shootCd: 0, fx: 1, fy: 0 });
+    var line = [80, 130, 180].map(function (dx) { return freshMon(s, P.x + dx, P.y); });
+    line.forEach(function (m) { s.mons.push(m); });
+    s.pressBow(); s.step(0.7); s.releaseBow(); s.step(0.8);
+    var hits = line.filter(function (m) { return m.hp < 999; }).length;
+    check('kraftpilen går igenom ' + PW.arrow.pierce[1] + ' monster på nivå 1', hits === PW.arrow.pierce[1], hits + ' träffade');
+    P.shootCd = 0; var a0 = s.arrows.length; s.pressBow(); s.releaseBow();
+    check('kort tryck skjuter en vanlig pil', s.arrows.length === a0 + 1 && !s.arrows[s.arrows.length - 1].power);
+    s.mons.length = 0; s.arrows.length = 0; s.toTitle();
+  }
+
   // ---------- 6. hacka, lin, fiske och jakt ----------
   async function testNature() {
     grp('Hacka, lin, fiske och jakt');
@@ -304,14 +417,14 @@
   }
 
   // ---------- 8. sparning och sparplatser ----------
-  var SKIP = ['x', 'y', 'fx', 'fy', 'cd', 'inv', 'swing', 'walk', 'moving', 'pu', 'spk', 'vx', 'vy', 'shootCd', 'blocking', 'slow', 'icy', 'shotT', 'blockFlash', 'calmT', 'fish', 'portalLock', 'hp'];
+  var SKIP = ['x', 'y', 'fx', 'fy', 'cd', 'inv', 'swing', 'walk', 'moving', 'pu', 'spk', 'vx', 'vy', 'shootCd', 'blocking', 'slow', 'icy', 'shotT', 'blockFlash', 'calmT', 'fish', 'portalLock', 'hp', 'spinCd', 'bashCd', 'pwrCd', 'atkHold', 'spinCharge', 'bowHold', 'spinT'];
   function snapP(P) { var o = {}; for (var k in P) if (SKIP.indexOf(k) < 0) o[k] = JSON.parse(JSON.stringify(P[k])); return o; }
   async function testSaves() {
     grp('Sparning och sparplatser');
     clearSaves(); await reloadGame();
     var s = S(); s.playSlot(1); await wait(100);
     var P = s.P;
-    Object.assign(P, { hearts: 5, sword: 7, armor: 6, pick: 2, lamp: 2, moon: 3, moonEver: true, bolts: 2, wood: 11, stone: 12, ore: 13, iron: 14, gold: 15, star: 1, hasPick: true, shield: 2, bow: 2, arrows: 17, arrowHead: 1, flax: 4, hide: 3, rod: 1, knife: 1, quiver: 1, maxLevel: 9, chests: [2, 8], minedMap: { '1': ['3,3'] }, backSeen: true, flaxSeen: true, treasureSeen: true, bossDone: 5 });
+    Object.assign(P, { hearts: 5, sword: 7, armor: 6, pick: 2, lamp: 2, moon: 3, moonEver: true, bolts: 2, wood: 11, stone: 12, ore: 13, iron: 14, gold: 15, star: 1, hasPick: true, shield: 2, bow: 2, arrows: 17, arrowHead: 1, flax: 4, hide: 3, rod: 1, knife: 1, quiver: 1, spin: 2, bash: 1, parrow: 3, maxLevel: 9, chests: [2, 8], minedMap: { '1': ['3,3'] }, backSeen: true, flaxSeen: true, treasureSeen: true, bossDone: 5 });
     var before = snapP(P); s.toTitle(); await reloadGame(); s = S(); s.playSlot(1); await wait(100);
     var after = snapP(s.P), diff = [];
     Object.keys(before).forEach(function (k) { if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) diff.push(k); });
@@ -354,7 +467,7 @@
   async function runAll() {
     btn.disabled = true; results.length = 0; tbl.innerHTML = ''; sum.textContent = 'Kör ...';
     var t0 = performance.now();
-    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves, testBalance];
+    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves, testPowers, testPuzzles, testBalance];
     for (var i = 0; i < steps.length; i++) {
       try { await steps[i](); } catch (e) { check('testet kraschade', false, e && e.message); }
     }

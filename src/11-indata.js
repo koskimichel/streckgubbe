@@ -6,7 +6,8 @@
     if (keys[k]) return; keys[k] = true;
     if (state === 'forge') {
       if (k === 'Escape' || k === 'e' || k === 'p') closeForge();
-      else if (k === 'Tab' || k === 'ArrowLeft' || k === 'ArrowRight' || k === 'a' || k === 'd') switchTab(1 - forgeTab);
+      else if (k === 'Tab' || k === 'ArrowRight' || k === 'd') switchTab((forgeTab + 1) % TABS.length);
+      else if (k === 'ArrowLeft' || k === 'a') switchTab((forgeTab + TABS.length - 1) % TABS.length);
       else if (k === 'ArrowUp' || k === 'w') forgeSel = (forgeSel + forgeRows().length - 1) % forgeRows().length;
       else if (k === 'ArrowDown' || k === 's') forgeSel = (forgeSel + 1) % forgeRows().length;
       else if (k === 'Enter' || k === ' ') buy(forgeSel);
@@ -40,14 +41,14 @@
       return;
     }
     if (k === 'q') castStorm();
-    if (k === 'f') shoot();
+    if (k === 'f') pressBow();
     if (k === 'e') useE();
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
     }
   });
-  window.addEventListener('keyup', function (e) { keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false; });
-  window.addEventListener('blur', function () { keys = {}; mouse.down = false; mouse.rdown = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; pauseGame(); });
+  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (k === 'f') releaseBow(); });
+  window.addEventListener('blur', function () { keys = {}; mouse.down = false; mouse.rdown = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
   document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
     if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
     else if (window.LJUD) LJUD.resume();
@@ -104,7 +105,7 @@
       return;
     }
     if (P.shield > 0 && Math.hypot(p.x - BTN_SHIELD.x, p.y - BTN_SHIELD.y) < BTN_SHIELD.r * 1.1) { touch.shieldId = e.pointerId; return; }
-    if (P.bow > 0 && Math.hypot(p.x - BTN_BOW.x, p.y - BTN_BOW.y) < BTN_BOW.r * 1.1) { touch.bowId = e.pointerId; shoot(); return; }
+    if (P.bow > 0 && Math.hypot(p.x - BTN_BOW.x, p.y - BTN_BOW.y) < BTN_BOW.r * 1.1) { touch.bowId = e.pointerId; pressBow(); return; }
     if (Math.hypot(p.x - BTN_BOLT.x, p.y - BTN_BOLT.y) < BTN_BOLT.r * 1.1) { touch.boltId = e.pointerId; castStorm(); return; }
     if (onBtn(p, BTN_E)) { touch.eId = e.pointerId; useE(); return; }
     if (p.x >= LW / 2) {                                    // hela högra halvan slår
@@ -130,7 +131,7 @@
     if (e.pointerId === touch.eId) touch.eId = null;
     if (e.pointerId === touch.boltId) touch.boltId = null;
     if (e.pointerId === touch.shieldId) touch.shieldId = null;
-    if (e.pointerId === touch.bowId) touch.bowId = null;
+    if (e.pointerId === touch.bowId) { touch.bowId = null; releaseBow(); }
   }
   cv.addEventListener('pointerup', endTouch);
   cv.addEventListener('pointercancel', endTouch);
@@ -148,7 +149,7 @@
   }
   requestAnimationFrame(frame);
   // för test: window.__sg exponerar läge
-  window.__sg = { maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
+  window.__sg = { maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
     step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram

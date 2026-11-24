@@ -1,12 +1,12 @@
   // ---------- skattkammare (v3.0) ----------
   // Ett rum (7 x 4 med stenväggar och en dörr) med en plan framför (7 x 5) där pusslet finns. Dörren öppnas när pusslet är löst.
   function placeTreasure(n, rnd, tw) {
-    var kind = tw % 2 === 0 ? 'runes' : 'blocks', wi = tw % 5, lap = lapOf(n);
+    var kind = tw % 2 === 0 ? 'runes' : 'blocks', wi = tw % 5, lap = lapOf(n), deep = kind === 'blocks' ? 9 : 8;   // blockpusslet har en ingång under planen
     for (var tries = 0; tries < 60; tries++) {
       var x0 = 7 + Math.floor(rnd() * (W - 15)), ry = 1 + Math.floor(rnd() * (H - 11)), x, y;
-      if (x0 + 6 >= W - 1 || ry + 8 >= H - 1) continue;
-      if (x0 + 6 >= W - 5 && ry + 8 >= H - 5) continue;               // inte vid portalen
-      var wet = false; for (y = ry - 1; y <= ry + 9; y++) for (x = x0 - 1; x <= x0 + 7; x++) if (map[y] && map[y][x] === WATER) wet = true;
+      if (x0 + 6 >= W - 1 || ry + deep >= H - 1) continue;
+      if (x0 + 6 >= W - 5 && ry + deep >= H - 5) continue;            // inte vid portalen
+      var wet = false; for (y = ry - 1; y <= ry + deep + 1; y++) for (x = x0 - 1; x <= x0 + 7; x++) if (map[y] && map[y][x] === WATER) wet = true;
       if (wet) continue;                                           // inte i dammen
       var bm = map.map(function (r) { return r.slice(); }), bc = isCave.map(function (r) { return r.slice(); });
       for (y = ry; y <= ry + 8; y++) for (x = x0; x <= x0 + 6; x++) {
@@ -14,14 +14,20 @@
         map[y][x] = wall ? STONE : GRASS; isCave[y][x] = false; delete oreHp[x + ',' + y]; delete treeHp[x + ',' + y]; delete oreT[x + ',' + y];
       }
       map[ry + 3][x0 + 3] = DOOR;
+      if (kind === 'blocks') {                                   // v3.7: mur runt planen, ingång mitt under, spaken utanför
+        for (y = ry + 4; y <= ry + 8; y++) { map[y][x0] = STONE; map[y][x0 + 6] = STONE; }
+        for (x = x0; x <= x0 + 6; x++) if (x !== x0 + 3) map[ry + 8][x] = STONE;
+        for (x = x0 + 2; x <= x0 + 4; x++) { map[ry + 9][x] = GRASS; isCave[ry + 9][x] = false; delete oreHp[x + ',' + (ry + 9)]; delete treeHp[x + ',' + (ry + 9)]; delete oreT[x + ',' + (ry + 9)]; }
+      }
       if (reachable(2, 2, W - 3, H - 3)) {
         var op = openFrom(2, 2);
-        if (op[ry + 4][x0 + 3] && op[ry + 8][x0 + 1] && op[ry + 8][x0 + 5]) { buildPuzzle(kind, x0, ry, wi, lap, rnd); return; }
+        var inOk = kind === 'blocks' ? op[ry + 9][x0 + 3] && op[ry + 4][x0 + 3] : op[ry + 4][x0 + 3] && op[ry + 8][x0 + 1] && op[ry + 8][x0 + 5];
+        if (inOk) { buildPuzzle(kind, x0, ry, wi, lap, rnd, tw); return; }
       }
       map = bm; isCave = bc;                                     // ångra och prova en annan plats
     }
   }
-  function buildPuzzle(kind, x0, ry, wi, lap, rnd) {
+  function buildPuzzle(kind, x0, ry, wi, lap, rnd, tw) {
     var y0 = ry + 4, i;
     puzzle = { kind: kind, x0: x0, ry: ry, doorX: x0 + 3, doorY: ry + 3, solved: false, found: false, perfect: true, started: false,
       chest: { x: (x0 + 3.5) * TS, y: (ry + 1.5) * TS, taken: false } };
@@ -30,19 +36,32 @@
       for (i = 0; i < nR; i++) { var col = nR > 1 ? Math.round(i * 6 / (nR - 1)) : 3; runes.push({ x: (x0 + col + 0.5) * TS, y: (y0 + 2 + 0.5) * TS, lit: 0, bad: 0 }); seq.push(i); }
       for (i = seq.length - 1; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)), tmp = seq[i]; seq[i] = seq[j]; seq[j] = tmp; }
       puzzle.runes = runes; puzzle.seq = seq; puzzle.input = []; puzzle.show = null; puzzle.speed = Math.max(0.45, 0.75 - wi * 0.06);
-    } else {                                                     // block knuffas rakt upp på plattorna; spaken ställer tillbaka
-      var nB = [1, 2, 2, 3, 3][wi], cols = nB === 1 ? [3] : nB === 2 ? [1, 5] : [1, 3, 5];
-      puzzle.plates = cols.map(function (c) { return { tx: x0 + c, ty: y0 + 1 }; });
-      puzzle.blocks = cols.map(function (c) { return { tx: x0 + c, ty: y0 + 3, sx: x0 + c, sy: y0 + 3, ox: 0, oy: 0 }; });
-      puzzle.lever = { x: (x0 + 0.5) * TS, y: (y0 + 3 + 0.5) * TS, flip: 0 };
+    } else {                                                     // v3.7: handgjord bana; spaken utanför ingången ställer tillbaka
+      var lay = blockLayout(tw), rows = lay.rows;
+      puzzle.ice = lay.ice; puzzle.layout = lay.idx; puzzle.plates = []; puzzle.blocks = [];
+      puzzle.gate = { tx: x0 + 3, ty: ry + 8 };                    // ingången: block får inte knuffas ut
+      for (var r = 0; r < rows.length; r++) for (var c = 0; c < rows[r].length; c++) {
+        var tx = x0 + 1 + c, ty = y0 + r, ch = rows[r].charAt(c);
+        if (ch === '#') map[ty][tx] = STONE;
+        else if (ch === 'P') puzzle.plates.push({ tx: tx, ty: ty });
+        else if (ch === 'B') puzzle.blocks.push({ tx: tx, ty: ty, sx: tx, sy: ty, ox: 0, oy: 0 });
+      }
+      puzzle.lever = { x: (x0 + 4 + 0.5) * TS, y: (ry + 9 + 0.5) * TS, flip: 0 };
     }
+  }
+  function blockLayout(tw) {                                     // v3.7: vilken handgjord bana: isbanor i Snölandet, annars svårare för varje gång
+    var T = C.treasure, ice = tw % 5 === 3, list = ice ? T.iceMaps : T.blockMaps, idx = 0;
+    if (ice) idx = Math.floor(tw / 10);
+    else for (var t2 = 1; t2 < tw; t2 += 2) if (t2 % 5 !== 3) idx++;   // antal vanliga blockpussel före detta
+    idx = Math.min(idx, list.length - 1);
+    return { ice: ice, idx: idx, rows: list[idx] };
   }
   function markMined(x, y) {                                     // minns vad som brutits på nivån (sparas)
     var mk = String(level); (P.minedMap[mk] || (P.minedMap[mk] = [])).push(x + ',' + y);
   }
   function breakableStone(x, y) {                               // kantstenar och skattkammarens väggar går inte att bryta
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
-    if (puzzle && x >= puzzle.x0 && x <= puzzle.x0 + 6 && y >= puzzle.ry && y <= puzzle.ry + 3) return false;
+    if (puzzle && x >= puzzle.x0 && x <= puzzle.x0 + 6 && y >= puzzle.ry && y <= puzzle.ry + (puzzle.kind === 'blocks' ? 8 : 3)) return false;   // v3.7: också muren och stenarna i planen
     return true;
   }
   function blockAt(tx, ty) {
@@ -55,7 +74,7 @@
     var near = Math.hypot((pz.doorX + 0.5) * TS - P.x, (pz.doorY + 3) * TS - P.y) < 5 * TS;
     if (near && !pz.found) {
       pz.found = true;
-      say(pz.kind === 'runes' ? 'En skattkammare! Slå på runstenarna i samma ordning som de lyser.' : 'En skattkammare! Knuffa blocken upp på de runda plattorna. Spaken ställer tillbaka dem.');
+      say(pz.kind === 'runes' ? 'En skattkammare! Slå på runstenarna i samma ordning som de lyser.' : pz.ice ? 'Isblock! De glider tills de stöter i något. Spaken vid ingången ställer tillbaka.' : 'En skattkammare! Knuffa blocken till plattorna. Spaken vid ingången ställer tillbaka.');
     }
     if (pz.kind === 'runes') {
       pz.runes.forEach(function (ru) { if (ru.lit > 0) ru.lit -= dt; if (ru.bad > 0) ru.bad -= dt; });
@@ -70,7 +89,7 @@
         }
       }
     } else {
-      pz.blocks.forEach(function (b) { var v = 220 * dt; b.ox = b.ox > 0 ? Math.max(0, b.ox - v) : Math.min(0, b.ox + v); b.oy = b.oy > 0 ? Math.max(0, b.oy - v) : Math.min(0, b.oy + v); });
+      pz.blocks.forEach(function (b) { var v = (pz.ice ? 420 : 220) * dt; b.ox = b.ox > 0 ? Math.max(0, b.ox - v) : Math.min(0, b.ox + v); b.oy = b.oy > 0 ? Math.max(0, b.oy - v) : Math.min(0, b.oy + v); });
       if (pz.lever.flip > 0) pz.lever.flip -= dt;
       if (!pz.solved) pushBlocks(dt);
     }
@@ -83,14 +102,19 @@
     if (!b) { pushT = 0; return; }
     if (puzzle.plates.some(function (pl) { return pl.tx === b.tx && pl.ty === b.ty; })) { pushT = 0; return; }   // block på platta sitter fast
     pushT += dt; if (pushT < 0.16) return; pushT = 0;
-    var nx = b.tx + dx, ny = b.ty + dy;
-    if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1 || solid(map[ny][nx]) || map[ny][nx] === EXIT || blockAt(nx, ny)) {
-      if (msgT <= 0) say('Blocket fastnar. Slå på spaken så kommer blocken tillbaka.');
+    var nx = b.tx + dx, ny = b.ty + dy, steps = 1;
+    if (blockStop(nx, ny)) {
+      if (msgT <= 0) say('Blocket fastnar. Slå på spaken vid ingången så kommer blocken tillbaka.');
       return;
     }
-    b.tx = nx; b.ty = ny; b.ox = -dx * TS; b.oy = -dy * TS; sfx('push');
+    if (puzzle.ice) while (!blockStop(nx + dx, ny + dy)) { nx += dx; ny += dy; steps++; }   // isblock glider
+    b.tx = nx; b.ty = ny; b.ox = -dx * TS * steps; b.oy = -dy * TS * steps; sfx('push');
     if (puzzle.plates.every(function (pl) { return !!blockAt(pl.tx, pl.ty); })) solvePuzzle();
     else if (puzzle.plates.some(function (pl) { return pl.tx === nx && pl.ty === ny; })) sfx('click');
+  }
+  function blockStop(nx, ny) {                                   // kan ett block inte gå hit?
+    if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1 || solid(map[ny][nx]) || map[ny][nx] === EXIT || blockAt(nx, ny)) return true;
+    return !!(puzzle.gate && puzzle.gate.tx === nx && puzzle.gate.ty === ny);
   }
   function puzzleHit(rc) {                                       // slag på runsten eller spak
     var pz = puzzle, targets = pz.kind === 'runes' ? pz.runes.map(function (r, i) { return { x: r.x, y: r.y, i: i }; }) : [{ x: pz.lever.x, y: pz.lever.y, i: -1 }];
@@ -161,7 +185,7 @@
   function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); }
   function continueGame(s) {
     if (s.diff && C.difficulty[s.diff]) { settings.diff = s.diff; applySettings(); }   // svårigheten följer sparplatsen
-    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiverV ? (s.quiver || 0) : (s.quiver ? 3 : 0); P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.flaxSeen = !!s.flaxSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
+    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiverV ? (s.quiver || 0) : (s.quiver ? 3 : 0); P.spin = s.spin || 0; P.bash = s.bash || 0; P.parrow = s.parrow || 0; P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.flaxSeen = !!s.flaxSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
     startLevel(s.level);
   }
 
