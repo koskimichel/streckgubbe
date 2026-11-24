@@ -372,6 +372,10 @@
     var kb = JSON.parse(localStorage.getItem('mm-installningar')).keys;
     key('Escape'); key('Escape');
     check('Som från början återställer W', kb.up[0] === 'w' && kb.up[1] === 'ArrowUp', JSON.stringify(kb.up));
+    key('Escape'); for (i = 0; i < 7; i++) key('ArrowDown'); key('Enter'); key('Tab'); key('Enter'); key('k');   // v3.7.5: fliken Handkontroll
+    var kt = JSON.parse(localStorage.getItem('mm-installningar')).keys; key('Escape'); key('Escape'); await wait(20);
+    check('Tab byter till fliken Handkontroll (plats 3)', kt.up[2] === 'k' && kt.up[0] === 'w', JSON.stringify(kt.up));
+    key('Escape'); for (i = 0; i < 7; i++) key('ArrowDown'); key('Enter'); for (i = 0; i < 10; i++) key('ArrowDown'); key('Enter'); key('Escape'); key('Escape'); await wait(20);
     // musknappar (v3.7.2)
     var ww = w(), cvs = ww.document.getElementById('c');
     function mouse(type, btn) { var r = cvs.getBoundingClientRect(); (type === 'mouseup' ? ww : cvs).dispatchEvent(new ww.MouseEvent(type, { button: btn, buttons: type === 'mouseup' ? 0 : 1 << btn, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true })); }

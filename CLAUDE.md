@@ -1,4 +1,7 @@
-# Malm & Monster (Mines & Monsters), version 3.7.4
+# Malm & Monster (Mines & Monsters), version 3.7.5
+
+v3.7.5:
+- Styrning har två flikar (`keyTab`, `KTABS`, `ktabX`, `setKeyTab`, `keyCols`): Mus och tangentbord (plats 0 och 1) och Handkontroll (plats 2). Öppnas på fliken för det man senast använde (`lastInput`). Byt flik genom att klicka, Tab, eller vänster/höger förbi kanten (LB/RB på kontrollen). Pausmenyns rad heter Styrning: tangenter och handkontroll.
 
 v3.7.4:
 - Sköld: fullt skydd (50-90 %) och studs framifrån som förut; från sidan och bakifrån halvt skydd (`C.shield.backBlock`), ingen studs. Skölden är en vägg framåt: ett monster som rör skölden medan det inte kan slå (`m.cd > 0` eller `P.inv > 0`) studsar bort och blir yrt (`m.bounceCd`); monster som kan slå slår mot skölden (minskad skada) och studsar i `hurtPlayer`. Förut gick de rakt igenom. Mot fem slem i 4 s: 5 skada med sköld, 20 utan.
