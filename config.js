@@ -116,7 +116,7 @@ const CONFIG = {
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
   shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2] },   // v3.6: arc = hur långt runt skölden skyddar (cos), bounce = knuff, stun = sekunder yr
-  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 15, 20, 25, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
+  bow: { aimCone: 0.7, range: [0, 260, 300, 340],   /* v3.7.3: aimCone = cos för vinkeln framåt där bågen letar först */ dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 15, 20, 25, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
     headDmg: [3, 5, 8, 11, 15], bowMul: [0, 1.0, 1.15, 1.3], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
 
   // Natur (v3.3): lin på marken, en damm var tredje nivå (2, 5, 8 ...), bytesdjur på de andra nivåerna.
@@ -141,7 +141,7 @@ const CONFIG = {
   // Krafter (v3.7): lärs i smedjan för månsten, tre nivåer var. Håll in och släpp.
   powers: {
     cost: [null, 1, 3, 5],                                     // månsten för att nå nivå 1-3 (v3.7.1: dyrare, man hittar knappt en per nivå)
-    spin:  { hold: 0.35, charge: 0.55, time: 0.45, radius: [0, 62, 72, 84], dmgMul: [0, 1.0, 1.3, 1.6], cooldown: [0, 3, 2.5, 2] },        // snurrslag: håll in Slå, släpp
+    spin:  { hold: 0.35, charge: 0.55, time: 0.42, windup: 0.09, turns: 1, flat: 0.55, radius: [0, 62, 72, 84], dmgMul: [0, 1.0, 1.3, 1.6], cooldown: [0, 3, 2.5, 2] },        // snurrslag: håll in Slå, släpp
     bash:  { tap: 260, radius: [0, 72, 86, 100], push: 380, stun: [0, 1.0, 1.3, 1.6], dmgMul: 0.5, cooldown: [0, 4, 3.5, 3] },        // sköldknuff: tryck snabbt på Sköld (tap = ms), håll in = skydda
     arrow: { charge: 0.6, dmgMul: [0, 2, 2.5, 3], pierce: [0, 2, 3, 4], rangeMul: 1.3, cooldown: [0, 2.5, 2, 1.5] },          // kraftpil: håll in Skjut, släpp
     // v3.7.1: spring (alla kan), ork i sekunder per nivå av kraften Uthållighet (0-3), regen = ork per sekund efter delay s vila

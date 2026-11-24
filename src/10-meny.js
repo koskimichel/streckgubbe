@@ -60,7 +60,7 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.2', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.3', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 

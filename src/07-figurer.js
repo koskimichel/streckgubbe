@@ -20,6 +20,22 @@
     if (armed) drawWeapon(hx, hy, ang, armed);
   }
 
+  function spinStick(x, y, a, armed) {                            // v3.7.3: kroppen står, armar och svärd roterar som en stel stång, alltid ovanpå
+    var G = spinGeo(), ca = Math.cos(a), sa = Math.sin(a), K = G.K, ph = spinPhase(), dip = ph < 0 ? -ph * 3 : Math.max(0, 1 - ph * 4) * 3, cy = G.cy + dip * 0.6;
+    y += dip * 0.5;                                                  // sjunker ihop inför snurren
+    var hx = x + ca * G.hand, hy = cy + sa * G.hand * K, bx = x - ca * 8, by = cy - sa * 8 * K;
+    var tx = x + ca * G.R, ty = cy + sa * G.R * K, ad = Math.atan2(ty - hy, tx - hx), Lp = Math.hypot(tx - hx, ty - hy);
+    function body(col, w) {
+      g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round';
+      g.beginPath(); g.arc(x, y - 14, 5, 0, 7); g.stroke();                                         // huvud
+      g.beginPath(); g.moveTo(x, y - 9); g.lineTo(x, y + 3);                                         // kropp
+      g.moveTo(x, y + 3); g.lineTo(x - 6, y + 12); g.moveTo(x, y + 3); g.lineTo(x + 6, y + 12); g.stroke();   // bred stans
+    }
+    function arms(col, w) { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(bx, by); g.lineTo(hx, hy); g.stroke(); }
+    body('rgba(10,20,10,0.55)', 5.5); body(PAL.chalk, 2.6);
+    arms('rgba(10,20,10,0.55)', 5.5); arms(PAL.chalk, 2.6);
+    if (armed) drawWeapon(hx, hy, ad, { sword: armed.sword, len: Lp, col: armed.col, edge: armed.edge, glow: armed.glow, wood: armed.wood, star: armed.star, stone: armed.stone });
+  }
   function swordLook(l) {                                       // svärdet ser ut som sitt material
     if (l <= 2) return { col: '#9a9ea6', edge: '#e1e4ea', glow: null, stone: true };
     if (l <= 5) return { col: '#e0763a', edge: '#ffc49a', glow: null };
@@ -199,9 +215,8 @@
     var shX = P.x + P.fx * 9, shY = P.y - 5 - bobP + P.fy * 5, bf = Math.max(0, P.blockFlash);
     if (shooting) offH = { x: hxP - P.fx * (4.6 + pull * 5), y: hyP - P.fy * (4.6 + pull * 5) };   // handen på strängen
     else if (P.blocking) offH = { x: shX, y: shY + 2 };
-    var dfx = P.fx, dfy = P.fy, spinning = P.spinT > 0;
-    if (spinning) { var sa = spinAngle(); dfx = Math.cos(sa); dfy = Math.sin(sa); }   // v3.7.2: kroppen och svärdet snurrar
-    stick(P.x, P.y, dfx, dfy, spinning ? 0 : P.swing, (shooting || P.fish) && !spinning ? null : armed, P.walk, P.moving, spinning ? null : offH);
+    if (P.spinT > 0) spinStick(P.x, P.y, spinAngle(), armed);      // v3.7.3: hela gubben snurrar med svärdet
+    else stick(P.x, P.y, P.fx, P.fy, P.swing, (shooting || P.fish) ? null : armed, P.walk, P.moving, offH);
     drawArmor();
     if (shooting) drawBowShape(hxP, hyP, Math.atan2(P.fy, P.fx), 11, P.bow, pull, pull > 0);
     if (P.fish) drawRodLine(hxP, hyP);
@@ -500,6 +515,34 @@
       [[-4, -6, 4, -6], [4, -6, -4, 6], [-4, 6, 4, 6]]];
     g.beginPath(); G[i % G.length].forEach(function (l) { g.moveTo(x + l[0], y + l[1]); g.lineTo(x + l[2], y + l[3]); }); g.stroke();
   }
+  function chargeRing(k, rgb) {                                   // v3.7.3: laddningsring på marken under gubben
+    var cx = P.x, cy = P.y + 11, rx = 25, ry = 10, st = -Math.PI / 2, end = st + k * 6.283, full = k >= 1, q;
+    g.save(); g.lineCap = 'round';
+    g.strokeStyle = 'rgba(10,15,10,0.45)'; g.lineWidth = 6; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, 7); g.stroke();   // spår
+    g.strokeStyle = 'rgba(' + rgb + ',0.28)'; g.lineWidth = 1.5; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, 7); g.stroke();
+    g.globalCompositeOperation = 'lighter';
+    if (full) { var pl = 0.5 + 0.5 * Math.sin(time * 12); glow(cx, cy, 34, rgb, 0.22 + 0.18 * pl);
+      g.strokeStyle = 'rgba(' + rgb + ',' + (0.35 + 0.4 * pl) + ')'; g.lineWidth = 2; g.beginPath(); g.ellipse(cx, cy, rx + 4 + pl * 3, ry + 2 + pl * 1.5, 0, 0, 7); g.stroke(); }
+    if (k > 0) {
+      g.strokeStyle = 'rgba(' + rgb + ',0.32)'; g.lineWidth = 10; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, st, end); g.stroke();   // glöd
+      g.strokeStyle = 'rgba(' + rgb + ',0.95)'; g.lineWidth = 3.5; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, st, end); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, st, end); g.stroke();
+      if (!full) glow(cx + Math.cos(end) * rx, cy + Math.sin(end) * ry, 9, '255,255,255', 0.85);   // ljuspunkt i spetsen
+    }
+    for (q = 0; q < 4; q++) {                                    // fyra kvartsmärken
+      var qa = st + q * Math.PI / 2, on = k >= q / 4 + 0.001 || full;
+      g.fillStyle = on ? '#ffffff' : 'rgba(' + rgb + ',0.45)'; g.beginPath(); g.arc(cx + Math.cos(qa) * rx, cy + Math.sin(qa) * ry, on ? 2 : 1.4, 0, 7); g.fill();
+    }
+    if (full) for (q = 0; q < 3; q++) {                          // gnistor som snurrar runt när ringen är hel
+      var oa = time * 5 + q * 2.094, ox = cx + Math.cos(oa) * (rx + 2), oy = cy + Math.sin(oa) * (ry + 1) - 3, ss = 3.2;
+      g.strokeStyle = '#ffffff'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(ox - ss, oy); g.lineTo(ox + ss, oy); g.moveTo(ox, oy - ss); g.lineTo(ox, oy + ss); g.stroke();
+    }
+    g.restore();
+  }
+  function drawChargeRings() {
+    if (P.spinCharge > 0) chargeRing(P.spinCharge, '255,210,80');
+    if (P.bowHold > 0 && P.pwrCd <= 0 && P.arrows > 0) chargeRing(Math.min(1, P.bowHold / C.powers.arrow.charge), '124,200,255');
+  }
   function drawPowers() {                                     // v3.7: laddningsringar och snurrslagets svep
     var k;
     var stMax = C.powers.endure.stamina[P.endure || 0];        // v3.7.1: orkmätare när orken inte är full
@@ -508,26 +551,29 @@
       rr(g, bx - 1, by - 1, bw + 2, 6, 3); g.fillStyle = 'rgba(10,20,10,0.75)'; g.fill();
       if (sk2 > 0) { rr(g, bx, by, Math.max(2, bw * sk2), 4, 2); g.fillStyle = P.tired ? (Math.sin(time * 10) > 0 ? '#9aa0a8' : '#6a7078') : sk2 > 0.5 ? '#7dff8a' : sk2 > 0.25 ? '#ffe14d' : '#ff8a5a'; g.fill(); }
     }
-    if (P.spinCharge > 0) {
-      k = P.spinCharge; g.lineCap = 'round';
-      g.strokeStyle = k >= 1 ? (Math.sin(time * 22) > 0 ? '#fff6c4' : PAL.bolt) : 'rgba(255,225,77,0.75)'; g.lineWidth = k >= 1 ? 4 : 2.5;
-      g.beginPath(); g.arc(P.x, P.y - 4, 24, -1.571, -1.571 + k * 6.283); g.stroke();
-    }
-    if (P.bowHold > 0 && P.pwrCd <= 0) {
-      k = Math.min(1, P.bowHold / C.powers.arrow.charge); g.lineCap = 'round';
-      g.strokeStyle = k >= 1 ? (Math.sin(time * 22) > 0 ? '#e6f7ff' : '#7cc8ff') : 'rgba(124,200,255,0.75)'; g.lineWidth = k >= 1 ? 4 : 2.5;
-      g.beginPath(); g.arc(P.x, P.y - 4, 20, -1.571, -1.571 + k * 6.283); g.stroke();
-    }
-    if (P.spinT > 0) {                                            // v3.7.2: svep i svärdets färg som följer spetsen
-      var S2 = C.powers.spin, sk = 1 - P.spinT / S2.time, a1 = spinAngle(), rad = S2.radius[Math.max(1, P.spin)], sl2 = swordLook(Math.max(1, P.sword));
-      var fade = Math.min(1, P.spinT / 0.12), hex = sl2.col.replace('#', ''), rgb = parseInt(hex.substr(0, 2), 16) + ',' + parseInt(hex.substr(2, 2), 16) + ',' + parseInt(hex.substr(4, 2), 16);
-      g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
-      for (var i = 0; i < 6; i++) {                              // bred båge bakom svärdet, tunnare och svagare längre bak
-        g.strokeStyle = 'rgba(' + rgb + ',' + (0.42 - i * 0.06) * fade + ')'; g.lineWidth = 16 - i * 2;
-        g.beginPath(); g.arc(P.x, P.y - 4, rad * 0.62, a1 - 0.35 - i * 0.32, a1 - i * 0.32); g.stroke();
+    if (P.spinT > 0 && spinPhase() >= 0) {                        // v3.7.3: fyllt svep vars längd följer farten (rörelseoskärpa), vindstreck
+      var ph2 = spinPhase(), a1 = spinAngle(), G2 = spinGeo(), K2 = G2.K, sl2 = swordLook(Math.max(1, P.sword));
+      var w = (spinAngleAt(P.spinT) - spinAngleAt(P.spinT + 0.016)) / 0.016, span = clamp(w * 0.11, 0.25, 3.4);
+      var fade = Math.min(1, P.spinT / 0.1), hex = sl2.col.replace('#', ''), rgb = parseInt(hex.substr(0, 2), 16) + ',' + parseInt(hex.substr(2, 2), 16) + ',' + parseInt(hex.substr(4, 2), 16);
+      var rin = G2.hand + 2, rout = G2.R + 2, N = 10;
+      g.save(); g.globalCompositeOperation = 'lighter';
+      for (var i = 0; i < N; i++) {                              // skivor från svansen till svärdet, ljusare närmast svärdet
+        var s0 = a1 - span * (1 - i / N), s1b = a1 - span * (1 - (i + 1) / N), al = Math.pow((i + 1) / N, 1.6) * 0.55 * fade;
+        g.fillStyle = 'rgba(' + rgb + ',' + al + ')'; g.beginPath();
+        g.ellipse(G2.cx, G2.cy, rout, rout * K2, 0, s0, s1b); g.ellipse(G2.cx, G2.cy, rin, rin * K2, 0, s1b, s0, true); g.closePath(); g.fill();
       }
-      g.strokeStyle = 'rgba(255,255,255,' + 0.85 * fade + ')'; g.lineWidth = 2.5; g.beginPath(); g.arc(P.x, P.y - 4, rad * 0.9, a1 - 1.8, a1); g.stroke();   // spetsens vita linje
-      g.strokeStyle = 'rgba(255,225,77,' + 0.35 * fade * (1 - sk) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(P.x, P.y + 6, rad * (0.5 + sk * 0.6), 0, 7); g.stroke();   // ring på marken
+      g.lineCap = 'round';
+      for (i = 0; i < 4; i++) {                                  // vit kant längs spetsen, tjockast vid svärdet
+        var e0 = a1 - span * (1 - i / 4), e1 = a1 - span * (1 - (i + 1) / 4);
+        g.strokeStyle = 'rgba(255,255,255,' + (0.25 + i * 0.22) * fade + ')'; g.lineWidth = 1 + i * 0.9;
+        g.beginPath(); g.ellipse(G2.cx, G2.cy, rout, rout * K2, 0, e0, e1); g.stroke();
+      }
+      if (w > 9) for (i = 0; i < 3; i++) {                        // vindstreck utanför när det går fort
+        var wr = rout + 7 + i * 6, wa = a1 - 0.5 - i * 0.55;
+        g.strokeStyle = 'rgba(255,255,255,' + 0.5 * fade * Math.min(1, (w - 9) / 8) + ')'; g.lineWidth = 1.4;
+        g.beginPath(); g.ellipse(G2.cx, G2.cy, wr, wr * K2, 0, wa - 0.45, wa); g.stroke();
+      }
+      g.strokeStyle = 'rgba(255,225,77,' + 0.4 * fade * (1 - ph2) + ')'; g.lineWidth = 3; g.beginPath(); g.ellipse(P.x, P.y + 9, rout * (0.5 + ph2 * 0.8), rout * (0.5 + ph2 * 0.8) * 0.4, 0, 0, 7); g.stroke();   // tryckvåg på marken
       g.restore();
     }
   }

@@ -3,13 +3,15 @@
     time += dt; if (msgT > 0) msgT -= dt;
     if (state !== 'play') return;
     P.cd -= dt; P.inv -= dt; P.swing -= dt; P.shootCd -= dt; P.shotT -= dt; P.blockFlash -= dt;
-    P.spinCd -= dt; P.bashCd -= dt; P.pwrCd -= dt; P.spinT -= dt; if (P.bowHold > 0) P.bowHold += dt;   // v3.7: krafter
+    P.spinCd -= dt; P.bashCd -= dt; P.pwrCd -= dt; P.spinT -= dt; if (P.bowHold > 0) P.bowHold = P.pwrCd > 0 ? 0.001 : P.bowHold + dt;   // v3.7: krafter (v3.7.3: laddar inte under omladdningen)
     if (P.bashT > 0) P.bashT -= dt;
     if (P.spinT > 0 && Math.random() < dt * 40) {               // v3.7.2: gnistor från svärdsspetsen när han snurrar
-      var sa2 = spinAngle(), sr2 = reach() * 0.95; sparks(P.x + Math.cos(sa2) * sr2, P.y - 4 + Math.sin(sa2) * sr2, swordLook(Math.max(1, P.sword)).edge, 1);
+      var sa2 = spinAngle(), G3 = spinGeo(); sparks(G3.cx + Math.cos(sa2) * G3.R, G3.cy + Math.sin(sa2) * G3.R * G3.K, swordLook(Math.max(1, P.sword)).edge, 1);
     }
     if (P.bowHold > 0 && P.pwrCd <= 0 && P.arrows > 0) {        // v3.7.2: kraftpilen laddas, ljus dras in mot bågen
       P.shotT = 0.35; var chg = Math.min(1, P.bowHold / C.powers.arrow.charge);
+      if (chg >= 1 && !P.bowFull) { P.bowFull = true; fx.push({ k: 'bash', x: P.x, y: P.y + 4, t: 0.3, life: 0.3, R: 30 }); sfx('click'); }   // v3.7.3: redo
+      if (chg < 1) P.bowFull = false;
       if (Math.random() < dt * (10 + 30 * chg)) { var ia = Math.random() * 6.283, ir = 34 + Math.random() * 14; fx.push({ k: 's', x: P.x + Math.cos(ia) * ir, y: P.y - 4 + Math.sin(ia) * ir, vx: -Math.cos(ia) * ir * 2.4, vy: -Math.sin(ia) * ir * 2.4, t: 0.4, life: 0.4, s: 1.6 + chg, col: chg >= 1 ? '#ffffff' : '#9fe0ff' }); }
     }
     P.blocking = P.shield > 0 && !!(held('shield') || touch.shieldId != null);   // v3.7.2: musknappar finns i keys   // håller skölden uppe
@@ -59,7 +61,8 @@
     if (window.LJUD) LJUD.setCave(isCave[clamp(Math.floor(P.y / TS), 0, H - 1)][clamp(Math.floor(P.x / TS), 0, W - 1)]);
     if (touch.atkId !== null && !P.moving) aimNearest();
     var atkHeld = !!(held('attack') || touch.atkId !== null);
-    if (!chargeSpin(atkHeld, dt) && atkHeld) attack();         // v3.7: håller man in laddas snurrslaget
+    chargeSpin(atkHeld, dt);                                    // v3.7.3: ett tryck = ett slag, håller man in laddas snurrslaget
+    if (P.atkBuf > 0) { P.atkBuf -= dt; if (P.cd <= 0) { P.atkBuf = 0; attack(); } }   // tryck strax före att förra slaget är klart kommer ihåg
 
     // monster
     mons.forEach(function (m) {
@@ -371,14 +374,18 @@
     if (!(P.bowHold > 0)) return;
     var full = P.bowHold >= C.powers.arrow.charge && P.pwrCd <= 0; P.bowHold = 0; shoot(full);
   }
-  function shoot(power) {                                     // pilbåge: siktar själv på närmaste monster inom räckhåll
+  function shoot(power) {                                     // pilbåge: först det närmaste framför gubben, annars närmaste monster runt om
     if (state !== 'play' || P.blocking) return;
     if (!P.bow) { say('Du har ingen pilbåge. Gör en i smedjan.'); sfx('deny'); return; }
     if (P.arrows <= 0) { say('Slut på pilar. Gör fler i smedjan av trä och sten.'); sfx('deny'); return; }
     if (P.shootCd > 0) return;
     var B = C.bow, PA = C.powers.arrow, best = null, bd = B.range[P.bow] * (power ? PA.rangeMul : 1);
-    mons.forEach(function (m) { if (m.hidden) return; var d = dist(m, P); if (d < bd) { bd = d; best = m; } });
-    if (!best) prey.forEach(function (p) { if (p.dead) return; var d = dist(p, P); if (d < bd) { bd = d; best = p; } });   // annars ett bytesdjur
+    var rng = bd, fl = Math.hypot(P.fx, P.fy) || 1;
+    function ahead(o) { var ox = o.x - P.x, oy = o.y - P.y, d = Math.hypot(ox, oy) || 1; return (ox * P.fx + oy * P.fy) / (d * fl) >= B.aimCone; }   // v3.7.3: inom ca 45 grader framåt
+    mons.forEach(function (m) { if (m.hidden || !ahead(m)) return; var d = dist(m, P); if (d < bd) { bd = d; best = m; } });
+    prey.forEach(function (p) { if (p.dead || !ahead(p)) return; var d = dist(p, P); if (d < bd) { bd = d; best = p; } });   // djur framför räknas lika
+    if (!best) { bd = rng; mons.forEach(function (m) { if (m.hidden) return; var d = dist(m, P); if (d < bd) { bd = d; best = m; } }); }
+    if (!best) { bd = rng; prey.forEach(function (p) { if (p.dead) return; var d = dist(p, P); if (d < bd) { bd = d; best = p; } }); }
     var dx = best ? best.x - P.x : P.fx, dy = best ? best.y - P.y : P.fy, l = Math.hypot(dx, dy) || 1;
     dx /= l; dy /= l; P.fx = dx; P.fy = dy;
     var ar = { x: P.x + dx * 12, y: P.y - 4 + dy * 12, vx: dx * B.speed, vy: dy * B.speed, left: B.range[P.bow], dmg: arrowDamage(), head: P.arrowHead };

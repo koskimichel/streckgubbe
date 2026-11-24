@@ -83,7 +83,7 @@
       x: 2.5 * TS, y: 2.5 * TS, r: 10, hearts: C.player.startHearts,
       hp: C.player.startHearts * C.player.hpPerHeart,
       str: C.player.startStrength, ore: 0, meat: 1, sword: 0,
-      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, spin: 0, bash: 0, parrow: 0, endure: 0, bashT: 0, spinA0: 0, stamina: null, tired: false, restT: 0, running: false, runSeen: false, spinCd: 0, bashCd: 0, pwrCd: 0, atkHold: 0, spinCharge: 0, bowHold: 0, spinT: 0, backSeen: false, flaxSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
+      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, spin: 0, bash: 0, parrow: 0, endure: 0, bashT: 0, spinA0: 0, atkBuf: 0, stamina: null, tired: false, restT: 0, running: false, runSeen: false, spinCd: 0, bashCd: 0, pwrCd: 0, atkHold: 0, spinCharge: 0, bowHold: 0, spinT: 0, backSeen: false, flaxSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
     };
   }
   function maxHp() { return P.hearts * C.player.hpPerHeart; }

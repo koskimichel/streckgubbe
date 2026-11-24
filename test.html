@@ -409,6 +409,11 @@
     check('håll in Slå: ringen laddas', charged, P.spinCharge);
     check('snurrslaget träffar alla runt gubben men inte långt bort', ms.every(function (m) { return m.hp < 999; }) && far.hp === 999, ms.map(function (m) { return (999 - m.hp).toFixed(1); }).join(' / '));
     check('snurrslaget laddar om', P.spinCd > 0, P.spinCd.toFixed(2));
+    keyDown(' '); s.step(P.spinCd + 0.05); var noInstant = P.spinCharge === 0; s.step(0.5); s.step(0.6); var fresh = P.spinCharge >= 1; keyUp(' '); s.step(0.6); P.spinCd = 0;   // v3.7.3: håll in under omladdningen
+    check('håller man in medan snurren laddar om börjar ringen från noll', noInstant && fresh, 'direkt efter: ' + noInstant + ', fylls sedan: ' + fresh);
+    s.mons.length = 0; P.cd = 0; P.spinCd = 9; var sw0 = 0; keyDown(' '); for (var q = 0; q < 10; q++) { s.step(0.1); if (P.swing > 0.1) sw0++; } keyUp(' '); s.step(0.05);
+    check('ett tryck ger ett slag, att hålla in slår inte om och om igen', sw0 <= 2, sw0 + ' slag på 1 s');
+    P.cd = 0.1; key(' '); s.step(0.15); check('ett tryck strax före att förra slaget är klart kommer ihåg', P.swing > 0, P.swing.toFixed(2)); s.step(0.3); P.spinCd = 0;
     // sköldknuff
     s.mons.length = 0; Object.assign(P, { bash: 1, bashCd: 0, cd: 0 });
     var bm = [freshMon(s, P.x - 40, P.y), freshMon(s, P.x, P.y + 45)], bx0 = bm[0].x;
@@ -429,9 +434,18 @@
     s.pressBow(); s.step(0.7); s.releaseBow(); s.step(0.8);
     var hits = line.filter(function (m) { return m.hp < 999; }).length;
     check('kraftpilen går igenom ' + PW.arrow.pierce[1] + ' monster på nivå 1', hits === PW.arrow.pierce[1], hits + ' träffade');
-    P.shootCd = 0; var a0 = s.arrows.length; s.pressBow(); s.releaseBow();
+    P.pwrCd = 1; P.shootCd = 0; s.pressBow(); s.step(1.2); var bowInstant = P.bowHold < 0.3; s.releaseBow(); s.step(0.1);   // v3.7.3
+    check('kraftpilen laddar inte under omladdningen', bowInstant, 'hållen ' + P.bowHold);
+    P.shootCd = 0; P.pwrCd = 0; var a0 = s.arrows.length; s.pressBow(); s.releaseBow();
     check('kort tryck skjuter en vanlig pil', s.arrows.length === a0 + 1 && !s.arrows[s.arrows.length - 1].power);
     // spring och ork (v3.7.1)
+    // siktet (v3.7.3): djur framför gubben går före monster bakom
+    s.mons.length = 0; s.arrows.length = 0; s.prey.length = 0; Object.assign(P, { x: 300, y: 300, fx: 1, fy: 0, bow: 1, arrows: 10, shootCd: 0, parrow: 0, pwrCd: 0 });
+    var behind = freshMon(s, P.x - 90, P.y), hare = { kind: 'hare', x: P.x + 150, y: P.y + 10, r: 7, hp: 1, dead: false, moving: false, fx: 1, t: 9, dx: 0, dy: 0, run: 0, rest: 9, hop: 0 };
+    s.mons.push(behind); s.prey.push(hare); s.pressBow(); s.releaseBow(); var a1 = s.arrows[s.arrows.length - 1];
+    check('bågen skjuter haren framför gubben, inte monstret bakom', a1 && a1.vx > 0, a1 ? 'vx ' + a1.vx.toFixed(0) : 'ingen pil');
+    s.arrows.length = 0; s.prey.length = 0; P.shootCd = 0; P.fx = 1; P.fy = 0; s.pressBow(); s.releaseBow(); var a2 = s.arrows[s.arrows.length - 1];
+    check('finns inget framför siktar bågen på närmaste monster', a2 && a2.vx < 0, a2 ? 'vx ' + a2.vx.toFixed(0) : 'ingen pil');
     s.mons.length = 0; s.arrows.length = 0; s.go(2); await wait(50); P = s.P;
     Object.assign(P, { endure: 0, stamina: null, tired: false, inv: 99, hp: 999, x: 5 * 32, y: 9.5 * 32, blocking: false }); s.mons.length = 0;
     for (var cx = 2; cx < 28; cx++) s.map[9][cx] = 0; s.prey.length = 0;   // fri väg åt höger
@@ -492,7 +506,7 @@
   }
 
   // ---------- 8. sparning och sparplatser ----------
-  var SKIP = ['x', 'y', 'fx', 'fy', 'cd', 'inv', 'swing', 'walk', 'moving', 'pu', 'spk', 'vx', 'vy', 'shootCd', 'blocking', 'slow', 'icy', 'shotT', 'blockFlash', 'calmT', 'fish', 'portalLock', 'hp', 'stamina', 'tired', 'restT', 'running', 'spinCd', 'bashCd', 'pwrCd', 'atkHold', 'spinCharge', 'bowHold', 'spinT'];
+  var SKIP = ['x', 'y', 'fx', 'fy', 'cd', 'inv', 'swing', 'walk', 'moving', 'pu', 'spk', 'vx', 'vy', 'shootCd', 'blocking', 'slow', 'icy', 'shotT', 'blockFlash', 'calmT', 'fish', 'portalLock', 'hp', 'stamina', 'tired', 'restT', 'running', 'spinCd', 'bashCd', 'pwrCd', 'atkHold', 'spinCharge', 'bowHold', 'spinT', 'bowFull', 'bashT', 'spinA0', 'atkBuf'];
   function snapP(P) { var o = {}; for (var k in P) if (SKIP.indexOf(k) < 0) o[k] = JSON.parse(JSON.stringify(P[k])); return o; }
   async function testSaves() {
     grp('Sparning och sparplatser');

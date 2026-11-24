@@ -18,16 +18,35 @@
 
   function chargeSpin(held, dt) {                              // v3.7: håll in Slå för att ladda snurrslaget, släpp för att snurra
     var S = C.powers.spin;
-    if (!P.spin || P.blocking || P.spinCd > 0 || state !== 'play') { P.atkHold = held ? P.atkHold + dt : 0; P.spinCharge = 0; return false; }
-    if (held) { P.atkHold += dt; if (P.atkHold > S.hold) { P.spinCharge = Math.min(1, (P.atkHold - S.hold) / S.charge); return true; } return false; }
+    if (!P.spin || P.blocking || P.spinCd > 0 || state !== 'play') { P.atkHold = 0; P.spinCharge = 0; return false; }   // v3.7.3: under omladdningen räknas ingen laddning; håller man kvar börjar ringen om från noll
+    if (held) {
+      P.atkHold += dt;
+      if (P.atkHold > S.hold) {
+        var was = P.spinCharge; P.spinCharge = Math.min(1, (P.atkHold - S.hold) / S.charge);
+        if (was < 1 && P.spinCharge >= 1) { fx.push({ k: 'r', x: P.x, y: P.y + 4, t: 0.35, life: 0.35 }); sfx('click'); }   // v3.7.3: redo
+        return true;
+      }
+      return false;
+    }
     var fire = P.spinCharge >= 1; P.atkHold = 0; P.spinCharge = 0;
     if (fire) doSpin();
     return false;
   }
-  function spinAngle() { var S = C.powers.spin; return (P.spinA0 || 0) + (1 - Math.max(0, P.spinT) / S.time) * Math.PI * 3; }   // v3.7.2: ett och ett halvt varv
+  function spinAngleAt(st) {                                     // v3.7.3: uppladdning bakåt, sedan ett varv som börjar snabbt och bromsar in
+    var S = C.powers.spin, el = S.time + S.windup - Math.max(0, st), back = 0.7;
+    if (el < S.windup) return (P.spinA0 || 0) - back * (el / S.windup);
+    var k = Math.min(1, (el - S.windup) / S.time), e = 1 - Math.pow(1 - k, 3);
+    return (P.spinA0 || 0) - back + e * (Math.PI * 2 * S.turns + back);
+  }
+  function spinAngle() { return spinAngleAt(P.spinT); }
+  function spinPhase() { var S = C.powers.spin, el = S.time + S.windup - Math.max(0, P.spinT); return el < S.windup ? -(el / S.windup) : Math.min(1, (el - S.windup) / S.time); }   // -1..0 uppladdning, 0..1 snurr
+  function spinGeo() {                                          // v3.7.3: snurrens bana: platt ellips runt axlarna, spetsen på avståndet R
+    var L = (P.sword ? 22 + Math.min(P.sword, 10) * 1.5 : 20) * 1.15;
+    return { cx: P.x, cy: P.y - 5, K: C.powers.spin.flat, hand: 10, L: L, R: 10 + L };
+  }
   function doSpin() {                                          // svärdet snurrar runt gubben och träffar alla nära
     var S = C.powers.spin, L = P.spin, rad = S.radius[L], dmg = damage() * S.dmgMul[L], hit = 0;
-    P.spinCd = S.cooldown[L]; P.spinT = S.time; P.spinA0 = Math.atan2(P.fy, P.fx); P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.35);
+    P.spinCd = S.cooldown[L]; P.spinT = S.time + S.windup; P.spinA0 = Math.atan2(P.fy, P.fx); P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.35);
     for (var di = 0; di < 14; di++) { var da = di / 14 * 6.283; fx.push({ k: 'p', x: P.x + Math.cos(da) * 10, y: P.y + 10 + Math.sin(da) * 5, vx: Math.cos(da) * 120, vy: Math.sin(da) * 60 - 20, t: 0.45, life: 0.45, col: biome.i === 3 ? '#ffffff' : '#cdbf9a', s: 2.2 }); }   // damm
     mons.forEach(function (m) {
       if (m.hidden) return;
@@ -65,8 +84,9 @@
   }
   function attack() {
     if (P.blocking && P.bash > 0 && P.bashCd <= 0 && state === 'play') { shieldBash(); return; }   // slag med skölden uppe = knuff
+    if (P.cd > 0 && state === 'play' && !P.blocking) { P.atkBuf = 0.2; return; }   // v3.7.3: kommer ihåg trycket en kort stund
     if (P.cd > 0 || state !== 'play' || P.blocking) return;
-    P.cd = C.player.attackCooldown; P.swing = 0.18; sfx('swing'); P.fish = null;
+    P.atkBuf = 0; P.cd = C.player.attackCooldown; P.swing = 0.18; sfx('swing'); P.fish = null;
     var rc = reach(), hitAny = false, dmg = damage();
     mons.forEach(function (m) {
       if (m.hidden) return;                                    // bossen under sanden går inte att träffa

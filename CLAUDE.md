@@ -1,4 +1,12 @@
-# Malm & Monster (Mines & Monsters), version 3.7.2
+# Malm & Monster (Mines & Monsters), version 3.7.3
+
+v3.7.3:
+- Bågens sikte (`shoot`): först det närmaste målet framför gubben (monster eller djur, inom `C.bow.aimCone` = cos ca 45 grader från `P.fx/P.fy`), annars närmaste monster runt om, sist närmaste djur.
+- Laddningsringen (`chargeRing`, `drawChargeRings`, ritas före gubben) ligger som en ellips på marken: spår, glödande fyllning med ljuspunkt, fyra kvartsmärken, pulserar med snurrande gnistor när den är hel. Guld för snurrslaget, blå för kraftpilen. När den blir hel: ljusring och klick (`chargeSpin`, `P.bowFull`).
+- Ett tryck = ett slag (tangent, musknapp, pekskärm anropar `attack()` vid tryck; att hålla in slår inte om och om igen). Ett tryck medan förra slaget pågår kommer ihåg i 0,2 s (`P.atkBuf`). Att hålla in laddar bara snurrslaget.
+- Fix: under omladdningen räknas ingen laddning, varken för snurren (`P.atkHold = 0`) eller kraftpilen (`P.bowHold` står still medan `P.pwrCd > 0`); håller man kvar fylls ringen från noll när kraften är redo. Förut blev ringen full direkt.
+- Snurrens tidslinje (`spinAngleAt`, `spinPhase`): uppladdning bakåt (`C.powers.spin.windup`, gubben sjunker ihop), sedan ett varv som börjar snabbt och bromsar in (ease-out). Svepet är en fylld skiva mellan hand och spets vars längd följer vinkelhastigheten (rörelseoskärpa), med vit kant, vindstreck vid hög fart och en tryckvåg på marken.
+- Snurrslaget ritas med `spinStick`: kroppen står bredbent, armar och svärd roterar som en stel stång och ritas alltid ovanpå kroppen (inga eftersläp, inget byte bakom/framför, det såg ut som två gubbar). Banan är en platt ellips (`spinGeo`, `C.powers.spin.flat`), ett varv (`turns`); svepet, den vita spetslinjen och gnistorna följer samma ellips.
 
 v3.7.2:
 - Kogret har fem steg om +5 pilar (`crafting.quiver[1..5]`, `QUIVER_NAME`, `C.bow.quiverCap` 5-30, Lätt 15-40); steg 4 kräver koppar och steg 5 järn. Sparningen har `quiverV: 3`; v2 (tre steg) räknas om [0,1,3,5], äldre stort koger = 5. Balansmätningen visar på vilken nivå varje steg går att köpa.
