@@ -194,13 +194,18 @@
     var h0 = P.hp; P.inv = 0; s.hurt(4, P.x + 30, P.y); var front = h0 - P.hp;
     h0 = P.hp; P.inv = 0; s.hurt(4, P.x - 30, P.y); var back = h0 - P.hp;
     keyUp('Shift'); s.step(0.04);
-    check('kopparsköld stoppar hälften framifrån, inget bakifrån', near(front, 4 * (1 - C.shield.block[1])) && near(back, 4), 'fram ' + front.toFixed(2) + ', bak ' + back.toFixed(2));
+    check('kopparsköld stoppar hälften framifrån och en fjärdedel bakifrån', near(front, 4 * (1 - C.shield.block[1])) && near(back, 4 * (1 - C.shield.block[1] * C.shield.backBlock)), 'fram ' + front.toFixed(2) + ', bak ' + back.toFixed(2));
     keyDown('Shift'); s.step(0.05); h0 = P.hp; P.inv = 0; s.hurt(4, P.x, P.y - 30); var side = h0 - P.hp;
     s.step(0.25); P.inv = 0; m = freshMon(s, P.x + 22, P.y); m.dmg = 4; m.cd = 0; s.mons.push(m); var x0 = m.x; s.step(0.3);   // hit-stop efter förra träffen
     var stunned = m.stunT > 0, pushed = m.x - x0;
     keyUp('Shift'); s.step(0.04); s.mons.length = 0;
     check('skölden skyddar från sidan också', near(side, 4 * (1 - C.shield.block[1])), side.toFixed(2));
     check('monster som slår på skölden studsar bort och blir yrt', stunned && pushed > 10, 'yr ' + stunned + ', knuff ' + pushed.toFixed(1) + ' px');
+    // v3.7.4: ett monster som inte kan slå (väntar) går inte rakt igenom skölden
+    keyDown('Shift'); s.step(0.3); s.mons.length = 0; P.inv = 99; var wm = freshMon(s, P.x + 60, P.y); wm.speed = 70; wm.cd = 99; s.mons.push(wm);
+    var minD = 999, wasStun = false; for (var q = 0; q < 15; q++) { s.step(0.1); minD = Math.min(minD, Math.hypot(wm.x - P.x, wm.y - P.y)); if (wm.stunT > 0) wasStun = true; }
+    keyUp('Shift'); s.step(0.05); s.mons.length = 0; P.inv = 0;
+    check('skölden är en vägg: monster som inte slår går inte igenom', wasStun && minD > wm.r + P.r - 2, 'närmast ' + minD.toFixed(1) + ' px, yr ' + wasStun);
     P.hp = 30; P.bow = 2; P.arrowHead = 2; P.arrows = 5; P.shootCd = 0; m = freshMon(s, 420, 300); s.mons.push(m); s.shoot();
     var a = s.arrows[s.arrows.length - 1], expA = Math.max(C.bow.headDmg[2] * C.bow.bowMul[2], (C.weapon.swordBaseDamage + C.weapon.damagePerSwordLevel * 3) * C.bow.dmgMul[2]);
     check('pil med järnspets och järnbåge gör ' + expA.toFixed(2), a && near(a.dmg, expA), a ? a.dmg.toFixed(2) : 'ingen pil');
@@ -385,6 +390,36 @@
     s.toTitle();
   }
 
+  // ---------- handkontroll (v3.7.4) ----------
+  async function testPad() {
+    grp('Handkontroll');
+    clearSaves(); await reloadGame(); var s = S(); s.playSlot(1); await wait(100); ensurePlay();
+    var ww = w(), P = s.P, i;
+    var fake = { connected: true, axes: [0, 0, 0, 0], buttons: [] }; for (i = 0; i < 17; i++) fake.buttons.push({ pressed: false, value: 0 });
+    Object.defineProperty(ww.navigator, 'getGamepads', { value: function () { return [fake]; }, configurable: true });
+    function tap(b) { fake.buttons[b].pressed = true; fake.buttons[b].value = 1; s.step(0.04); fake.buttons[b].pressed = false; fake.buttons[b].value = 0; s.step(0.04); }
+    for (var cx = 2; cx < 28; cx++) s.map[9][cx] = 0; s.mons.length = 0; s.prey.length = 0;
+    P.x = 5 * 32; P.y = 9.5 * 32; P.inv = 99; var x0 = P.x;
+    fake.axes[0] = 1; s.step(0.5); fake.axes[0] = 0; s.step(0.05);
+    check('vänster spak flyttar gubben', P.x > x0 + 40, (P.x - x0).toFixed(0) + ' px');
+    P.cd = 0; fake.buttons[0].pressed = true; s.step(0.04); var sw = P.swing > 0; fake.buttons[0].pressed = false; s.step(0.3);
+    check('A slår', sw);
+    fake.axes[2] = -1; s.step(0.05); var aimL = P.fx < -0.9; fake.axes[2] = 0; s.step(0.05);
+    check('höger spak siktar', aimL, P.fx.toFixed(2));
+    tap(9); var paused = s.state === 'paused'; tap(13); tap(1);
+    check('Start pausar, B fortsätter', paused && s.state === 'play', s.state);
+    tap(9); for (i = 0; i < 7; i++) tap(13); tap(0); var inKeys = s.state === 'keys';
+    tap(15); tap(15); tap(0); tap(3);                              // Gå upp, rutan Handkontroll: Y
+    var kb = s.settings.keys;
+    check('i Styrning väljer man en knapp på handkontrollen', inKeys && kb.up[2] === 'Pad3' && kb.bolt[2] === '', JSON.stringify([kb.up, kb.bolt]));
+    tap(1); tap(1); await wait(20);
+    P.y = 12 * 32; P.x = 5.5 * 32; for (var cy = 2; cy < 16; cy++) s.map[cy][5] = 0; var y0 = P.y;
+    fake.buttons[3].pressed = true; s.step(0.4); fake.buttons[3].pressed = false; s.step(0.05);
+    check('den nya knappen styr gubben', P.y < y0 - 20 && s.state === 'play', (y0 - P.y).toFixed(0) + ' px, ' + s.state);
+    Object.defineProperty(ww.navigator, 'getGamepads', { value: function () { return []; }, configurable: true });
+    s.toTitle();
+  }
+
   // ---------- krafter (v3.7) ----------
   async function testPowers() {
     grp('Krafter med månsten');
@@ -556,7 +591,7 @@
   async function runAll() {
     btn.disabled = true; results.length = 0; tbl.innerHTML = ''; sum.textContent = 'Kör ...';
     var t0 = performance.now();
-    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves, testPowers, testKeys, testPuzzles, testBalance];
+    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves, testPowers, testKeys, testPad, testPuzzles, testBalance];
     for (var i = 0; i < steps.length; i++) {
       try { await steps[i](); } catch (e) { check('testet kraschade', false, e && e.message); }
     }

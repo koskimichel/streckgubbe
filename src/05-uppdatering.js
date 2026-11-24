@@ -36,7 +36,9 @@
     if (held('left')) ax -= 1; if (held('right')) ax += 1;
     if (held('up')) ay -= 1; if (held('down')) ay += 1;
     if (touch.joyId !== null && Math.hypot(touch.jx, touch.jy) > 0.18) { ax = touch.jx; ay = touch.jy; }
+    else if (padStick.x || padStick.y) { ax = padStick.x; ay = padStick.y; }   // v3.7.4: handkontrollens vänstra spak
     P.moving = !!(ax || ay);
+    if (padAim) { var pal = Math.hypot(padAim.x, padAim.y); P.fx = padAim.x / pal; P.fy = padAim.y / pal; }   // v3.7.4: höger spak siktar
     var EN = C.powers.endure, maxSt = EN.stamina[P.endure || 0];      // v3.7.1: spring så länge orken räcker
     if (P.stamina == null || P.stamina > maxSt) P.stamina = Math.min(maxSt, P.stamina == null ? maxSt : P.stamina);
     if (P.tired && P.stamina >= maxSt * 0.35) P.tired = false;
@@ -68,6 +70,10 @@
     mons.forEach(function (m) {
       m.hit -= dt; m.cd -= dt; m.pop += dt;
       var d = dist(m, P) || 0.01, inCave = isCave[clamp(Math.floor(m.y / TS), 0, H - 1)][clamp(Math.floor(m.x / TS), 0, W - 1)];
+      if (m.bounceCd > 0) m.bounceCd -= dt;
+      if (P.blocking && P.shield > 0 && !m.hidden && (m.cd > 0 || P.inv > 0) && d < m.r + P.r + 5 && blockedFrom(m.x, m.y) && !(m.bounceCd > 0)) {   // v3.7.4: skölden är en vägg framåt för monster som just inte kan slå (de som kan slår och studsar som förut)
+        shieldBounce(m); m.bounceCd = 0.4; P.blockFlash = 0.2; sfx('block'); sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 6);
+      }
       if (m.type === 'boss') { updateBoss(m, dt, d); return; }
       var range = inCave ? C.monsters.caveAggroRange : C.monsters.aggroRange;
       if (m.type === 'spider' && !(m.stunT > 0) && spiderAI(m, dt, d)) return;
@@ -236,6 +242,8 @@
       if (src) shieldBounce(src);                              // v3.6: monstret studsar tillbaka och blir yrt
       dmg *= 1 - C.shield.block[P.shield]; sfx('block'); P.blockFlash = 0.25;
       sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 10); floatText(P.x, P.y - 40, 'parerad!', '#e6f5ff');
+    } else if (P.blocking && P.shield > 0 && sx != null) {     // v3.7.4: halvt skydd från sidan och bakifrån, ingen studs
+      dmg *= 1 - C.shield.block[P.shield] * C.shield.backBlock; sfx('block');
     }
     var d = dmg * (1 - C.upgrades.armor.reducePerLevel * P.armor);
     P.hp -= d; P.inv = C.player.invulnAfterHit * (DF().invMul || 1); P.calmT = 0;

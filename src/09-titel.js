@@ -118,7 +118,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.3', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.4', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -144,7 +144,7 @@
     }
     g.textAlign = 'center';
     g.font = '14px ' + UI; g.fillStyle = 'rgba(250,250,242,0.6)';
-    g.fillText(touchMode ? 'Vänster tumme går, Slå-knappen slår. Paus finns uppe till höger.' : 'Gå med ' + moveKeysText() + ', ' + KN('attack') + ' slår, ' + KN('use') + ' smider och äter, Esc pausar.', cx, 494);
+    g.fillText(touchMode ? 'Vänster tumme går, Slå-knappen slår. Paus finns uppe till höger.' : 'Gå med ' + moveKeysText() + ', ' + KN('attack') + ' slår, ' + KN('use') + ' smider och äter, ' + (lastInput === 'pad' ? 'Start' : 'Esc') + ' pausar.', cx, 494);
     var tm = time < titleMsgUntil ? titleMsg : (touchMode ? '' : 'Vänster och höger väljer plats, Enter spelar.');
     g.font = 'bold 15px ' + TXT; g.fillStyle = time < titleMsgUntil ? PAL.bolt : 'rgba(250,250,242,0.45)'; g.fillText(tm, cx, 526);
     g.textAlign = 'left';

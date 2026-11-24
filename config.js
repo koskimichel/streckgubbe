@@ -115,7 +115,7 @@ const CONFIG = {
                 ['...PP', '...##', '#B.B.', '.....']] },
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
-  shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2] },   // v3.6: arc = hur långt runt skölden skyddar (cos), bounce = knuff, stun = sekunder yr
+  shield: { block: [0, 0.5, 0.65, 0.8, 0.9], backBlock: 0.5, slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2] },   // v3.6: arc = hur långt runt skölden skyddar fullt (cos), bounce = knuff, stun = sekunder yr; v3.7.4: backBlock = andel av skyddet från sidan/bakifrån
   bow: { aimCone: 0.7, range: [0, 260, 300, 340],   /* v3.7.3: aimCone = cos för vinkeln framåt där bågen letar först */ dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 15, 20, 25, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
     headDmg: [3, 5, 8, 11, 15], bowMul: [0, 1.0, 1.15, 1.3], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
 

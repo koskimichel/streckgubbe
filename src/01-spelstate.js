@@ -19,25 +19,33 @@
   }
   // v3.7.1: egen styrning på datorn. Två tangenter per handling, sparas i inställningarna.
   var KEY_ACTS = [['up', 'Gå upp'], ['down', 'Gå ner'], ['left', 'Gå vänster'], ['right', 'Gå höger'], ['attack', 'Slå'], ['shield', 'Sköld'], ['bow', 'Skjut'], ['run', 'Spring'], ['bolt', 'Blixt'], ['use', 'Smid, ät och fiska']];
-  var KEY_DEF = { up: ['w', 'ArrowUp'], down: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], attack: [' ', 'Mouse0'], shield: ['Shift', 'Mouse2'], bow: ['f', ''], run: ['c', ''], bolt: ['q', ''], use: ['e', ''] };
+  // tre platser per handling: tangent, tangent eller mus, handkontroll (v3.7.4)
+  var KEY_DEF = { up: ['w', 'ArrowUp', 'Pad12'], down: ['s', 'ArrowDown', 'Pad13'], left: ['a', 'ArrowLeft', 'Pad14'], right: ['d', 'ArrowRight', 'Pad15'], attack: [' ', 'Mouse0', 'Pad0'], shield: ['Shift', 'Mouse2', 'Pad1'], bow: ['f', '', 'Pad2'], run: ['c', '', 'Pad4'], bolt: ['q', '', 'Pad3'], use: ['e', '', 'Pad5'] };
+  var lastInput = 'kb';                                            // kb, pad eller touch: styr vilka knappnamn texterna visar
   function keyBinds() {
     var kb = settings.keys; if (!kb || typeof kb !== 'object') kb = settings.keys = {};
-    KEY_ACTS.forEach(function (a) { if (!Array.isArray(kb[a[0]]) || kb[a[0]].length !== 2) kb[a[0]] = KEY_DEF[a[0]].slice(); });
+    KEY_ACTS.forEach(function (a) {
+      var b = kb[a[0]];
+      if (!Array.isArray(b) || b.length < 2) kb[a[0]] = KEY_DEF[a[0]].slice();
+      else if (b.length === 2) { var pd = KEY_DEF[a[0]][2]; b.push(KEY_ACTS.some(function (o) { return kb[o[0]] && kb[o[0]].indexOf(pd) >= 0; }) ? '' : pd); }   // v3.7.4: äldre sparade får handkontrollen
+    });
     if (settings.keysV !== 2) {                                   // v3.7.2: äldre egna tangenter får musknapparna som förut
       settings.keysV = 2;
-      var used = function (k) { return KEY_ACTS.some(function (a) { return kb[a[0]][0] === k || kb[a[0]][1] === k; }); };
+      var used = function (k) { return KEY_ACTS.some(function (a) { return kb[a[0]].indexOf(k) >= 0; }); };
       if (!used('Mouse0') && !kb.attack[1]) kb.attack[1] = 'Mouse0';
       if (!used('Mouse2') && !kb.shield[1]) kb.shield[1] = 'Mouse2';
     }
     return kb;
   }
-  function held(act) { var b = keyBinds()[act]; return !!((b[0] && keys[b[0]]) || (b[1] && keys[b[1]])); }
-  function isKey(act, k) { var b = keyBinds()[act]; return !!k && (b[0] === k || b[1] === k); }
+  function held(act) { var b = keyBinds()[act]; return !!((b[0] && keys[b[0]]) || (b[1] && keys[b[1]]) || (b[2] && keys[b[2]])); }
+  function isKey(act, k) { var b = keyBinds()[act]; return !!k && (b[0] === k || b[1] === k || b[2] === k); }
   var MOUSE_NAME = { Mouse0: 'vänster musknapp', Mouse1: 'mittenknappen', Mouse2: 'höger musknapp', Mouse3: 'musknapp 4', Mouse4: 'musknapp 5' };
-  function keyName(k) { return !k ? '' : MOUSE_NAME[k] ? MOUSE_NAME[k] : k === ' ' ? 'mellanslag' : k === 'ArrowUp' ? 'pil upp' : k === 'ArrowDown' ? 'pil ner' : k === 'ArrowLeft' ? 'pil vänster' : k === 'ArrowRight' ? 'pil höger' : k === 'Control' ? 'Ctrl' : k.length === 1 ? k.toUpperCase() : k; }
-  function KN(act) { var b = keyBinds()[act]; return keyName(b[0] || b[1]) || 'ingen tangent'; }
-  function KN2(act) { var b = keyBinds()[act]; return [b[0], b[1]].filter(function (k) { return !!k; }).map(keyName).join(' eller ') || 'ingen tangent'; }   // båda valen
-  function KS(act) { var b = keyBinds()[act], k = b[0] || b[1]; return !k ? '' : k.indexOf('Mouse') === 0 ? 'M' + (+k.charAt(5) + 1) : k === ' ' ? 'Spc' : k.indexOf('Arrow') === 0 ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k.slice(0, 3); }
+  var PAD_NAME = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L3', 'R3', '↑', '↓', '←', '→', 'Hem'];
+  function padName(k) { return k && k.indexOf('Pad') === 0 ? PAD_NAME[+k.slice(3)] || k : null; }
+  function keyName(k) { return !k ? '' : padName(k) ? padName(k) : MOUSE_NAME[k] ? MOUSE_NAME[k] : k === ' ' ? 'mellanslag' : k === 'ArrowUp' ? 'pil upp' : k === 'ArrowDown' ? 'pil ner' : k === 'ArrowLeft' ? 'pil vänster' : k === 'ArrowRight' ? 'pil höger' : k === 'Control' ? 'Ctrl' : k.length === 1 ? k.toUpperCase() : k; }
+  function KN(act) { var b = keyBinds()[act]; if (lastInput === 'pad' && b[2]) return 'knappen ' + keyName(b[2]); return keyName(b[0] || b[1]) || 'ingen tangent'; }
+  function KN2(act) { var b = keyBinds()[act]; if (lastInput === 'pad' && b[2]) return 'knappen ' + keyName(b[2]); return [b[0], b[1]].filter(function (k) { return !!k; }).map(keyName).join(' eller ') || 'ingen tangent'; }   // båda valen
+  function KS(act) { var b = keyBinds()[act], k = lastInput === 'pad' && b[2] ? b[2] : b[0] || b[1]; return !k ? '' : padName(k) ? padName(k) : k.indexOf('Mouse') === 0 ? 'M' + (+k.charAt(5) + 1) : k === ' ' ? 'Spc' : k.indexOf('Arrow') === 0 ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k.slice(0, 3); }
   function sfx(n) { if (window.LJUD) LJUD.play(n); }
   var guideMoved = 0, eatHintT = 0;                      // eatHintT: sekunder till nästa ät-tips
   var shots = [], arrows = [], ambientT = 0, forgeSel = 0;              // v2.2: nätskott, luftpartiklar, val i smedjan

@@ -1,7 +1,8 @@
-// Malm & Monster (Mines & Monsters), version 3.7.3 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 3.7.4 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
 // Byggs av src/ med verktyg/bygg.py. Ändra i src/, aldrig direkt i spel.js.
+// v3.7.4 nytt: skölden är en vägg framåt (monster studsar även när de inte slår), halvt skydd från sidan och bakifrån, handkontroll.
 // v3.7.3 nytt: bågen siktar först framåt (djur också), snyggare laddningsring, gubben snurrar med svärdet.
 // v3.7.2 nytt: dyrare koger, sköldknuff på snabbt tryck, snyggare snurrslag och kraftpil, Så gör du för krafterna.
 // v3.7.1 nytt: monster efter värld, spring och ork (kraften Uthållighet), egen styrning på datorn.
@@ -83,25 +84,33 @@
   }
   // v3.7.1: egen styrning på datorn. Två tangenter per handling, sparas i inställningarna.
   var KEY_ACTS = [['up', 'Gå upp'], ['down', 'Gå ner'], ['left', 'Gå vänster'], ['right', 'Gå höger'], ['attack', 'Slå'], ['shield', 'Sköld'], ['bow', 'Skjut'], ['run', 'Spring'], ['bolt', 'Blixt'], ['use', 'Smid, ät och fiska']];
-  var KEY_DEF = { up: ['w', 'ArrowUp'], down: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], attack: [' ', 'Mouse0'], shield: ['Shift', 'Mouse2'], bow: ['f', ''], run: ['c', ''], bolt: ['q', ''], use: ['e', ''] };
+  // tre platser per handling: tangent, tangent eller mus, handkontroll (v3.7.4)
+  var KEY_DEF = { up: ['w', 'ArrowUp', 'Pad12'], down: ['s', 'ArrowDown', 'Pad13'], left: ['a', 'ArrowLeft', 'Pad14'], right: ['d', 'ArrowRight', 'Pad15'], attack: [' ', 'Mouse0', 'Pad0'], shield: ['Shift', 'Mouse2', 'Pad1'], bow: ['f', '', 'Pad2'], run: ['c', '', 'Pad4'], bolt: ['q', '', 'Pad3'], use: ['e', '', 'Pad5'] };
+  var lastInput = 'kb';                                            // kb, pad eller touch: styr vilka knappnamn texterna visar
   function keyBinds() {
     var kb = settings.keys; if (!kb || typeof kb !== 'object') kb = settings.keys = {};
-    KEY_ACTS.forEach(function (a) { if (!Array.isArray(kb[a[0]]) || kb[a[0]].length !== 2) kb[a[0]] = KEY_DEF[a[0]].slice(); });
+    KEY_ACTS.forEach(function (a) {
+      var b = kb[a[0]];
+      if (!Array.isArray(b) || b.length < 2) kb[a[0]] = KEY_DEF[a[0]].slice();
+      else if (b.length === 2) { var pd = KEY_DEF[a[0]][2]; b.push(KEY_ACTS.some(function (o) { return kb[o[0]] && kb[o[0]].indexOf(pd) >= 0; }) ? '' : pd); }   // v3.7.4: äldre sparade får handkontrollen
+    });
     if (settings.keysV !== 2) {                                   // v3.7.2: äldre egna tangenter får musknapparna som förut
       settings.keysV = 2;
-      var used = function (k) { return KEY_ACTS.some(function (a) { return kb[a[0]][0] === k || kb[a[0]][1] === k; }); };
+      var used = function (k) { return KEY_ACTS.some(function (a) { return kb[a[0]].indexOf(k) >= 0; }); };
       if (!used('Mouse0') && !kb.attack[1]) kb.attack[1] = 'Mouse0';
       if (!used('Mouse2') && !kb.shield[1]) kb.shield[1] = 'Mouse2';
     }
     return kb;
   }
-  function held(act) { var b = keyBinds()[act]; return !!((b[0] && keys[b[0]]) || (b[1] && keys[b[1]])); }
-  function isKey(act, k) { var b = keyBinds()[act]; return !!k && (b[0] === k || b[1] === k); }
+  function held(act) { var b = keyBinds()[act]; return !!((b[0] && keys[b[0]]) || (b[1] && keys[b[1]]) || (b[2] && keys[b[2]])); }
+  function isKey(act, k) { var b = keyBinds()[act]; return !!k && (b[0] === k || b[1] === k || b[2] === k); }
   var MOUSE_NAME = { Mouse0: 'vänster musknapp', Mouse1: 'mittenknappen', Mouse2: 'höger musknapp', Mouse3: 'musknapp 4', Mouse4: 'musknapp 5' };
-  function keyName(k) { return !k ? '' : MOUSE_NAME[k] ? MOUSE_NAME[k] : k === ' ' ? 'mellanslag' : k === 'ArrowUp' ? 'pil upp' : k === 'ArrowDown' ? 'pil ner' : k === 'ArrowLeft' ? 'pil vänster' : k === 'ArrowRight' ? 'pil höger' : k === 'Control' ? 'Ctrl' : k.length === 1 ? k.toUpperCase() : k; }
-  function KN(act) { var b = keyBinds()[act]; return keyName(b[0] || b[1]) || 'ingen tangent'; }
-  function KN2(act) { var b = keyBinds()[act]; return [b[0], b[1]].filter(function (k) { return !!k; }).map(keyName).join(' eller ') || 'ingen tangent'; }   // båda valen
-  function KS(act) { var b = keyBinds()[act], k = b[0] || b[1]; return !k ? '' : k.indexOf('Mouse') === 0 ? 'M' + (+k.charAt(5) + 1) : k === ' ' ? 'Spc' : k.indexOf('Arrow') === 0 ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k.slice(0, 3); }
+  var PAD_NAME = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L3', 'R3', '↑', '↓', '←', '→', 'Hem'];
+  function padName(k) { return k && k.indexOf('Pad') === 0 ? PAD_NAME[+k.slice(3)] || k : null; }
+  function keyName(k) { return !k ? '' : padName(k) ? padName(k) : MOUSE_NAME[k] ? MOUSE_NAME[k] : k === ' ' ? 'mellanslag' : k === 'ArrowUp' ? 'pil upp' : k === 'ArrowDown' ? 'pil ner' : k === 'ArrowLeft' ? 'pil vänster' : k === 'ArrowRight' ? 'pil höger' : k === 'Control' ? 'Ctrl' : k.length === 1 ? k.toUpperCase() : k; }
+  function KN(act) { var b = keyBinds()[act]; if (lastInput === 'pad' && b[2]) return 'knappen ' + keyName(b[2]); return keyName(b[0] || b[1]) || 'ingen tangent'; }
+  function KN2(act) { var b = keyBinds()[act]; if (lastInput === 'pad' && b[2]) return 'knappen ' + keyName(b[2]); return [b[0], b[1]].filter(function (k) { return !!k; }).map(keyName).join(' eller ') || 'ingen tangent'; }   // båda valen
+  function KS(act) { var b = keyBinds()[act], k = lastInput === 'pad' && b[2] ? b[2] : b[0] || b[1]; return !k ? '' : padName(k) ? padName(k) : k.indexOf('Mouse') === 0 ? 'M' + (+k.charAt(5) + 1) : k === ' ' ? 'Spc' : k.indexOf('Arrow') === 0 ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k.slice(0, 3); }
   function sfx(n) { if (window.LJUD) LJUD.play(n); }
   var guideMoved = 0, eatHintT = 0;                      // eatHintT: sekunder till nästa ät-tips
   var shots = [], arrows = [], ambientT = 0, forgeSel = 0;              // v2.2: nätskott, luftpartiklar, val i smedjan
@@ -914,7 +923,9 @@
     if (held('left')) ax -= 1; if (held('right')) ax += 1;
     if (held('up')) ay -= 1; if (held('down')) ay += 1;
     if (touch.joyId !== null && Math.hypot(touch.jx, touch.jy) > 0.18) { ax = touch.jx; ay = touch.jy; }
+    else if (padStick.x || padStick.y) { ax = padStick.x; ay = padStick.y; }   // v3.7.4: handkontrollens vänstra spak
     P.moving = !!(ax || ay);
+    if (padAim) { var pal = Math.hypot(padAim.x, padAim.y); P.fx = padAim.x / pal; P.fy = padAim.y / pal; }   // v3.7.4: höger spak siktar
     var EN = C.powers.endure, maxSt = EN.stamina[P.endure || 0];      // v3.7.1: spring så länge orken räcker
     if (P.stamina == null || P.stamina > maxSt) P.stamina = Math.min(maxSt, P.stamina == null ? maxSt : P.stamina);
     if (P.tired && P.stamina >= maxSt * 0.35) P.tired = false;
@@ -946,6 +957,10 @@
     mons.forEach(function (m) {
       m.hit -= dt; m.cd -= dt; m.pop += dt;
       var d = dist(m, P) || 0.01, inCave = isCave[clamp(Math.floor(m.y / TS), 0, H - 1)][clamp(Math.floor(m.x / TS), 0, W - 1)];
+      if (m.bounceCd > 0) m.bounceCd -= dt;
+      if (P.blocking && P.shield > 0 && !m.hidden && (m.cd > 0 || P.inv > 0) && d < m.r + P.r + 5 && blockedFrom(m.x, m.y) && !(m.bounceCd > 0)) {   // v3.7.4: skölden är en vägg framåt för monster som just inte kan slå (de som kan slår och studsar som förut)
+        shieldBounce(m); m.bounceCd = 0.4; P.blockFlash = 0.2; sfx('block'); sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 6);
+      }
       if (m.type === 'boss') { updateBoss(m, dt, d); return; }
       var range = inCave ? C.monsters.caveAggroRange : C.monsters.aggroRange;
       if (m.type === 'spider' && !(m.stunT > 0) && spiderAI(m, dt, d)) return;
@@ -1114,6 +1129,8 @@
       if (src) shieldBounce(src);                              // v3.6: monstret studsar tillbaka och blir yrt
       dmg *= 1 - C.shield.block[P.shield]; sfx('block'); P.blockFlash = 0.25;
       sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 10); floatText(P.x, P.y - 40, 'parerad!', '#e6f5ff');
+    } else if (P.blocking && P.shield > 0 && sx != null) {     // v3.7.4: halvt skydd från sidan och bakifrån, ingen studs
+      dmg *= 1 - C.shield.block[P.shield] * C.shield.backBlock; sfx('block');
     }
     var d = dmg * (1 - C.upgrades.armor.reducePerLevel * P.armor);
     P.hp -= d; P.inv = C.player.invulnAfterHit * (DF().invMul || 1); P.calmT = 0;
@@ -2798,7 +2815,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.3', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.4', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -2824,7 +2841,7 @@
     }
     g.textAlign = 'center';
     g.font = '14px ' + UI; g.fillStyle = 'rgba(250,250,242,0.6)';
-    g.fillText(touchMode ? 'Vänster tumme går, Slå-knappen slår. Paus finns uppe till höger.' : 'Gå med ' + moveKeysText() + ', ' + KN('attack') + ' slår, ' + KN('use') + ' smider och äter, Esc pausar.', cx, 494);
+    g.fillText(touchMode ? 'Vänster tumme går, Slå-knappen slår. Paus finns uppe till höger.' : 'Gå med ' + moveKeysText() + ', ' + KN('attack') + ' slår, ' + KN('use') + ' smider och äter, ' + (lastInput === 'pad' ? 'Start' : 'Esc') + ' pausar.', cx, 494);
     var tm = time < titleMsgUntil ? titleMsg : (touchMode ? '' : 'Vänster och höger väljer plats, Enter spelar.');
     g.font = 'bold 15px ' + TXT; g.fillStyle = time < titleMsgUntil ? PAL.bolt : 'rgba(250,250,242,0.45)'; g.fillText(tm, cx, 526);
     g.textAlign = 'left';
@@ -3033,24 +3050,26 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.3', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.4', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
   // ---------- styrning på datorn (v3.7.1) ----------
   var keySel = 0, keySlot = 0, keyWait = false;
-  var KX = LW / 2 - 270, KW = 540, KY0 = 112, KH = 32, KSTEP = 36, KBY = KY0 + KEY_ACTS.length * KSTEP + 30;
+  var KX = LW / 2 - 300, KW = 600, KY0 = 118, KH = 32, KSTEP = 36, KBY = KY0 + KEY_ACTS.length * KSTEP + 30;
   var KB_RESET = { x: LW / 2 - 112, y: KBY, w: 200, h: 44 }, KB_DONE = { x: LW / 2 + 112, y: KBY, w: 200, h: 44 };
   function moveKeysText() {
+    if (lastInput === 'pad') return 'vänster spak';
     var b = keyBinds(), std = ['up', 'down', 'left', 'right'].every(function (a) { return b[a][0] === KEY_DEF[a][0] && b[a][1] === KEY_DEF[a][1]; });
     return std ? 'WASD eller pilarna' : ['up', 'left', 'down', 'right'].map(function (a) { return KS(a); }).join(' ');
   }
-  function keyBoxX(j) { return KX + KW - 270 + j * 136; }
+  function keyBoxX(j) { return KX + 196 + j * 132; }               // v3.7.4: tre rutor: tangent, tangent eller mus, handkontroll
+  var KBOX_W = 124;
   function openKeys() { state = 'keys'; keySel = 0; keySlot = 0; keyWait = false; keys = {}; sfx('click'); }
   function closeKeys() { keyWait = false; state = 'paused'; keys = {}; applySettings(); sfx('click'); }
   function setKey(act, slot, k) {                                 // en tangent kan bara göra en sak: tas bort från andra handlingar
     var kb = keyBinds();
-    KEY_ACTS.forEach(function (a) { var b = kb[a[0]]; for (var j = 0; j < 2; j++) if (b[j] === k) b[j] = ''; });
+    KEY_ACTS.forEach(function (a) { var b = kb[a[0]]; for (var j = 0; j < 3; j++) if (b[j] === k) b[j] = ''; });
     kb[act][slot] = k; applySettings();
   }
   function resetKeys() { settings.keys = null; keyBinds(); applySettings(); sfx('click'); }
@@ -3065,7 +3084,7 @@
     if (k === 'Escape' || k === 'p') closeKeys();
     else if (k === 'ArrowUp') keySel = (keySel + N + 1) % (N + 2);
     else if (k === 'ArrowDown') keySel = (keySel + 1) % (N + 2);
-    else if (k === 'ArrowLeft' || k === 'ArrowRight') { if (keySel < N) keySlot = 1 - keySlot; else keySel = keySel === N ? N + 1 : N; }
+    else if (k === 'ArrowLeft' || k === 'ArrowRight') { if (keySel < N) keySlot = (keySlot + (k === 'ArrowRight' ? 1 : 2)) % 3; else keySel = keySel === N ? N + 1 : N; }
     else if (k === 'Enter' || k === ' ') { if (keySel < N) keyWait = true; else if (keySel === N) resetKeys(); else closeKeys(); }
   }
   function keysHit(p, btn) {
@@ -3073,7 +3092,7 @@
     var onBox = null;
     for (var i = 0; i < KEY_ACTS.length; i++) {
       var y = KY0 + i * KSTEP;
-      for (var j = 0; j < 2; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + 126 && p.y > y && p.y < y + KH) onBox = { i: i, j: j };
+      for (var j = 0; j < 3; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + KBOX_W && p.y > y && p.y < y + KH) onBox = { i: i, j: j };
     }
     if (keyWait && (btn !== 0 || (onBox && onBox.i === keySel && onBox.j === keySlot))) {   // v3.7.2: en musknapp väljs som tangent
       setKey(KEY_ACTS[keySel][0], keySlot, 'Mouse' + btn); keyWait = false; sfx('click'); return;
@@ -3088,17 +3107,19 @@
     chalkTitle('Styrning', LW / 2, 66, 42);
     g.textBaseline = 'middle';
     var kb = keyBinds();
+    g.font = 'bold 13px ' + TXT; g.textAlign = 'center'; g.fillStyle = 'rgba(250,250,242,0.6)';
+    ['Tangent', 'Tangent eller mus', 'Handkontroll'].forEach(function (hd, j) { g.fillText(hd, keyBoxX(j) + KBOX_W / 2, KY0 - 11); });
     KEY_ACTS.forEach(function (a, i) {
       var y = KY0 + i * KSTEP;
       tag(KX, y, KW, KH);
       if (i === keySel && !touchMode) { rr(g, KX, y, KW, KH, 8); g.strokeStyle = 'rgba(255,225,77,0.5)'; g.lineWidth = 1.5; g.stroke(); }
       g.font = 'bold 17px ' + TXT; g.textAlign = 'left'; g.fillStyle = PAL.chalk; g.fillText(a[1], KX + 16, y + KH / 2 + 1);
-      for (var j = 0; j < 2; j++) {
+      for (var j = 0; j < 3; j++) {
         var bx = keyBoxX(j), on = i === keySel && j === keySlot, wait = on && keyWait, kk = kb[a[0]][j];
-        rr(g, bx, y + 3, 126, KH - 6, 6); g.fillStyle = wait ? 'rgba(255,225,77,0.35)' : 'rgba(250,250,242,0.08)'; g.fill();
+        rr(g, bx, y + 3, KBOX_W, KH - 6, 6); g.fillStyle = wait ? 'rgba(255,225,77,0.35)' : 'rgba(250,250,242,0.08)'; g.fill();
         g.strokeStyle = on ? PAL.bolt : 'rgba(250,250,242,0.3)'; g.lineWidth = on ? 2 : 1; g.stroke();
         g.textAlign = 'center'; g.font = (wait ? '' : 'bold ') + ((kk && kk.indexOf('Mouse') === 0) ? '13px ' : '15px ') + TXT; g.fillStyle = kk || wait ? PAL.chalk : 'rgba(250,250,242,0.35)';
-        g.fillText(wait ? 'Tryck nu' : kk ? keyName(kk) : 'tom', bx + 63, y + KH / 2 + 1);
+        g.fillText(wait ? 'Tryck nu' : kk ? keyName(kk) : 'tom', bx + KBOX_W / 2, y + KH / 2 + 1);
       }
     });
     [[KB_RESET, 'Som från början', KEY_ACTS.length], [KB_DONE, 'Klar', KEY_ACTS.length + 1]].forEach(function (b) {
@@ -3107,7 +3128,7 @@
       g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 19px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
     });
     g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.textAlign = 'center';
-    g.fillText(keyWait ? 'Tryck en tangent eller en musknapp (vänster: klicka i samma ruta). Backsteg tömmer, Esc ångrar.' : 'Klicka på en ruta och tryck sedan en tangent eller musknapp.', LW / 2, KBY + 40);
+    g.fillText(keyWait ? 'Tryck en tangent, musknapp eller knapp på handkontrollen. Backsteg tömmer, Esc ångrar.' : 'Klicka på en ruta (eller välj med A) och tryck sedan tangenten, musknappen eller kontrollens knapp.', LW / 2, KBY + 40);
     g.textAlign = 'left';
   }
 
@@ -3396,9 +3417,12 @@
   // ---------- indata ----------
   window.addEventListener('keydown', function (e) {
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].indexOf(k) >= 0) e.preventDefault();
+    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].indexOf(k) >= 0 || state === 'keys') e.preventDefault();
+    lastInput = 'kb'; onKeyDown(k);
+  });
+  function onKeyDown(k) {                                     // v3.7.4: tangenter och handkontrollens knappar går hit
     if (window.LJUD) LJUD.init();                        // ljud får starta först efter en tangent eller ett tryck
-    if (state === 'keys') { e.preventDefault(); keysKey(k); return; }   // v3.7.1: välj egna tangenter
+    if (state === 'keys') { keysKey(k); return; }        // v3.7.1: välj egna tangenter
     if (keys[k]) return; keys[k] = true;
     if (state === 'forge') {
       if (k === 'Escape' || k === 'e' || k === 'p' || isKey('use', k)) closeForge();
@@ -3443,8 +3467,46 @@
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
     }
+  }
+  function onKeyUp(k) { keys[k] = false; if (isKey('bow', k)) releaseBow(); if (isKey('shield', k)) shieldRelease(); }
+  window.addEventListener('keyup', function (e) { onKeyUp(e.key.length === 1 ? e.key.toLowerCase() : e.key); });
+
+  // ---------- handkontroll (v3.7.4) ----------
+  // Vänster spak går (analogt), höger spak siktar, knapparna är som tangenter ('Pad0'...) och kan bytas i Styrning.
+  // I menyerna: spak och styrkors väljer, A = Enter, B = tillbaka, Start = paus.
+  var padPrev = {}, padStick = { x: 0, y: 0 }, padAim = null, padMenuT = 0;
+  var PAD_MENU = { 0: 'Enter', 1: 'Escape', 9: 'p', 12: 'ArrowUp', 13: 'ArrowDown', 14: 'ArrowLeft', 15: 'ArrowRight', 4: 'ArrowLeft', 5: 'ArrowRight' };
+  function pollPads(dt) {
+    var pads = [], gp = null;
+    try { pads = navigator.getGamepads ? navigator.getGamepads() || [] : []; } catch (e) { pads = []; }
+    for (var pi = 0; pi < pads.length; pi++) if (pads[pi] && pads[pi].connected !== false) { gp = pads[pi]; break; }
+    padStick.x = 0; padStick.y = 0; padAim = null;
+    if (!gp) return;
+    var ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, l = Math.hypot(ax, ay);
+    if (l > 0.22) { padStick.x = ax; padStick.y = ay; lastInput = 'pad'; touchMode = false; }
+    var rx = gp.axes[2] || 0, ry = gp.axes[3] || 0;
+    if (Math.hypot(rx, ry) > 0.5) padAim = { x: rx, y: ry };
+    var menu = state !== 'play' && !(state === 'keys' && keyWait);
+    if (menu) {                                                   // vänster spak i menyerna fungerar som pilarna
+      padMenuT -= dt;
+      if (l > 0.6 && padMenuT <= 0) { padMenuT = 0.25; var mk = Math.abs(ax) > Math.abs(ay) ? (ax > 0 ? 'ArrowRight' : 'ArrowLeft') : (ay > 0 ? 'ArrowDown' : 'ArrowUp'); onKeyDown(mk); onKeyUp(mk); }
+      if (l < 0.3) padMenuT = 0;
+    }
+    for (var b = 0; b < gp.buttons.length && b < 17; b++) {
+      var bt = gp.buttons[b], on = !!(bt && (bt.pressed || bt.value > 0.5)), was = !!padPrev[b];
+      if (on === was) continue;
+      padPrev[b] = on;
+      if (on) { lastInput = 'pad'; touchMode = false; }
+      if (menu) { var mk2 = PAD_MENU[b]; if (mk2 && on) { onKeyDown(mk2); onKeyUp(mk2); } continue; }
+      if (state === 'play' && b === 9) { if (on) { onKeyDown('p'); onKeyUp('p'); } continue; }   // Start pausar
+      if (on) onKeyDown('Pad' + b); else onKeyUp('Pad' + b);
+    }
+  }
+  window.addEventListener('gamepadconnected', function () {
+    lastInput = 'pad'; touchMode = false;
+    var t = 'Handkontroll ansluten! Vänster spak går, A slår. Byt knappar under Styrning i pausmenyn.';
+    if (state === 'title') tmsg(t); else say(t);
   });
-  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (isKey('bow', k)) releaseBow(); if (isKey('shield', k)) shieldRelease(); });
   window.addEventListener('blur', function () { keys = {}; mouse.down = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
   document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
     if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
@@ -3468,7 +3530,7 @@
     if (state === 'title') { titleHit(toBox(mp), false); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
-    var mk = 'Mouse' + e.button;                                 // v3.7.2: musknapparna är som tangenter (Styrning)
+    lastInput = 'kb'; var mk = 'Mouse' + e.button;                // v3.7.2: musknapparna är som tangenter (Styrning)
     if (keys[mk]) return; keys[mk] = true; mouse.down = true;
     if (!P.moving && (isKey('attack', mk) || isKey('bow', mk))) { var mw2 = toWorld(mouse.x, mouse.y), dx = mw2.x - P.x, dy = mw2.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
     if (isKey('shield', mk)) shieldPress();
@@ -3498,7 +3560,7 @@
   }
   cv.addEventListener('pointerdown', function (e) {
     if (e.pointerType === 'mouse') return;
-    e.preventDefault(); touchMode = true; lastTouch = performance.now();
+    e.preventDefault(); touchMode = true; lastTouch = performance.now(); lastInput = 'touch';
     try { cv.setPointerCapture(e.pointerId); } catch (er) {}
     if (window.LJUD) LJUD.init();
     var p = lpos(e);
@@ -3554,16 +3616,16 @@
   var last = performance.now();
   function frame(now) {
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
-    realUpdate(dt);
+    pollPads(dt); realUpdate(dt);
     if (hitStop > 0) hitStop -= dt; else update(dt);
     draw(); requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
   // för test: window.__sg exponerar läge
-  window.__sg = { get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
+  window.__sg = { pollPads: function () { pollPads(0.02); }, get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
-    step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
+    step: function (sec) { for (var t = 0; t < sec; t += 0.02) { pollPads(0.02); realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
     get bossIntro() { return bossIntro; }, get slots() { return slots; }, get slot() { return slot; }, playSlot: function (i) { playSlot(i); }, titleHit: function (x, y, t) { titleHit({ x: x, y: y }, t); }, toTitle: function () { askNew(); }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
     get fx() { return { trauma: trauma, hitStop: hitStop, texts: texts.length, particles: fx.length }; } };
 })();

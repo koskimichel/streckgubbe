@@ -1,4 +1,9 @@
-# Malm & Monster (Mines & Monsters), version 3.7.3
+# Malm & Monster (Mines & Monsters), version 3.7.4
+
+v3.7.4:
+- Sköld: fullt skydd (50-90 %) och studs framifrån som förut; från sidan och bakifrån halvt skydd (`C.shield.backBlock`), ingen studs. Skölden är en vägg framåt: ett monster som rör skölden medan det inte kan slå (`m.cd > 0` eller `P.inv > 0`) studsar bort och blir yrt (`m.bounceCd`); monster som kan slå slår mot skölden (minskad skada) och studsar i `hurtPlayer`. Förut gick de rakt igenom. Mot fem slem i 4 s: 5 skada med sköld, 20 utan.
+- Handkontroll (Gamepad API): `pollPads(dt)` körs varje bildruta (och i `__sg.step`). Vänster spak går (analogt, `padStick`), höger spak siktar (`padAim` sätter `P.fx/fy`), knapparna är tangenter `Pad0`-`Pad16` (`PAD_NAME`: A, B, X, Y, LB, RB, LT, RT, Back, Start, L3, R3, styrkors). Standard: styrkors går, A slå, B sköld, X skjut, Y blixt, LB spring, RB smid/ät, Start paus. I menyerna (`PAD_MENU`): spak/styrkors = pilar, A = Enter, B = Escape, Start = p. `gamepadconnected` visar ett meddelande.
+- Tangentbindningar har tre platser (`KEY_DEF[act][2]` = handkontrollen); äldre sparade med två platser får handkontrollens standardknapp. Styrning har tre kolumner (`keyBoxX`, `KBOX_W`). Tangenthändelserna går via `onKeyDown(k)`/`onKeyUp(k)` som handkontrollen också anropar. `lastInput` (kb/pad/touch) styr vilka knappnamn texterna visar (`KN`, `KS`, `moveKeysText`).
 
 v3.7.3:
 - Bågens sikte (`shoot`): först det närmaste målet framför gubben (monster eller djur, inom `C.bow.aimCone` = cos ca 45 grader från `P.fx/P.fy`), annars närmaste monster runt om, sist närmaste djur.

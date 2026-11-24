@@ -60,24 +60,26 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.3', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.4', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
   // ---------- styrning på datorn (v3.7.1) ----------
   var keySel = 0, keySlot = 0, keyWait = false;
-  var KX = LW / 2 - 270, KW = 540, KY0 = 112, KH = 32, KSTEP = 36, KBY = KY0 + KEY_ACTS.length * KSTEP + 30;
+  var KX = LW / 2 - 300, KW = 600, KY0 = 118, KH = 32, KSTEP = 36, KBY = KY0 + KEY_ACTS.length * KSTEP + 30;
   var KB_RESET = { x: LW / 2 - 112, y: KBY, w: 200, h: 44 }, KB_DONE = { x: LW / 2 + 112, y: KBY, w: 200, h: 44 };
   function moveKeysText() {
+    if (lastInput === 'pad') return 'vänster spak';
     var b = keyBinds(), std = ['up', 'down', 'left', 'right'].every(function (a) { return b[a][0] === KEY_DEF[a][0] && b[a][1] === KEY_DEF[a][1]; });
     return std ? 'WASD eller pilarna' : ['up', 'left', 'down', 'right'].map(function (a) { return KS(a); }).join(' ');
   }
-  function keyBoxX(j) { return KX + KW - 270 + j * 136; }
+  function keyBoxX(j) { return KX + 196 + j * 132; }               // v3.7.4: tre rutor: tangent, tangent eller mus, handkontroll
+  var KBOX_W = 124;
   function openKeys() { state = 'keys'; keySel = 0; keySlot = 0; keyWait = false; keys = {}; sfx('click'); }
   function closeKeys() { keyWait = false; state = 'paused'; keys = {}; applySettings(); sfx('click'); }
   function setKey(act, slot, k) {                                 // en tangent kan bara göra en sak: tas bort från andra handlingar
     var kb = keyBinds();
-    KEY_ACTS.forEach(function (a) { var b = kb[a[0]]; for (var j = 0; j < 2; j++) if (b[j] === k) b[j] = ''; });
+    KEY_ACTS.forEach(function (a) { var b = kb[a[0]]; for (var j = 0; j < 3; j++) if (b[j] === k) b[j] = ''; });
     kb[act][slot] = k; applySettings();
   }
   function resetKeys() { settings.keys = null; keyBinds(); applySettings(); sfx('click'); }
@@ -92,7 +94,7 @@
     if (k === 'Escape' || k === 'p') closeKeys();
     else if (k === 'ArrowUp') keySel = (keySel + N + 1) % (N + 2);
     else if (k === 'ArrowDown') keySel = (keySel + 1) % (N + 2);
-    else if (k === 'ArrowLeft' || k === 'ArrowRight') { if (keySel < N) keySlot = 1 - keySlot; else keySel = keySel === N ? N + 1 : N; }
+    else if (k === 'ArrowLeft' || k === 'ArrowRight') { if (keySel < N) keySlot = (keySlot + (k === 'ArrowRight' ? 1 : 2)) % 3; else keySel = keySel === N ? N + 1 : N; }
     else if (k === 'Enter' || k === ' ') { if (keySel < N) keyWait = true; else if (keySel === N) resetKeys(); else closeKeys(); }
   }
   function keysHit(p, btn) {
@@ -100,7 +102,7 @@
     var onBox = null;
     for (var i = 0; i < KEY_ACTS.length; i++) {
       var y = KY0 + i * KSTEP;
-      for (var j = 0; j < 2; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + 126 && p.y > y && p.y < y + KH) onBox = { i: i, j: j };
+      for (var j = 0; j < 3; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + KBOX_W && p.y > y && p.y < y + KH) onBox = { i: i, j: j };
     }
     if (keyWait && (btn !== 0 || (onBox && onBox.i === keySel && onBox.j === keySlot))) {   // v3.7.2: en musknapp väljs som tangent
       setKey(KEY_ACTS[keySel][0], keySlot, 'Mouse' + btn); keyWait = false; sfx('click'); return;
@@ -115,17 +117,19 @@
     chalkTitle('Styrning', LW / 2, 66, 42);
     g.textBaseline = 'middle';
     var kb = keyBinds();
+    g.font = 'bold 13px ' + TXT; g.textAlign = 'center'; g.fillStyle = 'rgba(250,250,242,0.6)';
+    ['Tangent', 'Tangent eller mus', 'Handkontroll'].forEach(function (hd, j) { g.fillText(hd, keyBoxX(j) + KBOX_W / 2, KY0 - 11); });
     KEY_ACTS.forEach(function (a, i) {
       var y = KY0 + i * KSTEP;
       tag(KX, y, KW, KH);
       if (i === keySel && !touchMode) { rr(g, KX, y, KW, KH, 8); g.strokeStyle = 'rgba(255,225,77,0.5)'; g.lineWidth = 1.5; g.stroke(); }
       g.font = 'bold 17px ' + TXT; g.textAlign = 'left'; g.fillStyle = PAL.chalk; g.fillText(a[1], KX + 16, y + KH / 2 + 1);
-      for (var j = 0; j < 2; j++) {
+      for (var j = 0; j < 3; j++) {
         var bx = keyBoxX(j), on = i === keySel && j === keySlot, wait = on && keyWait, kk = kb[a[0]][j];
-        rr(g, bx, y + 3, 126, KH - 6, 6); g.fillStyle = wait ? 'rgba(255,225,77,0.35)' : 'rgba(250,250,242,0.08)'; g.fill();
+        rr(g, bx, y + 3, KBOX_W, KH - 6, 6); g.fillStyle = wait ? 'rgba(255,225,77,0.35)' : 'rgba(250,250,242,0.08)'; g.fill();
         g.strokeStyle = on ? PAL.bolt : 'rgba(250,250,242,0.3)'; g.lineWidth = on ? 2 : 1; g.stroke();
         g.textAlign = 'center'; g.font = (wait ? '' : 'bold ') + ((kk && kk.indexOf('Mouse') === 0) ? '13px ' : '15px ') + TXT; g.fillStyle = kk || wait ? PAL.chalk : 'rgba(250,250,242,0.35)';
-        g.fillText(wait ? 'Tryck nu' : kk ? keyName(kk) : 'tom', bx + 63, y + KH / 2 + 1);
+        g.fillText(wait ? 'Tryck nu' : kk ? keyName(kk) : 'tom', bx + KBOX_W / 2, y + KH / 2 + 1);
       }
     });
     [[KB_RESET, 'Som från början', KEY_ACTS.length], [KB_DONE, 'Klar', KEY_ACTS.length + 1]].forEach(function (b) {
@@ -134,7 +138,7 @@
       g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 19px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
     });
     g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.textAlign = 'center';
-    g.fillText(keyWait ? 'Tryck en tangent eller en musknapp (vänster: klicka i samma ruta). Backsteg tömmer, Esc ångrar.' : 'Klicka på en ruta och tryck sedan en tangent eller musknapp.', LW / 2, KBY + 40);
+    g.fillText(keyWait ? 'Tryck en tangent, musknapp eller knapp på handkontrollen. Backsteg tömmer, Esc ångrar.' : 'Klicka på en ruta (eller välj med A) och tryck sedan tangenten, musknappen eller kontrollens knapp.', LW / 2, KBY + 40);
     g.textAlign = 'left';
   }
 

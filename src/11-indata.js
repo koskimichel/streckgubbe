@@ -1,9 +1,12 @@
   // ---------- indata ----------
   window.addEventListener('keydown', function (e) {
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].indexOf(k) >= 0) e.preventDefault();
+    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].indexOf(k) >= 0 || state === 'keys') e.preventDefault();
+    lastInput = 'kb'; onKeyDown(k);
+  });
+  function onKeyDown(k) {                                     // v3.7.4: tangenter och handkontrollens knappar går hit
     if (window.LJUD) LJUD.init();                        // ljud får starta först efter en tangent eller ett tryck
-    if (state === 'keys') { e.preventDefault(); keysKey(k); return; }   // v3.7.1: välj egna tangenter
+    if (state === 'keys') { keysKey(k); return; }        // v3.7.1: välj egna tangenter
     if (keys[k]) return; keys[k] = true;
     if (state === 'forge') {
       if (k === 'Escape' || k === 'e' || k === 'p' || isKey('use', k)) closeForge();
@@ -48,8 +51,46 @@
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
     }
+  }
+  function onKeyUp(k) { keys[k] = false; if (isKey('bow', k)) releaseBow(); if (isKey('shield', k)) shieldRelease(); }
+  window.addEventListener('keyup', function (e) { onKeyUp(e.key.length === 1 ? e.key.toLowerCase() : e.key); });
+
+  // ---------- handkontroll (v3.7.4) ----------
+  // Vänster spak går (analogt), höger spak siktar, knapparna är som tangenter ('Pad0'...) och kan bytas i Styrning.
+  // I menyerna: spak och styrkors väljer, A = Enter, B = tillbaka, Start = paus.
+  var padPrev = {}, padStick = { x: 0, y: 0 }, padAim = null, padMenuT = 0;
+  var PAD_MENU = { 0: 'Enter', 1: 'Escape', 9: 'p', 12: 'ArrowUp', 13: 'ArrowDown', 14: 'ArrowLeft', 15: 'ArrowRight', 4: 'ArrowLeft', 5: 'ArrowRight' };
+  function pollPads(dt) {
+    var pads = [], gp = null;
+    try { pads = navigator.getGamepads ? navigator.getGamepads() || [] : []; } catch (e) { pads = []; }
+    for (var pi = 0; pi < pads.length; pi++) if (pads[pi] && pads[pi].connected !== false) { gp = pads[pi]; break; }
+    padStick.x = 0; padStick.y = 0; padAim = null;
+    if (!gp) return;
+    var ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, l = Math.hypot(ax, ay);
+    if (l > 0.22) { padStick.x = ax; padStick.y = ay; lastInput = 'pad'; touchMode = false; }
+    var rx = gp.axes[2] || 0, ry = gp.axes[3] || 0;
+    if (Math.hypot(rx, ry) > 0.5) padAim = { x: rx, y: ry };
+    var menu = state !== 'play' && !(state === 'keys' && keyWait);
+    if (menu) {                                                   // vänster spak i menyerna fungerar som pilarna
+      padMenuT -= dt;
+      if (l > 0.6 && padMenuT <= 0) { padMenuT = 0.25; var mk = Math.abs(ax) > Math.abs(ay) ? (ax > 0 ? 'ArrowRight' : 'ArrowLeft') : (ay > 0 ? 'ArrowDown' : 'ArrowUp'); onKeyDown(mk); onKeyUp(mk); }
+      if (l < 0.3) padMenuT = 0;
+    }
+    for (var b = 0; b < gp.buttons.length && b < 17; b++) {
+      var bt = gp.buttons[b], on = !!(bt && (bt.pressed || bt.value > 0.5)), was = !!padPrev[b];
+      if (on === was) continue;
+      padPrev[b] = on;
+      if (on) { lastInput = 'pad'; touchMode = false; }
+      if (menu) { var mk2 = PAD_MENU[b]; if (mk2 && on) { onKeyDown(mk2); onKeyUp(mk2); } continue; }
+      if (state === 'play' && b === 9) { if (on) { onKeyDown('p'); onKeyUp('p'); } continue; }   // Start pausar
+      if (on) onKeyDown('Pad' + b); else onKeyUp('Pad' + b);
+    }
+  }
+  window.addEventListener('gamepadconnected', function () {
+    lastInput = 'pad'; touchMode = false;
+    var t = 'Handkontroll ansluten! Vänster spak går, A slår. Byt knappar under Styrning i pausmenyn.';
+    if (state === 'title') tmsg(t); else say(t);
   });
-  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (isKey('bow', k)) releaseBow(); if (isKey('shield', k)) shieldRelease(); });
   window.addEventListener('blur', function () { keys = {}; mouse.down = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
   document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
     if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
@@ -73,7 +114,7 @@
     if (state === 'title') { titleHit(toBox(mp), false); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
-    var mk = 'Mouse' + e.button;                                 // v3.7.2: musknapparna är som tangenter (Styrning)
+    lastInput = 'kb'; var mk = 'Mouse' + e.button;                // v3.7.2: musknapparna är som tangenter (Styrning)
     if (keys[mk]) return; keys[mk] = true; mouse.down = true;
     if (!P.moving && (isKey('attack', mk) || isKey('bow', mk))) { var mw2 = toWorld(mouse.x, mouse.y), dx = mw2.x - P.x, dy = mw2.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
     if (isKey('shield', mk)) shieldPress();
@@ -103,7 +144,7 @@
   }
   cv.addEventListener('pointerdown', function (e) {
     if (e.pointerType === 'mouse') return;
-    e.preventDefault(); touchMode = true; lastTouch = performance.now();
+    e.preventDefault(); touchMode = true; lastTouch = performance.now(); lastInput = 'touch';
     try { cv.setPointerCapture(e.pointerId); } catch (er) {}
     if (window.LJUD) LJUD.init();
     var p = lpos(e);
@@ -159,16 +200,16 @@
   var last = performance.now();
   function frame(now) {
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
-    realUpdate(dt);
+    pollPads(dt); realUpdate(dt);
     if (hitStop > 0) hitStop -= dt; else update(dt);
     draw(); requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
   // för test: window.__sg exponerar läge
-  window.__sg = { get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
+  window.__sg = { pollPads: function () { pollPads(0.02); }, get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
-    step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
+    step: function (sec) { for (var t = 0; t < sec; t += 0.02) { pollPads(0.02); realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
     get bossIntro() { return bossIntro; }, get slots() { return slots; }, get slot() { return slot; }, playSlot: function (i) { playSlot(i); }, titleHit: function (x, y, t) { titleHit({ x: x, y: y }, t); }, toTitle: function () { askNew(); }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
     get fx() { return { trauma: trauma, hitStop: hitStop, texts: texts.length, particles: fx.length }; } };
 })();
