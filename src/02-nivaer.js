@@ -249,7 +249,7 @@
   function catchPrey(p) {
     p.dead = true; p.moving = false; sparks(p.x, p.y, '#ffffff', 8); sfx('hit');
     floatText(p.x, p.y - 16, 'fångad!', '#ffe7a8');
-    say('Du fångade en ' + PREY_NAME[p.kind] + '! ' + (P.knife ? 'Tryck ' + (touchMode ? 'Flå' : 'E') + ' för att flå den.' : 'Gör en jaktkniv i smedjan för att kunna flå den.'));
+    say('Du fångade en ' + PREY_NAME[p.kind] + '! ' + (P.knife ? 'Tryck ' + (touchMode ? 'Flå' : KN('use')) + ' för att flå den.' : 'Gör en jaktkniv i smedjan för att kunna flå den.'));
   }
 
 

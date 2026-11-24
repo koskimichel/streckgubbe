@@ -4,7 +4,7 @@
     if (state !== 'play') return;
     P.cd -= dt; P.inv -= dt; P.swing -= dt; P.shootCd -= dt; P.shotT -= dt; P.blockFlash -= dt;
     P.spinCd -= dt; P.bashCd -= dt; P.pwrCd -= dt; P.spinT -= dt; if (P.bowHold > 0) P.bowHold += dt;   // v3.7: krafter
-    P.blocking = P.shield > 0 && !!(keys.Shift || mouse.rdown || touch.shieldId != null);   // håller skölden uppe
+    P.blocking = P.shield > 0 && !!(held('shield') || mouse.rdown || touch.shieldId != null);   // håller skölden uppe
     P.calmT += dt;
     if (DF().regen && P.calmT > 3 && P.hp < maxHp() && !mons.some(function (m) { return !m.hidden && dist(m, P) < 170; })) {   /* Lätt: läker när det är lugnt */
       P.hp = Math.min(maxHp(), P.hp + DF().regen * C.player.hpPerHeart * dt);
@@ -23,17 +23,24 @@
       }
     }
     var ax = 0, ay = 0;
-    if (keys.ArrowLeft || keys.a) ax -= 1; if (keys.ArrowRight || keys.d) ax += 1;
-    if (keys.ArrowUp || keys.w) ay -= 1; if (keys.ArrowDown || keys.s) ay += 1;
+    if (held('left')) ax -= 1; if (held('right')) ax += 1;
+    if (held('up')) ay -= 1; if (held('down')) ay += 1;
     if (touch.joyId !== null && Math.hypot(touch.jx, touch.jy) > 0.18) { ax = touch.jx; ay = touch.jy; }
     P.moving = !!(ax || ay);
+    var EN = C.powers.endure, maxSt = EN.stamina[P.endure || 0];      // v3.7.1: spring så länge orken räcker
+    if (P.stamina == null || P.stamina > maxSt) P.stamina = Math.min(maxSt, P.stamina == null ? maxSt : P.stamina);
+    if (P.tired && P.stamina >= maxSt * 0.35) P.tired = false;
+    var runWant = P.moving && (held('run') || (touch.joyId !== null && Math.hypot(touch.jx, touch.jy) > 0.92));
+    P.running = runWant && !P.tired && P.stamina > 0 && !P.blocking;
+    if (P.running) { P.stamina -= dt; P.restT = 0; if (P.stamina <= 0) { P.stamina = 0; P.tired = true; } if (Math.random() < dt * 14) sparks(P.x - P.fx * 8, P.y + 11, biome.i === 3 ? '#ffffff' : '#cdbf9a', 1); }
+    else { P.restT = (P.restT || 0) + dt; if (P.restT > EN.delay) P.stamina = Math.min(maxSt, P.stamina + EN.regen[P.endure || 0] * dt); }
     if (ax || ay) {
       var l = Math.hypot(ax, ay), sp = Math.min(1, l * 1.4); ax /= l; ay /= l; P.fx = ax; P.fy = ay;
-      var slowK = (P.slow > 0 ? C.spider.slowFactor : 1) * (P.blocking ? C.shield.slow : 1);   // nät och sköld gör en långsam
+      var slowK = (P.slow > 0 ? C.spider.slowFactor : 1) * (P.blocking ? C.shield.slow : 1) * (P.running ? EN.speedMul : 1);   // nät och sköld gör en långsam, spring snabbare
       var tvx = ax * C.player.speed * sp * slowK, tvy = ay * C.player.speed * sp * slowK;
       if (P.icy > 0) { var ik = Math.min(1, 1.6 * dt); P.vx += (tvx - P.vx) * ik; P.vy += (tvy - P.vy) * ik; } else { P.vx = tvx; P.vy = tvy; }   // halt på is
       move(P, P.vx * dt, P.vy * dt);
-      P.walk += dt * 12 * sp; if (level === 1) guideMoved += C.player.speed * sp * dt;
+      P.walk += dt * 12 * sp * (P.running ? 1.5 : 1); if (level === 1) guideMoved += C.player.speed * sp * dt;
     } else if (mouse.has && mouse.down) {
       var mwp = toWorld(mouse.x, mouse.y), mdx = mwp.x - P.x, mdy = mwp.y - P.y, ml = Math.hypot(mdx, mdy) || 1; P.fx = mdx / ml; P.fy = mdy / ml;
     }
@@ -43,7 +50,7 @@
     }
     if (window.LJUD) LJUD.setCave(isCave[clamp(Math.floor(P.y / TS), 0, H - 1)][clamp(Math.floor(P.x / TS), 0, W - 1)]);
     if (touch.atkId !== null && !P.moving) aimNearest();
-    var atkHeld = !!(keys[' '] || mouse.down || touch.atkId !== null);
+    var atkHeld = !!(held('attack') || mouse.down || touch.atkId !== null);
     if (!chargeSpin(atkHeld, dt) && atkHeld) attack();         // v3.7: håller man in laddas snurrslaget
 
     // monster
@@ -118,7 +125,7 @@
     // tips: låg hälsa och kött i fickan
     if (eatHintT > 0) eatHintT -= dt;
     if (P.meat > 0 && P.hp <= maxHp() * 0.5 && eatHintT <= 0 && msgT <= 0) {
-      say(touchMode ? 'Lite hälsa! Tryck på köttet för att äta.' : 'Lite hälsa! Tryck E för att äta kött.'); eatHintT = 25;
+      say(touchMode ? 'Lite hälsa! Tryck på köttet för att äta.' : 'Lite hälsa! Tryck ' + KN('use') + ' för att äta kött.'); eatHintT = 25;
     }
     // döda
     mons = mons.filter(function (m) {
@@ -199,7 +206,7 @@
   }
 
   // ---------- v2.2: skada, boss, spindel, luft ----------
-  function monColor(m) { return m.type === 'boss' ? biome.bossColor : C.monsters[m.type].color; }
+  function monColor(m) { return m.type === 'boss' ? biome.bossColor : monBase(m); }
   function shieldBounce(m) {                                  // v3.6: den som slår på skölden kastas bakåt och blir yr
     var dx = m.x - P.x, dy = m.y - P.y, l = Math.hypot(dx, dy) || 1, boss = m.type === 'boss', kb = C.shield.bounce * (boss ? 0.3 : 1);
     m.kx = dx / l * kb; m.ky = dy / l * kb;

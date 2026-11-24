@@ -140,10 +140,12 @@ const CONFIG = {
 
   // Krafter (v3.7): lärs i smedjan för månsten, tre nivåer var. Håll in och släpp.
   powers: {
-    cost: [null, 1, 2, 3],                                     // månsten för att nå nivå 1-3
+    cost: [null, 1, 3, 5],                                     // månsten för att nå nivå 1-3 (v3.7.1: dyrare, man hittar knappt en per nivå)
     spin:  { hold: 0.35, charge: 0.55, radius: [0, 62, 72, 84], dmgMul: [0, 1.0, 1.3, 1.6], cooldown: [0, 3, 2.5, 2] },        // snurrslag: håll in Slå, släpp
     bash:  { radius: [0, 72, 86, 100], push: 380, stun: [0, 1.0, 1.3, 1.6], dmgMul: 0.5, cooldown: [0, 4, 3.5, 3] },        // sköldknuff: slå medan skölden är uppe
-    arrow: { charge: 0.6, dmgMul: [0, 2, 2.5, 3], pierce: [0, 2, 3, 4], rangeMul: 1.3, cooldown: [0, 2.5, 2, 1.5] }           // kraftpil: håll in Skjut, släpp
+    arrow: { charge: 0.6, dmgMul: [0, 2, 2.5, 3], pierce: [0, 2, 3, 4], rangeMul: 1.3, cooldown: [0, 2.5, 2, 1.5] },          // kraftpil: håll in Skjut, släpp
+    // v3.7.1: spring (alla kan), ork i sekunder per nivå av kraften Uthållighet (0-3), regen = ork per sekund efter delay s vila
+    endure: { speedMul: 1.6, stamina: [2.5, 3.5, 4.5, 6], regen: [0.8, 1.0, 1.25, 1.5], delay: 0.6, cost: [null, 1, 2, 4] }
   },
 
   // Blixtkraft (v2.3): varje kristall ger en laddning. Q eller Blixt-knappen slår ned blixtar på alla monster.

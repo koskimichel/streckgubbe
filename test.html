@@ -253,6 +253,15 @@
     check('Medel: svärdet tar slut tidigast i Snölandet', m.swordAt >= 18, 'nivå ' + m.swordAt);
     check('Lätt är som förut (allt klart senast nivå 22)', l.doneAt != null && l.doneAt <= 22, 'allt nivå ' + l.doneAt + ', svärdet nivå ' + l.swordAt);
     check('Svår tar längre tid än Medel', h.doneAt == null || h.doneAt > m.doneAt, 'allt nivå ' + (h.doneAt || 'efter 45') + ', svärdet nivå ' + h.swordAt);
+    // månstenar (v3.7.1): boss, kista, gömd i grotta, spöken 5 %
+    var PW = CFG().powers, cum = 0, firstAll = null, allMax = null, P2 = S().P;
+    var tier1 = 3 * PW.cost[1] + PW.endure.cost[1], total = 3 * (PW.cost[1] + PW.cost[2] + PW.cost[3]) + PW.endure.cost[1] + PW.endure.cost[2] + PW.endure.cost[3];
+    P2.chests = []; P2.bossDone = 0;
+    for (var n = 1; n <= 70; n++) { P2.maxLevel = n; s.build(n);
+      cum += s.items.filter(function (it) { return it.t === 'moon'; }).length + (n % 5 === 0 ? 1 : 0) + (s.puzzle && s.puzzle.chest ? 1 : 0) + s.mons.filter(function (mm) { return mm.type === 'ghost'; }).length * 0.05;
+      if (firstAll == null && cum >= tier1) firstAll = n; if (allMax == null && cum >= total) allMax = n; }
+    check('månsten: första nivån av alla fyra krafter tidigt (senast nivå 9)', firstAll != null && firstAll <= 9, 'nivå ' + firstAll + ' (' + tier1 + ' st)');
+    check('månsten: alla krafter färdiga först i varv 2 (nivå 35-50)', allMax >= 35 && allMax <= 50, 'nivå ' + allMax + ' (' + total + ' st)');
     s.setDiff('latt'); s.toTitle(); clearSaves(); await reloadGame();
   }
 
@@ -328,18 +337,45 @@
     s.toTitle();
   }
 
+  // ---------- egen styrning (v3.7.1) ----------
+  async function testKeys() {
+    grp('Egen styrning');
+    clearSaves(); await reloadGame(); var s = S(); s.playSlot(1); await wait(100); ensurePlay();
+    var P = s.P;
+    key('Escape'); await wait(30);
+    var ok1 = s.state === 'paused';
+    for (var i = 0; i < 7; i++) key('ArrowDown');                 // till raden Styrning på datorn
+    key('Enter'); var ok2 = s.state === 'keys';
+    key('Enter'); key('i');                                       // Gå upp, första rutan: I
+    key('Escape'); key('Escape'); await wait(30);
+    check('pausmenyn har Styrning och man kan byta tangent', ok1 && ok2 && s.state === 'play', s.state);
+    for (var cy = 2; cy < 16; cy++) s.map[cy][5] = 0; s.prey.length = 0;   // fri väg uppåt
+    s.mons.length = 0; P.x = 5.5 * 32; P.y = 12 * 32; P.inv = 99; var y0 = P.y;
+    keyDown('w'); s.step(0.3); keyUp('w'); var yw = P.y;
+    keyDown('i'); s.step(0.3); keyUp('i'); s.step(0.02);
+    check('den nya tangenten styr gubben, den gamla gör det inte', Math.abs(yw - y0) < 1 && P.y < yw - 10, 'W ' + (y0 - yw).toFixed(0) + ' px, I ' + (yw - P.y).toFixed(0) + ' px');
+    var saved = JSON.parse(localStorage.getItem('mm-installningar') || '{}');
+    check('tangenterna sparas', saved.keys && saved.keys.up && saved.keys.up[0] === 'i', JSON.stringify(saved.keys && saved.keys.up));
+    key('Escape'); for (i = 0; i < 7; i++) key('ArrowDown'); key('Enter'); for (i = 0; i < 10; i++) key('ArrowDown'); key('Enter');   // Som från början
+    var kb = JSON.parse(localStorage.getItem('mm-installningar')).keys;
+    key('Escape'); key('Escape');
+    check('Som från början återställer W', kb.up[0] === 'w' && kb.up[1] === 'ArrowUp', JSON.stringify(kb.up));
+    s.toTitle();
+  }
+
   // ---------- krafter (v3.7) ----------
   async function testPowers() {
     grp('Krafter med månsten');
     clearSaves(); await reloadGame(); var s = S(); s.setDiff('latt'); s.playSlot(1); await wait(100); ensurePlay();
     var P = s.P, C = CFG(), PW = C.powers, i;
-    Object.assign(P, { moon: 30, shield: 0, bow: 0, sword: 5, wood: 99, stone: 99 });
+    Object.assign(P, { moon: 60, shield: 0, bow: 0, sword: 5, wood: 99, stone: 99 });
     s.forge(); s.tab(2);
     var m0 = P.moon; s.buy(1);
     check('sköldknuffen kräver en sköld', P.bash === 0 && P.moon === m0);
     P.shield = 1; P.bow = 1; P.arrows = 10;
-    for (i = 0; i < 4; i++) { s.buy(0); s.buy(1); s.buy(2); }
-    check('tre krafter i tre nivåer, 1 + 2 + 3 månsten var', P.spin === 3 && P.bash === 3 && P.parrow === 3 && P.moon === 30 - 18, 'kvar ' + P.moon);
+    for (i = 0; i < 4; i++) { s.buy(0); s.buy(1); s.buy(2); s.buy(3); }
+    var pc = PW.cost, ec = PW.endure.cost, total = 3 * (pc[1] + pc[2] + pc[3]) + ec[1] + ec[2] + ec[3];
+    check('fyra krafter i tre nivåer kostar månsten enligt receptet', P.spin === 3 && P.bash === 3 && P.parrow === 3 && P.endure === 3 && P.moon === 60 - total, 'kostade ' + (60 - P.moon) + ' av ' + total);
     key('Escape'); s.step(0.05);
     // snurrslag
     Object.assign(P, { spin: 1, bash: 0, parrow: 0, x: 300, y: 300, fx: 1, fy: 0, inv: 99, hp: 999, spinCd: 0, cd: 0, blocking: false });
@@ -366,7 +402,17 @@
     check('kraftpilen går igenom ' + PW.arrow.pierce[1] + ' monster på nivå 1', hits === PW.arrow.pierce[1], hits + ' träffade');
     P.shootCd = 0; var a0 = s.arrows.length; s.pressBow(); s.releaseBow();
     check('kort tryck skjuter en vanlig pil', s.arrows.length === a0 + 1 && !s.arrows[s.arrows.length - 1].power);
-    s.mons.length = 0; s.arrows.length = 0; s.toTitle();
+    // spring och ork (v3.7.1)
+    s.mons.length = 0; s.arrows.length = 0; s.go(2); await wait(50); P = s.P;
+    Object.assign(P, { endure: 0, stamina: null, tired: false, inv: 99, hp: 999, x: 5 * 32, y: 9.5 * 32, blocking: false }); s.mons.length = 0;
+    for (var cx = 2; cx < 28; cx++) s.map[9][cx] = 0; s.prey.length = 0;   // fri väg åt höger
+    s.step(0.05); var x0 = P.x; keyDown('d'); s.step(0.5); var walkD = P.x - x0; keyUp('d'); s.step(0.05);
+    P.x = 5 * 32; P.y = 9.5 * 32; x0 = P.x; keyDown('c'); keyDown('d'); s.step(0.5); var runD = P.x - x0, st1 = P.stamina;
+    s.step(3); var tired = P.tired; keyUp('d'); keyUp('c'); s.step(0.05);
+    check('spring är snabbare än att gå', runD > walkD * 1.4, 'gå ' + walkD.toFixed(0) + ' px, spring ' + runD.toFixed(0) + ' px');
+    check('orken tar slut och gubben blir trött', st1 < PW.endure.stamina[0] && tired, 'ork ' + st1.toFixed(2));
+    s.step(4); check('orken kommer tillbaka när man vilar', P.stamina >= PW.endure.stamina[0] - 0.01 && !P.tired, P.stamina.toFixed(2));
+    s.toTitle();
   }
 
   // ---------- 6. hacka, lin, fiske och jakt ----------
@@ -417,14 +463,14 @@
   }
 
   // ---------- 8. sparning och sparplatser ----------
-  var SKIP = ['x', 'y', 'fx', 'fy', 'cd', 'inv', 'swing', 'walk', 'moving', 'pu', 'spk', 'vx', 'vy', 'shootCd', 'blocking', 'slow', 'icy', 'shotT', 'blockFlash', 'calmT', 'fish', 'portalLock', 'hp', 'spinCd', 'bashCd', 'pwrCd', 'atkHold', 'spinCharge', 'bowHold', 'spinT'];
+  var SKIP = ['x', 'y', 'fx', 'fy', 'cd', 'inv', 'swing', 'walk', 'moving', 'pu', 'spk', 'vx', 'vy', 'shootCd', 'blocking', 'slow', 'icy', 'shotT', 'blockFlash', 'calmT', 'fish', 'portalLock', 'hp', 'stamina', 'tired', 'restT', 'running', 'spinCd', 'bashCd', 'pwrCd', 'atkHold', 'spinCharge', 'bowHold', 'spinT'];
   function snapP(P) { var o = {}; for (var k in P) if (SKIP.indexOf(k) < 0) o[k] = JSON.parse(JSON.stringify(P[k])); return o; }
   async function testSaves() {
     grp('Sparning och sparplatser');
     clearSaves(); await reloadGame();
     var s = S(); s.playSlot(1); await wait(100);
     var P = s.P;
-    Object.assign(P, { hearts: 5, sword: 7, armor: 6, pick: 2, lamp: 2, moon: 3, moonEver: true, bolts: 2, wood: 11, stone: 12, ore: 13, iron: 14, gold: 15, star: 1, hasPick: true, shield: 2, bow: 2, arrows: 17, arrowHead: 1, flax: 4, hide: 3, rod: 1, knife: 1, quiver: 1, spin: 2, bash: 1, parrow: 3, maxLevel: 9, chests: [2, 8], minedMap: { '1': ['3,3'] }, backSeen: true, flaxSeen: true, treasureSeen: true, bossDone: 5 });
+    Object.assign(P, { hearts: 5, sword: 7, armor: 6, pick: 2, lamp: 2, moon: 3, moonEver: true, bolts: 2, wood: 11, stone: 12, ore: 13, iron: 14, gold: 15, star: 1, hasPick: true, shield: 2, bow: 2, arrows: 17, arrowHead: 1, flax: 4, hide: 3, rod: 1, knife: 1, quiver: 1, spin: 2, bash: 1, parrow: 3, endure: 2, runSeen: true, maxLevel: 9, chests: [2, 8], minedMap: { '1': ['3,3'] }, backSeen: true, flaxSeen: true, treasureSeen: true, bossDone: 5 });
     var before = snapP(P); s.toTitle(); await reloadGame(); s = S(); s.playSlot(1); await wait(100);
     var after = snapP(s.P), diff = [];
     Object.keys(before).forEach(function (k) { if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) diff.push(k); });
@@ -467,7 +513,7 @@
   async function runAll() {
     btn.disabled = true; results.length = 0; tbl.innerHTML = ''; sum.textContent = 'Kör ...';
     var t0 = performance.now();
-    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves, testPowers, testPuzzles, testBalance];
+    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves, testPowers, testKeys, testPuzzles, testBalance];
     for (var i = 0; i < steps.length; i++) {
       try { await steps[i](); } catch (e) { check('testet kraschade', false, e && e.message); }
     }

@@ -1,4 +1,5 @@
   // ---------- HUD ----------
+  var bossBarTop = false;                                       // v3.7.1: bossens hälsa flyttar upp när bossen eller gubben är längst ned
   function tag(x, y, w, h) {                              // kritlapp
     rr(g, x, y, w, h, 9); g.fillStyle = 'rgba(16,36,18,0.78)'; g.fill();
     g.strokeStyle = 'rgba(250,250,242,0.55)'; g.lineWidth = 1.4; g.stroke();
@@ -72,18 +73,18 @@
     var stats = [
       [iconWood, String(P.wood)],
       [iconStone, String(P.stone)],
-      [function (x, y) { meatShape(x + 2, y, 0.6); }, String(P.meat), touchMode ? null : 'E'],
+      [function (x, y) { meatShape(x + 2, y, 0.6); }, String(P.meat), touchMode ? null : KS('use')],
       [iconSword, P.sword ? 'nivå ' + P.sword : 'pinne']
     ];
     var hasFlax = P.flax > 0 || P.rod;
     if (hasFlax) stats.splice(2, 0, [iconFlaxS, String(P.flax)]);
     if (P.hide > 0 || P.quiver) stats.splice(hasFlax ? 3 : 2, 0, [iconHideS, String(P.hide)]);
     if (P.moonEver || P.moon > 0) stats.splice(2, 0, [function (x, y) { moonShape(x, y, 0.62); }, String(P.moon)]);
-    stats.splice(0, 0, [function (x, y) { g.save(); g.translate(x, y); g.scale(0.55, 0.55); iconBolt(); g.restore(); }, P.bolts + '/' + C.boltPower.max, touchMode ? null : 'Q']);
+    stats.splice(0, 0, [function (x, y) { g.save(); g.translate(x, y); g.scale(0.55, 0.55); iconBolt(); g.restore(); }, P.bolts + '/' + C.boltPower.max, touchMode ? null : KS('bolt')]);
     var metStats = [];                                           // metaller som du har eller kan bryta
     for (var mt = 0; mt < 4; mt++) if (metalAmt(mt) > 0 || mt <= P.pick) (function (q) { metStats.push([function (x, y) { iconMetal(x, y, q); }, String(metalAmt(q))]); })(mt);
     stats.splice.apply(stats, [3, 0].concat(metStats));
-    if (P.bow > 0) stats.splice(1, 0, [iconArrowSmall, String(P.arrows), touchMode ? null : 'F']);   // pilar
+    if (P.bow > 0) stats.splice(1, 0, [iconArrowSmall, String(P.arrows), touchMode ? null : KS('bow')]);   // pilar
     g.font = 'bold 15px ' + TXT;
     var x0 = 10 + w1 + 10, wStats = 14;
     stats.forEach(function (s) { wStats += 22 + g.measureText(s[1]).width + 16 + (s[2] ? 24 : 0); });
@@ -129,16 +130,19 @@
       g.textAlign = 'center'; g.fillStyle = PAL.bolt; g.fillText(msg, LW / 2, my + 17);
       g.restore(); g.textAlign = 'left';
     }
-    // bossens hälsa längst ned
+    // bossens hälsa: smal ruta längst ned, eller uppe när bossen eller gubben är längst ned (v3.7.1)
     var boss = null; mons.forEach(function (m) { if (m.type === 'boss') boss = m; });
     if (boss) {
-      var bw2 = 320, bx2 = LW / 2 - bw2 / 2, by2 = LH - 38;
-      tag(bx2 - 14, by2 - 28, bw2 + 28, 52);
-      g.font = 'bold 15px ' + TXT; g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.fillText(biome.boss, LW / 2, by2 - 13);
-      rr(g, bx2, by2, bw2, 12, 6); g.fillStyle = 'rgba(40,10,10,0.9)'; g.fill();
+      var sbo = toScreen(boss.x, boss.y), spl = toScreen(P.x, P.y), lowest = Math.max(sbo.y + boss.r, spl.y + 20);
+      if (lowest > LH - 120) bossBarTop = true; else if (lowest < LH - 190) bossBarTop = false;   // glapp så att den inte hoppar fram och tillbaka
+      var bw2 = 300, bx2 = LW / 2 - bw2 / 2, by2 = bossBarTop ? 114 : LH - 22;
+      g.save(); g.globalAlpha = 0.9;
+      tag(bx2 - 12, by2 - 23, bw2 + 24, 38);
+      g.font = 'bold 14px ' + TXT; g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.fillText(biome.boss, LW / 2, by2 - 10);
+      rr(g, bx2, by2, bw2, 9, 5); g.fillStyle = 'rgba(40,10,10,0.9)'; g.fill();
       var bk = Math.max(0, boss.hp / boss.maxHp);
-      if (bk > 0) { rr(g, bx2, by2, Math.max(12, bw2 * bk), 12, 6); g.fillStyle = '#ff4d4d'; g.fill(); }
-      g.textAlign = 'left';
+      if (bk > 0) { rr(g, bx2, by2, Math.max(10, bw2 * bk), 9, 5); g.fillStyle = '#ff4d4d'; g.fill(); }
+      g.restore(); g.textAlign = 'left';
     }
     // hint vid smältstation
     if (state === 'play' && smeltPos && Math.hypot(smeltPos.x - P.x, smeltPos.y - P.y) < TS * 2) {

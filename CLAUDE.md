@@ -1,4 +1,11 @@
-# Malm & Monster (Mines & Monsters), version 3.7
+# Malm & Monster (Mines & Monsters), version 3.7.1
+
+v3.7.1:
+- Monster efter värld: `MON_LOOK[biome.i]` (färg per monstertyp + `deco`: leaf, sand, frost, magma), `monBase(m)` ger färgen (även `monColor`), `monDeco(m)` ritar detaljen. Ängen har grundfärgerna i config.
+- Spring och ork: alla kan springa (`C.powers.endure.speedMul`); dator: håll in springtangenten (standard C), platta: dra styrspaken ända ut (> 0.92). `P.stamina` (sekunder), `P.tired` tills 35 % är tillbaka, vila `delay` s före `regen`. Kraften Uthållighet (`P.endure` 0-3, `endure.stamina`/`regen`/`cost`) i fliken Krafter. Orkmätare under gubben i `drawPowers`. Tips om spring en gång från nivå 3 (`P.runSeen`).
+- Egen styrning på datorn: `settings.keys` (två tangenter per handling, `KEY_ACTS`, `KEY_DEF`, `keyBinds`). Använd `held(act)` och `isKey(act, k)` i stället för `keys.x`; `KN(act)` ger tangentens namn i texter, `KS(act)` kort namn i HUD. Pausmenyns rad Styrning på datorn öppnar `state = 'keys'` (`overlayKeys`, `keysKey`, `keysHit`, `setKey` tar bort tangenten från andra handlingar, Som från början = `resetKeys`). Menyerna (paus, smedja, titel) har fasta tangenter.
+- Bossens hälsa är en smal ruta längst ned som flyttar upp under HUD:en när bossen eller gubben är längst ned (`bossBarTop`, med glapp så att den inte hoppar).
+- Månsten: man hittar knappt en per nivå (boss, kista, grotta var 3:e nivå, spöken 5 %). Krafterna kostar 1/3/5 (Uthållighet 1/2/4): första nivån av alla fyra runt nivå 6, allt runt nivå 41. `test.html` (Balans) mäter det.
 
 v3.7:
 - Krafter (`C.powers`, smedjans tredje flik Krafter, kostar månsten 1/2/3 per nivå, max 3): `P.spin`, `P.bash`, `P.parrow` (sparas). Snurrslag: håll in Slå (`chargeSpin`, `P.atkHold`, `P.spinCharge`), släpp när ringen är full (`doSpin`, träffar alla inom `radius`, `P.spinCd`). Sköldknuff: slå med skölden uppe (`attack` -> `shieldBash`, knuff + yr, fx `bash`, `P.bashCd`). Kraftpil: med `P.parrow` laddar F/Skjut när man håller in (`pressBow`/`releaseBow`, `P.bowHold`); full ring = pil som går igenom `pierce` monster (`a.power`, `a.hits`), kort tryck = vanlig pil. Ringar och svep ritas i `drawPowers`. Bash kräver sköld, kraftpil kräver båge. Månsten används bara till krafter.

@@ -7,9 +7,10 @@
     { k: 'shake', label: 'Skärmskak', vals: [0, 0.5, 1], names: ['Av', 'Lite', 'Full'] },
     { k: 'flash', label: 'Blinkningar vid träff', vals: [true, false], names: ['På', 'Av'] },
     { k: 'numbers', label: 'Skadetal', vals: [true, false], names: ['På', 'Av'] },
-    { k: 'guide', label: 'Guide på nivå 1', vals: [true, false], names: ['På', 'Av'] }
+    { k: 'guide', label: 'Guide på nivå 1', vals: [true, false], names: ['På', 'Av'] },
+    { k: 'controls', label: 'Styrning på datorn', action: true }   // v3.7.1: öppnar Styrning
   ];
-  var PX = LW / 2 - 220, PW = 440, PY0 = 146, PH = 38, PSTEP = 44, PBY = PY0 + 7 * PSTEP + 26;
+  var PX = LW / 2 - 220, PW = 440, PY0 = 140, PH = 34, PSTEP = 40, PBY = PY0 + PROWS.length * PSTEP + 26;
   var PB_GO = { x: LW / 2 - 112, y: PBY, w: 200, h: 48 }, PB_NEW = { x: LW / 2 + 112, y: PBY, w: 200, h: 48 };
   function inBox(p, b) { return Math.abs(p.x - b.x) < b.w / 2 + 6 && Math.abs(p.y - b.y) < b.h / 2 + 6; }
   function askNew() {                                       // v3.4: till titeln (spelet är sparat), där väljer man plats
@@ -26,6 +27,7 @@
     state = 'play'; if (window.LJUD) LJUD.duck(false); sfx('click');
   }
   function cycleRow(i, dir) {
+    if (PROWS[i].action) { openKeys(); return; }
     var r = PROWS[i], idx = r.vals.indexOf(settings[r.k]); if (idx < 0) idx = 0;
     idx = (idx + (dir || 1) + r.vals.length) % r.vals.length;
     settings[r.k] = r.vals[idx]; applySettings(); sfx('click');
@@ -44,11 +46,11 @@
     chalkTitle('Paus', LW / 2, 100, 48);
     g.textBaseline = 'middle';
     PROWS.forEach(function (r, i) {
-      var y = PY0 + i * PSTEP, idx = r.vals.indexOf(settings[r.k]);
+      var y = PY0 + i * PSTEP, idx = r.vals ? r.vals.indexOf(settings[r.k]) : 0;
       tag(PX, y, PW, PH);
       if (i === pauseSel && !touchMode) { rr(g, PX, y, PW, PH, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
       g.font = 'bold 18px ' + TXT; g.textAlign = 'left'; g.fillStyle = PAL.chalk; g.fillText(r.label, PX + 18, y + PH / 2 + 1);
-      g.textAlign = 'right'; g.fillStyle = PAL.bolt; g.fillText(r.names[idx < 0 ? 0 : idx], PX + PW - 18, y + PH / 2 + 1);
+      g.textAlign = 'right'; g.fillStyle = PAL.bolt; g.fillText(r.action ? 'Ändra' : r.names[idx < 0 ? 0 : idx], PX + PW - 18, y + PH / 2 + 1);
     });
     [[PB_GO, 'Fortsätt', PROWS.length], [PB_NEW, 'Till titeln', PROWS.length + 1]].forEach(function (b) {
       var B = b[0]; tag(B.x - B.w / 2, B.y - B.h / 2, B.w, B.h);
@@ -58,7 +60,74 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.4', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.1', LW / 2, LH - 14);
+    g.textAlign = 'left';
+  }
+
+  // ---------- styrning på datorn (v3.7.1) ----------
+  var keySel = 0, keySlot = 0, keyWait = false;
+  var KX = LW / 2 - 270, KW = 540, KY0 = 112, KH = 32, KSTEP = 36, KBY = KY0 + KEY_ACTS.length * KSTEP + 30;
+  var KB_RESET = { x: LW / 2 - 112, y: KBY, w: 200, h: 44 }, KB_DONE = { x: LW / 2 + 112, y: KBY, w: 200, h: 44 };
+  function moveKeysText() {
+    var b = keyBinds(), std = ['up', 'down', 'left', 'right'].every(function (a) { return b[a][0] === KEY_DEF[a][0] && b[a][1] === KEY_DEF[a][1]; });
+    return std ? 'WASD eller pilarna' : ['up', 'left', 'down', 'right'].map(function (a) { return KS(a); }).join(' ');
+  }
+  function keyBoxX(j) { return KX + KW - 270 + j * 136; }
+  function openKeys() { state = 'keys'; keySel = 0; keySlot = 0; keyWait = false; keys = {}; sfx('click'); }
+  function closeKeys() { keyWait = false; state = 'paused'; keys = {}; applySettings(); sfx('click'); }
+  function setKey(act, slot, k) {                                 // en tangent kan bara göra en sak: tas bort från andra handlingar
+    var kb = keyBinds();
+    KEY_ACTS.forEach(function (a) { var b = kb[a[0]]; for (var j = 0; j < 2; j++) if (b[j] === k) b[j] = ''; });
+    kb[act][slot] = k; applySettings();
+  }
+  function resetKeys() { settings.keys = null; keyBinds(); applySettings(); sfx('click'); }
+  function keysKey(k) {
+    var N = KEY_ACTS.length;
+    if (keyWait) {
+      if (k === 'Escape') { keyWait = false; return; }
+      if (k === 'Backspace' || k === 'Delete') { keyBinds()[KEY_ACTS[keySel][0]][keySlot] = ''; applySettings(); keyWait = false; sfx('click'); return; }
+      if (k === 'p' || k === 'Enter' || k === 'Tab' || k === 'Meta' || k === 'Alt' || k === 'Control' || k === 'CapsLock') { sfx('deny'); return; }   // fasta eller osäkra tangenter
+      setKey(KEY_ACTS[keySel][0], keySlot, k); keyWait = false; sfx('click'); return;
+    }
+    if (k === 'Escape' || k === 'p') closeKeys();
+    else if (k === 'ArrowUp') keySel = (keySel + N + 1) % (N + 2);
+    else if (k === 'ArrowDown') keySel = (keySel + 1) % (N + 2);
+    else if (k === 'ArrowLeft' || k === 'ArrowRight') { if (keySel < N) keySlot = 1 - keySlot; else keySel = keySel === N ? N + 1 : N; }
+    else if (k === 'Enter' || k === ' ') { if (keySel < N) keyWait = true; else if (keySel === N) resetKeys(); else closeKeys(); }
+  }
+  function keysHit(p) {
+    for (var i = 0; i < KEY_ACTS.length; i++) {
+      var y = KY0 + i * KSTEP;
+      for (var j = 0; j < 2; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + 126 && p.y > y && p.y < y + KH) { keySel = i; keySlot = j; keyWait = true; sfx('click'); return; }
+    }
+    keyWait = false;
+    if (inBox(p, KB_RESET)) resetKeys(); else if (inBox(p, KB_DONE)) closeKeys();
+  }
+  function overlayKeys() {
+    g.fillStyle = 'rgba(8,16,10,0.9)'; g.fillRect(0, 0, LW, LH);
+    chalkTitle('Styrning', LW / 2, 66, 42);
+    g.textBaseline = 'middle';
+    var kb = keyBinds();
+    KEY_ACTS.forEach(function (a, i) {
+      var y = KY0 + i * KSTEP;
+      tag(KX, y, KW, KH);
+      if (i === keySel && !touchMode) { rr(g, KX, y, KW, KH, 8); g.strokeStyle = 'rgba(255,225,77,0.5)'; g.lineWidth = 1.5; g.stroke(); }
+      g.font = 'bold 17px ' + TXT; g.textAlign = 'left'; g.fillStyle = PAL.chalk; g.fillText(a[1], KX + 16, y + KH / 2 + 1);
+      for (var j = 0; j < 2; j++) {
+        var bx = keyBoxX(j), on = i === keySel && j === keySlot, wait = on && keyWait, kk = kb[a[0]][j];
+        rr(g, bx, y + 3, 126, KH - 6, 6); g.fillStyle = wait ? 'rgba(255,225,77,0.35)' : 'rgba(250,250,242,0.08)'; g.fill();
+        g.strokeStyle = on ? PAL.bolt : 'rgba(250,250,242,0.3)'; g.lineWidth = on ? 2 : 1; g.stroke();
+        g.textAlign = 'center'; g.font = (wait ? '' : 'bold ') + '15px ' + TXT; g.fillStyle = kk || wait ? PAL.chalk : 'rgba(250,250,242,0.35)';
+        g.fillText(wait ? 'Tryck en tangent' : kk ? keyName(kk) : 'tom', bx + 63, y + KH / 2 + 1);
+      }
+    });
+    [[KB_RESET, 'Som från början', KEY_ACTS.length], [KB_DONE, 'Klar', KEY_ACTS.length + 1]].forEach(function (b) {
+      var B = b[0]; tag(B.x - B.w / 2, B.y - B.h / 2, B.w, B.h);
+      if (keySel === b[2] && !touchMode) { rr(g, B.x - B.w / 2, B.y - B.h / 2, B.w, B.h, 9); g.strokeStyle = PAL.bolt; g.lineWidth = 2.5; g.stroke(); }
+      g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 19px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
+    });
+    g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.textAlign = 'center';
+    g.fillText(keyWait ? 'Tryck tangenten du vill ha. Backsteg tömmer rutan, Esc ångrar.' : 'Klicka på en ruta och tryck sedan tangenten. Musen slår (vänster) och håller skölden (höger).', LW / 2, KBY + 40);
     g.textAlign = 'left';
   }
 
@@ -84,7 +153,8 @@
     if (k === 'knife') return Cc.knife;
     if (k === 'quiver') return Cc.quiver[lvl];
     if (k === 'head') return Cc.arrowHead[lvl];
-    if (k === 'spin' || k === 'bash' || k === 'parrow') return { moon: C.powers.cost[lvl] };   // v3.7: krafter kostar månsten
+    if (k === 'spin' || k === 'bash' || k === 'parrow') return { moon: C.powers.cost[lvl] };
+    if (k === 'endure') return { moon: C.powers.endure.cost[lvl] };   // v3.7.1   // v3.7: krafter kostar månsten
     return Cc.lantern[lvl];                                       // v3.6: lyktan kostar metall, månsten blir kraft
   }
   function swordName(l) { return l <= 2 ? 'Stensvärd' : l <= 5 ? 'Kopparsvärd' : l <= 8 ? 'Järnsvärd' : l <= 11 ? 'Guldsvärd' : 'Stjärnsvärd'; }
@@ -108,11 +178,13 @@
       { tab: 1, k: 'rod', name: 'Fiskespö', lvl: P.rod, max: 1, desc: 'Fiska vid dammar. En fisk räknas som mat.', icon: iconRod },
       { tab: 1, k: 'knife', name: 'Jaktkniv', lvl: P.knife, max: 1, desc: 'Flå djur som du fångat. Ger kött och ibland skinn.', icon: iconKnife },
       { tab: 2, k: 'spin', name: 'Snurrslag' + (P.spin ? ', nivå ' + Math.min(3, P.spin + 1) : ''), lvl: P.spin, max: 3,
-        desc: P.spin ? 'Större och starkare snurr' : (touchMode ? 'Håll fingret till höger, släpp: slår alla runt dig' : 'Håll in mellanslag, släpp: slår alla runt dig'), icon: iconSpin },
+        desc: P.spin ? 'Större och starkare snurr' : (touchMode ? 'Håll fingret till höger, släpp: slår alla runt dig' : 'Håll in ' + KN('attack') + ', släpp: slår alla runt dig'), icon: iconSpin },
       { tab: 2, k: 'bash', name: 'Sköldknuff' + (P.bash ? ', nivå ' + Math.min(3, P.bash + 1) : ''), lvl: P.bash, max: 3,
         desc: !P.shield ? 'Kräver en sköld' : P.bash ? 'Längre knuff, yrare monster' : 'Slå med skölden uppe: alla runt dig flyger', icon: iconBash },
       { tab: 2, k: 'parrow', name: 'Kraftpil' + (P.parrow ? ', nivå ' + Math.min(3, P.parrow + 1) : ''), lvl: P.parrow, max: 3,
-        desc: !P.bow ? 'Kräver en pilbåge' : P.parrow ? 'Starkare, går igenom fler' : (touchMode ? 'Håll in Skjut, släpp: pilen går igenom flera' : 'Håll in F, släpp: pilen går igenom flera'), icon: iconPowerArrow },
+        desc: !P.bow ? 'Kräver en pilbåge' : P.parrow ? 'Starkare, går igenom fler' : (touchMode ? 'Håll in Skjut, släpp: pilen går igenom flera' : 'Håll in ' + KN('bow') + ', släpp: pilen går igenom flera'), icon: iconPowerArrow },
+      { tab: 2, k: 'endure', name: 'Uthållighet' + (P.endure ? ', nivå ' + Math.min(3, P.endure + 1) : ''), lvl: P.endure, max: 3,
+        desc: P.endure < 3 ? 'Spring längre: ' + fmt(C.powers.endure.stamina[P.endure + 1]) + ' s i stället för ' + fmt(C.powers.endure.stamina[P.endure]) + ' s' : 'Du orkar springa ' + fmt(C.powers.endure.stamina[3]) + ' s', icon: iconRun },
       { tab: 1, k: 'quiver', name: P.quiver < 3 ? ['Större koger', 'Läderkoger', 'Stort koger'][P.quiver] : 'Koger', lvl: P.quiver, max: 3,
         desc: P.quiver < 3 ? 'Bär ' + maxArrows(P.quiver + 1) + ' pilar i stället för ' + maxArrows() : 'Bär ' + maxArrows() + ' pilar', icon: iconQuiverBig }
     ];
@@ -166,15 +238,16 @@
     else if (r.k === 'armor') { var ap = (P.armor) % 4, am = Math.floor(P.armor / 4); P.armor++; say(ARMOR_PART[ap] + ' av ' + MET[am].name + '! Rustningen är nu nivå ' + P.armor + ' av 16.'); }
     else if (r.k === 'pick') { if (!P.hasPick) { P.hasPick = true; say('Du gjorde en stenhacka! Nu kan du bryta koppar.'); } else { P.pick++; say('Ny ' + PICK_NAME[P.pick] + '! Nu kan du bryta ' + MET[P.pick].name + '.'); } }
     else if (r.k === 'lamp') { P.lamp++; say('Lyktan är nu nivå ' + P.lamp); }
-    else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : 'Shift eller höger musknapp') + ' för att parera.'); }
-    else if (r.k === 'bow') { P.bow++; if (P.bow === 1) P.arrows = Math.max(P.arrows, Math.min(5, maxArrows())); say(['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow - 1] + '! ' + (touchMode ? 'Tryck Skjut' : 'Tryck F') + ' för att skjuta.'); }
+    else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : KN('shield') + ' eller höger musknapp') + ' för att parera.'); }
+    else if (r.k === 'bow') { P.bow++; if (P.bow === 1) P.arrows = Math.max(P.arrows, Math.min(5, maxArrows())); say(['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow - 1] + '! ' + (touchMode ? 'Tryck Skjut' : 'Tryck ' + KN('bow')) + ' för att skjuta.'); }
     else if (r.k === 'arrows') { var a0 = P.arrows; P.arrows = Math.max(a0, Math.min(maxArrows(), a0 + C.bow.arrowsPerCraft)); say('+' + (P.arrows - a0) + ' pilar (du har ' + P.arrows + ' av ' + maxArrows() + ')'); }
     else if (r.k === 'head') { P.arrowHead++; say('Pilspetsar av ' + MET[P.arrowHead - 1].name + '! Pilarna gör nu ' + fmt(arrowDamage()) + ' i skada.'); }
-    else if (r.k === 'rod') { P.rod = 1; say('Ett fiskespö! Ställ dig vid en damm och tryck ' + (touchMode ? 'Fiska' : 'E') + '.'); }
-    else if (r.k === 'knife') { P.knife = 1; say('En jaktkniv! Fånga ett djur och tryck ' + (touchMode ? 'Flå' : 'E') + ' för att flå det.'); }
-    else if (r.k === 'spin') { P.spin++; say(P.spin === 1 ? 'Snurrslag! ' + (touchMode ? 'Håll fingret på högra sidan tills ringen är full och släpp.' : 'Håll in mellanslag tills ringen är full och släpp.') : 'Snurrslaget är nu nivå ' + P.spin + '.'); }
-    else if (r.k === 'bash') { P.bash++; say(P.bash === 1 ? 'Sköldknuff! Håll upp skölden och ' + (touchMode ? 'tryck på högra sidan.' : 'tryck mellanslag.') : 'Sköldknuffen är nu nivå ' + P.bash + '.'); }
-    else if (r.k === 'parrow') { P.parrow++; say(P.parrow === 1 ? 'Kraftpil! Håll in ' + (touchMode ? 'Skjut' : 'F') + ' tills den blå ringen är full och släpp.' : 'Kraftpilen är nu nivå ' + P.parrow + '.'); }
+    else if (r.k === 'rod') { P.rod = 1; say('Ett fiskespö! Ställ dig vid en damm och tryck ' + (touchMode ? 'Fiska' : KN('use')) + '.'); }
+    else if (r.k === 'knife') { P.knife = 1; say('En jaktkniv! Fånga ett djur och tryck ' + (touchMode ? 'Flå' : KN('use')) + ' för att flå det.'); }
+    else if (r.k === 'endure') { P.endure++; P.stamina = C.powers.endure.stamina[P.endure]; say('Uthållighet nivå ' + P.endure + '! Nu orkar du springa ' + fmt(P.stamina) + ' sekunder.'); }
+    else if (r.k === 'spin') { P.spin++; say(P.spin === 1 ? 'Snurrslag! ' + (touchMode ? 'Håll fingret på högra sidan tills ringen är full och släpp.' : 'Håll in ' + KN('attack') + ' tills ringen är full och släpp.') : 'Snurrslaget är nu nivå ' + P.spin + '.'); }
+    else if (r.k === 'bash') { P.bash++; say(P.bash === 1 ? 'Sköldknuff! Håll upp skölden och ' + (touchMode ? 'tryck på högra sidan.' : 'tryck ' + KN('attack') + '.') : 'Sköldknuffen är nu nivå ' + P.bash + '.'); }
+    else if (r.k === 'parrow') { P.parrow++; say(P.parrow === 1 ? 'Kraftpil! Håll in ' + (touchMode ? 'Skjut' : KN('bow')) + ' tills den blå ringen är full och släpp.' : 'Kraftpilen är nu nivå ' + P.parrow + '.'); }
     else { P.quiver++; say(['Större koger', 'Läderkoger', 'Stort koger'][P.quiver - 1] + '! Nu kan du bära ' + maxArrows() + ' pilar.'); }
     sfx('craft'); powerUp(); save();
   }
@@ -254,11 +327,11 @@
   function oreList(k) { return oreTiles.filter(function (o) { return map[o.y][o.x] === ORE && (oreT[o.x + ',' + o.y] || 0) === k; }).map(function (o) { return { x: (o.x + 0.5) * TS, y: (o.y + 0.5) * TS }; }); }
   function guideNow() {
     if (!settings.guide || level !== 1 || state !== 'play') return null;
-    var T = touchMode, hit = T ? 'tryck Slå' : 'slå med mellanslag';
-    if (guideMoved < 80 && P.sword === 0 && P.wood === 0) return { t: T ? 'Dra med vänster tumme för att gå.' : 'Gå med piltangenterna eller WASD.' };
+    var T = touchMode, hit = T ? 'tryck Slå' : 'slå med ' + KN('attack');
+    if (guideMoved < 80 && P.sword === 0 && P.wood === 0) return { t: T ? 'Dra med vänster tumme för att gå.' : 'Gå med ' + moveKeysText() + '.' };
     if (P.sword === 0 && P.wood < 2) return { t: 'Hugg träd: gå fram till ett träd och ' + hit + '. Trä: ' + P.wood + ' av 2.', target: nearest(treeList()) };
     if (P.sword === 0 && P.stone < 3) return { t: 'Bryt sten: ' + hit + ' på en grå sten. Sten: ' + P.stone + ' av 3.', target: nearest(stoneList()) };
-    if (P.sword === 0) return { t: 'Gå till ugnen, ' + (T ? 'tryck Smid' : 'tryck E') + ' och gör ett stensvärd.', target: smeltPos };
+    if (P.sword === 0) return { t: 'Gå till ugnen, ' + (T ? 'tryck Smid' : 'tryck ' + KN('use')) + ' och gör ett stensvärd.', target: smeltPos };
     if (!P.hasPick && P.wood < 2) return { t: 'Nu behövs en stenhacka. Hugg mer trä: ' + P.wood + ' av 2.', target: nearest(treeList()) };
     if (!P.hasPick && P.stone < 3) return { t: 'Bryt mer sten till stenhackan: ' + P.stone + ' av 3.', target: nearest(stoneList()) };
     if (!P.hasPick) return { t: 'Gå till ugnen och gör en stenhacka. Den behövs för att bryta koppar.', target: smeltPos };

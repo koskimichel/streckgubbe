@@ -288,9 +288,41 @@
       }
     });
   }
+  // v3.7.1: monstren får världens färger och en liten detalj (löv, sand, frost, glöd). null = grundfärgerna i config.
+  var MON_LOOK = [
+    null,
+    { slime: '#3f9e3a', bat: '#5d7d34', spider: '#3e4f26', ghost: '#c4ecd0', brute: '#5f8a3a', deco: 'leaf' },
+    { slime: '#d8b25a', bat: '#a8763e', spider: '#8a5a2e', ghost: '#f0e0b6', brute: '#c47e3e', deco: 'sand' },
+    { slime: '#9fd6f4', bat: '#cfdcea', spider: '#6f82a6', ghost: '#eaf7ff', brute: '#e6edf4', deco: 'frost' },
+    { slime: '#ff6a2a', bat: '#5a2626', spider: '#2a1818', ghost: '#ffb35a', brute: '#4a3838', deco: 'magma' }
+  ];
+  function monBase(m) { var L = MON_LOOK[biome.i]; return (L && L[m.type]) || C.monsters[m.type].color; }
+  function monDeco(m) {
+    var L = MON_LOOK[biome.i], dc = L && L.deco; if (!dc) return;
+    var t = m.type, top = t === 'slime' ? m.y + 2 - m.r * 0.8 : t === 'brute' ? m.y - m.r + 2 : t === 'bat' ? m.y - 6 : t === 'spider' ? m.y - 9 : m.y - 11;
+    if (dc === 'leaf') {                                         // Djungeln: ett blad på huvudet
+      if (t === 'ghost' || t === 'bat') return;
+      g.save(); g.translate(m.x + 3, top - 1); g.rotate(-0.5 + Math.sin(time * 3 + m.ph) * 0.15);
+      g.fillStyle = '#86e05a'; g.beginPath(); g.ellipse(0, -5, 3.4, 6, 0, 0, 7); g.fill();
+      g.strokeStyle = '#3c7a26'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, 1); g.lineTo(0, -9); g.stroke(); g.restore();
+    } else if (dc === 'sand') {                                  // Öknen: mörkare fläckar och en liten tagg
+      g.fillStyle = 'rgba(90,50,10,0.35)';
+      [[-0.4, 0.1, 2.4], [0.35, -0.2, 1.8], [0.1, 0.45, 1.6]].forEach(function (q) { g.beginPath(); g.arc(m.x + q[0] * m.r, m.y + 2 + q[1] * m.r, q[2], 0, 7); g.fill(); });
+      if (t === 'slime' || t === 'brute') { g.fillStyle = '#7a4a1a'; g.beginPath(); g.moveTo(m.x - 3, top + 2); g.lineTo(m.x, top - 6); g.lineTo(m.x + 3, top + 2); g.closePath(); g.fill(); }
+    } else if (dc === 'frost') {                                 // Snölandet: iskristaller ovanpå och vit kant
+      g.fillStyle = 'rgba(255,255,255,0.95)'; g.strokeStyle = 'rgba(120,180,220,0.9)'; g.lineWidth = 0.8;
+      [-5, 0, 5].forEach(function (dx, j) { var h = j === 1 ? 7 : 5; g.beginPath(); g.moveTo(m.x + dx - 2.2, top + 2); g.lineTo(m.x + dx, top + 2 - h); g.lineTo(m.x + dx + 2.2, top + 2); g.closePath(); g.fill(); g.stroke(); });
+    } else if (dc === 'magma') {                                 // Lavalandet: glöd och glödande sprickor
+      g.save(); g.globalCompositeOperation = 'lighter'; glow(m.x, m.y, m.r * 1.7, '255,110,40', 0.28 + 0.08 * Math.sin(time * 4 + m.ph)); g.restore();
+      if (t === 'ghost') return;
+      g.strokeStyle = 'rgba(255,190,60,' + (0.75 + 0.25 * Math.sin(time * 5 + m.ph)) + ')'; g.lineWidth = 1.4; g.lineCap = 'round'; g.beginPath();
+      g.moveTo(m.x - m.r * 0.5, m.y - 1); g.lineTo(m.x - m.r * 0.15, m.y + 3); g.lineTo(m.x - m.r * 0.3, m.y + m.r * 0.5);
+      g.moveTo(m.x + m.r * 0.45, m.y - 3); g.lineTo(m.x + m.r * 0.2, m.y + 2); g.stroke();
+    }
+  }
   function drawMonsters() {
     mons.forEach(function (m) {
-      var d = m.type === 'boss' ? { color: biome.bossColor } : C.monsters[m.type], flash = m.hit > 0, white = flash && FXC.flash !== false;
+      var d = m.type === 'boss' ? { color: biome.bossColor } : { color: monBase(m) }, flash = m.hit > 0, white = flash && FXC.flash !== false;   // v3.7.1: färg efter värld
       var col = white ? '#ffffff' : flash ? shade(d.color, 0.35) : d.color;
       if (m.type === 'boss' && (m.ai === 'windCharge' || m.ai === 'windSlam') && Math.sin(time * 25) > 0) col = '#ff6b5a';   // varning
       var k = clamp(m.pop / 0.18, 0, 1), e = easeOutBack(k), sx = 1, sy = 1;
@@ -362,6 +394,7 @@
         g.fillStyle = '#2a0c0c'; rr(g, m.x - 6, m.y + 3, 12, 5, 2); g.fill();
         g.fillStyle = '#fff'; g.fillRect(m.x - 4, m.y + 3, 2, 2); g.fillRect(m.x + 2, m.y + 3, 2, 2);
       }
+      if (m.type !== 'boss' && !white) monDeco(m);
       g.restore();
       if (m.type === 'boss') drawBossExtras(m);
       if (m.hp < m.maxHp && m.type !== 'boss') {
@@ -462,6 +495,12 @@
   }
   function drawPowers() {                                     // v3.7: laddningsringar och snurrslagets svep
     var k;
+    var stMax = C.powers.endure.stamina[P.endure || 0];        // v3.7.1: orkmätare när orken inte är full
+    if (P.stamina != null && P.stamina < stMax - 0.01) {
+      var sk2 = P.stamina / stMax, bw = 28, bx = P.x - bw / 2, by = P.y + 17;
+      rr(g, bx - 1, by - 1, bw + 2, 6, 3); g.fillStyle = 'rgba(10,20,10,0.75)'; g.fill();
+      if (sk2 > 0) { rr(g, bx, by, Math.max(2, bw * sk2), 4, 2); g.fillStyle = P.tired ? (Math.sin(time * 10) > 0 ? '#9aa0a8' : '#6a7078') : sk2 > 0.5 ? '#7dff8a' : sk2 > 0.25 ? '#ffe14d' : '#ff8a5a'; g.fill(); }
+    }
     if (P.spinCharge > 0) {
       k = P.spinCharge; g.lineCap = 'round';
       g.strokeStyle = k >= 1 ? (Math.sin(time * 22) > 0 ? '#fff6c4' : PAL.bolt) : 'rgba(255,225,77,0.75)'; g.lineWidth = k >= 1 ? 4 : 2.5;

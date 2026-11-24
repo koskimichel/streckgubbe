@@ -118,7 +118,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.1', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -144,7 +144,7 @@
     }
     g.textAlign = 'center';
     g.font = '14px ' + UI; g.fillStyle = 'rgba(250,250,242,0.6)';
-    g.fillText(touchMode ? 'Vänster tumme går, Slå-knappen slår. Paus finns uppe till höger.' : 'Pilar eller WASD går, mellanslag slår, E smider och äter, Esc pausar.', cx, 494);
+    g.fillText(touchMode ? 'Vänster tumme går, Slå-knappen slår. Paus finns uppe till höger.' : 'Gå med ' + moveKeysText() + ', ' + KN('attack') + ' slår, ' + KN('use') + ' smider och äter, Esc pausar.', cx, 494);
     var tm = time < titleMsgUntil ? titleMsg : (touchMode ? '' : 'Vänster och höger väljer plats, Enter spelar.');
     g.font = 'bold 15px ' + TXT; g.fillStyle = time < titleMsgUntil ? PAL.bolt : 'rgba(250,250,242,0.45)'; g.fillText(tm, cx, 526);
     g.textAlign = 'left';
@@ -187,6 +187,7 @@
     }
     if (fade > 0) { g.fillStyle = 'rgba(0,0,0,' + fade + ')'; g.fillRect(0, 0, LW, LH); }
     if (state === 'paused') inBox960(overlayPause);
+    if (state === 'keys') inBox960(overlayKeys);
     if (state === 'forge') inBox960(overlayForge);
     if (state === 'dead') inBox960(overlayDead);
     if (state === 'title') { g.fillStyle = 'rgba(8,16,10,0.9)'; g.fillRect(0, 0, LW, LH); inBox960(overlayTitle); }   // mörkt över hela skärmen, även utanför menyrutan
@@ -282,6 +283,11 @@
   function iconSpin() { powerArc(PAL.bolt); g.save(); g.scale(0.7, 0.7); iconSwordBig(); g.restore(); }
   function iconBash() { powerArc('#a0d7ff'); g.save(); g.scale(0.75, 0.75); iconShieldRound(); g.restore(); }
   function iconPowerArrow() { g.save(); g.globalCompositeOperation = 'lighter'; glow(0, 0, 22, '124,200,255', 0.5); g.restore(); iconArrows(); }
+  function iconRun() {                                          // v3.7.1: springande gubbe med fartstreck
+    g.save(); g.scale(1.25, 1.25); stick(2, 4, 1, 0, 0, null, 2.2, true); g.restore();
+    g.strokeStyle = '#7dff8a'; g.lineWidth = 2.5; g.lineCap = 'round';
+    [[-20, -8, -10], [-22, 0, -12], [-20, 8, -10]].forEach(function (q) { g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[2], q[1]); g.stroke(); });
+  }
   function iconQuiverBig() { g.save(); g.scale(1.8, 1.8); drawQuiver(0, 2, -1, 3); g.restore(); }
   function iconPause() { g.fillStyle = PAL.chalk; rr(g, -9, -11, 6, 22, 2); g.fill(); rr(g, 3, -11, 6, 22, 2); g.fill(); }
 

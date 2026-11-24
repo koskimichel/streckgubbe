@@ -3,9 +3,10 @@
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].indexOf(k) >= 0) e.preventDefault();
     if (window.LJUD) LJUD.init();                        // ljud får starta först efter en tangent eller ett tryck
+    if (state === 'keys') { e.preventDefault(); keysKey(k); return; }   // v3.7.1: välj egna tangenter
     if (keys[k]) return; keys[k] = true;
     if (state === 'forge') {
-      if (k === 'Escape' || k === 'e' || k === 'p') closeForge();
+      if (k === 'Escape' || k === 'e' || k === 'p' || isKey('use', k)) closeForge();
       else if (k === 'Tab' || k === 'ArrowRight' || k === 'd') switchTab((forgeTab + 1) % TABS.length);
       else if (k === 'ArrowLeft' || k === 'a') switchTab((forgeTab + TABS.length - 1) % TABS.length);
       else if (k === 'ArrowUp' || k === 'w') forgeSel = (forgeSel + forgeRows().length - 1) % forgeRows().length;
@@ -26,7 +27,7 @@
       else if (k === 'ArrowRight' || k === 'd' || k === 'Enter' || k === ' ') cycleRow(pauseSel, 1);
       return;
     }
-    if (k === ' ') attack();                            // slå direkt, så att korta tryck aldrig missas
+    if (state === 'play' && isKey('attack', k)) attack();   // slå direkt, så att korta tryck aldrig missas
     if (state === 'title') {                               // sparplatser
       if (moreSlot >= 0 && (k === 'Enter' || k === ' ')) return;
       if (newPick >= 0) {                                   // välj svårighet för nytt spel
@@ -40,14 +41,14 @@
       else if ((k === 'Delete' || k === 'Backspace') && slots[titleSel]) askDelete(titleSel);
       return;
     }
-    if (k === 'q') castStorm();
-    if (k === 'f') pressBow();
-    if (k === 'e') useE();
+    if (isKey('bolt', k)) castStorm();
+    if (isKey('bow', k)) pressBow();
+    if (isKey('use', k)) useE();
     if (k === 'Enter') {
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
     }
   });
-  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (k === 'f') releaseBow(); });
+  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (isKey('bow', k)) releaseBow(); });
   window.addEventListener('blur', function () { keys = {}; mouse.down = false; mouse.rdown = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
   document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
     if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
@@ -65,6 +66,7 @@
     var mp = { x: mouse.x, y: mouse.y };
     if (state === 'forge') { forgeHit(toBox(mp)); return; }
     if (state === 'paused') { pauseHit(toBox(mp)); return; }
+    if (state === 'keys') { keysHit(toBox(mp)); return; }
     if (state === 'title') { titleHit(toBox(mp), false); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
@@ -94,6 +96,7 @@
     var p = lpos(e);
     if (state === 'forge') { forgeHit(toBox(p)); return; }
     if (state === 'paused') { pauseHit(toBox(p)); return; }
+    if (state === 'keys') { keysHit(toBox(p)); return; }
     if (state === 'play' && onPauseBtn(p)) { pauseGame(); return; }
     if (state === 'title') {
       goFullscreen();

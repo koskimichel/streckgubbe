@@ -149,7 +149,7 @@
       if (pond && pond.fish <= 0) { sfx('deny'); say('Fiskarna här har slutat nappa.'); return; }
       var dx = w.x - P.x, dy = w.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l;
       P.fish = { x: w.x, y: w.y, phase: 'wait', t: F.waitMin + Math.random() * (F.waitMax - F.waitMin) };
-      sfx('click'); say('Vänta tills flötet dyker. Tryck då ' + (touchMode ? 'Fiska' : 'E') + '!'); return;
+      sfx('click'); say('Vänta tills flötet dyker. Tryck då ' + (touchMode ? 'Fiska' : KN('use')) + '!'); return;
     }
     if (P.fish.phase === 'bite') {
       var fx2 = P.fish.x, fy2 = P.fish.y; P.fish = null; if (pond) pond.fish--;
