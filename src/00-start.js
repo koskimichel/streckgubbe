@@ -1,7 +1,8 @@
-// Malm & Monster (Mines & Monsters), version 3.7.1 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 3.7.2 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
 // Byggs av src/ med verktyg/bygg.py. Ändra i src/, aldrig direkt i spel.js.
+// v3.7.2 nytt: dyrare koger, sköldknuff på snabbt tryck, snyggare snurrslag och kraftpil, Så gör du för krafterna.
 // v3.7.1 nytt: monster efter värld, spring och ork (kraften Uthållighet), egen styrning på datorn.
 // v3.7 nytt: krafter med månsten (snurrslag, sköldknuff, kraftpil), handgjorda blockpussel med mur och isblock i Snölandet.
 // v3.6 nytt: balans per svårighet (pris och malm), sköld som studsar och yrar monster, lykta av metall, mörkare grottor och nätter.

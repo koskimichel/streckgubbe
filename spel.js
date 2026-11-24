@@ -1,7 +1,8 @@
-// Malm & Monster (Mines & Monsters), version 3.7.1 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 3.7.2 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
 // Byggs av src/ med verktyg/bygg.py. Ändra i src/, aldrig direkt i spel.js.
+// v3.7.2 nytt: dyrare koger, sköldknuff på snabbt tryck, snyggare snurrslag och kraftpil, Så gör du för krafterna.
 // v3.7.1 nytt: monster efter värld, spring och ork (kraften Uthållighet), egen styrning på datorn.
 // v3.7 nytt: krafter med månsten (snurrslag, sköldknuff, kraftpil), handgjorda blockpussel med mur och isblock i Snölandet.
 // v3.6 nytt: balans per svårighet (pris och malm), sköld som studsar och yrar monster, lykta av metall, mörkare grottor och nätter.
@@ -66,13 +67,13 @@
   var keys = {}, mouse = { x: 0, y: 0, down: false, has: false };
   var trauma = 0, shakeT = 0, hitStop = 0, fade = 0, texts = [];
   // pekskärm: joystick under vänster tumme, knappar för höger tumme
-  var touchMode = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), lastTouch = 0, deadAt = 0;
+  var touchMode = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), lastTouch = -9999, deadAt = 0;
   var touch = { joyId: null, jx0: 0, jy0: 0, jx: 0, jy: 0, atkId: null, eId: null, shieldId: null, bowId: null };
   var JOY_R = 56, BTN_ATK = { x: LW - 96, y: LH - 96, r: 56 }, BTN_E = { x: LW - 214, y: LH - 66, r: 42 }, BTN_PAUSE = { x: LW - 30, y: 23, r: 17 }, BTN_DIFF = { x: LW / 2 - 200, y: LH - 44, w: 200, h: 40 }, BTN_BOLT = { x: LW - 96, y: LH - 202, r: 38 }, BTN_SHIELD = { x: LW - 214, y: LH - 168, r: 36 }, BTN_BOW = { x: LW - 214, y: LH - 262, r: 34 }, BTN_NEW = { x: LW / 2, y: LH - 44, w: 170, h: 40 };
 
   // inställningar som spelaren ändrar i pausmenyn (sparas per enhet)
   var SET_KEY = 'mm-installningar';
-  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true, diff: 'latt', slot: 1, keys: null };   // v3.7.1: keys = egna tangenter
+  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true, diff: 'latt', slot: 1, keys: null, keysV: 0 };   // v3.7.1: keys = egna tangenter
   try { var ss = JSON.parse(localStorage.getItem(SET_KEY)); if (ss) Object.keys(settings).forEach(function (k) { if (ss[k] !== undefined) settings[k] = ss[k]; }); } catch (e) {}
   function applySettings() {
     FXC.shake = settings.shake; FXC.flash = settings.flash; FXC.damageNumbers = settings.numbers;
@@ -81,17 +82,25 @@
   }
   // v3.7.1: egen styrning på datorn. Två tangenter per handling, sparas i inställningarna.
   var KEY_ACTS = [['up', 'Gå upp'], ['down', 'Gå ner'], ['left', 'Gå vänster'], ['right', 'Gå höger'], ['attack', 'Slå'], ['shield', 'Sköld'], ['bow', 'Skjut'], ['run', 'Spring'], ['bolt', 'Blixt'], ['use', 'Smid, ät och fiska']];
-  var KEY_DEF = { up: ['w', 'ArrowUp'], down: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], attack: [' ', ''], shield: ['Shift', ''], bow: ['f', ''], run: ['c', ''], bolt: ['q', ''], use: ['e', ''] };
+  var KEY_DEF = { up: ['w', 'ArrowUp'], down: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], attack: [' ', 'Mouse0'], shield: ['Shift', 'Mouse2'], bow: ['f', ''], run: ['c', ''], bolt: ['q', ''], use: ['e', ''] };
   function keyBinds() {
     var kb = settings.keys; if (!kb || typeof kb !== 'object') kb = settings.keys = {};
     KEY_ACTS.forEach(function (a) { if (!Array.isArray(kb[a[0]]) || kb[a[0]].length !== 2) kb[a[0]] = KEY_DEF[a[0]].slice(); });
+    if (settings.keysV !== 2) {                                   // v3.7.2: äldre egna tangenter får musknapparna som förut
+      settings.keysV = 2;
+      var used = function (k) { return KEY_ACTS.some(function (a) { return kb[a[0]][0] === k || kb[a[0]][1] === k; }); };
+      if (!used('Mouse0') && !kb.attack[1]) kb.attack[1] = 'Mouse0';
+      if (!used('Mouse2') && !kb.shield[1]) kb.shield[1] = 'Mouse2';
+    }
     return kb;
   }
   function held(act) { var b = keyBinds()[act]; return !!((b[0] && keys[b[0]]) || (b[1] && keys[b[1]])); }
   function isKey(act, k) { var b = keyBinds()[act]; return !!k && (b[0] === k || b[1] === k); }
-  function keyName(k) { return !k ? '' : k === ' ' ? 'mellanslag' : k === 'ArrowUp' ? 'pil upp' : k === 'ArrowDown' ? 'pil ner' : k === 'ArrowLeft' ? 'pil vänster' : k === 'ArrowRight' ? 'pil höger' : k === 'Control' ? 'Ctrl' : k.length === 1 ? k.toUpperCase() : k; }
+  var MOUSE_NAME = { Mouse0: 'vänster musknapp', Mouse1: 'mittenknappen', Mouse2: 'höger musknapp', Mouse3: 'musknapp 4', Mouse4: 'musknapp 5' };
+  function keyName(k) { return !k ? '' : MOUSE_NAME[k] ? MOUSE_NAME[k] : k === ' ' ? 'mellanslag' : k === 'ArrowUp' ? 'pil upp' : k === 'ArrowDown' ? 'pil ner' : k === 'ArrowLeft' ? 'pil vänster' : k === 'ArrowRight' ? 'pil höger' : k === 'Control' ? 'Ctrl' : k.length === 1 ? k.toUpperCase() : k; }
   function KN(act) { var b = keyBinds()[act]; return keyName(b[0] || b[1]) || 'ingen tangent'; }
-  function KS(act) { var b = keyBinds()[act], k = b[0] || b[1]; return !k ? '' : k === ' ' ? 'Spc' : k.indexOf('Arrow') === 0 ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k.slice(0, 3); }
+  function KN2(act) { var b = keyBinds()[act]; return [b[0], b[1]].filter(function (k) { return !!k; }).map(keyName).join(' eller ') || 'ingen tangent'; }   // båda valen
+  function KS(act) { var b = keyBinds()[act], k = b[0] || b[1]; return !k ? '' : k.indexOf('Mouse') === 0 ? 'M' + (+k.charAt(5) + 1) : k === ' ' ? 'Spc' : k.indexOf('Arrow') === 0 ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k.slice(0, 3); }
   function sfx(n) { if (window.LJUD) LJUD.play(n); }
   var guideMoved = 0, eatHintT = 0;                      // eatHintT: sekunder till nästa ät-tips
   var shots = [], arrows = [], ambientT = 0, forgeSel = 0;              // v2.2: nätskott, luftpartiklar, val i smedjan
@@ -137,7 +146,7 @@
       x: 2.5 * TS, y: 2.5 * TS, r: 10, hearts: C.player.startHearts,
       hp: C.player.startHearts * C.player.hpPerHeart,
       str: C.player.startStrength, ore: 0, meat: 1, sword: 0,
-      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, spin: 0, bash: 0, parrow: 0, endure: 0, stamina: null, tired: false, restT: 0, running: false, runSeen: false, spinCd: 0, bashCd: 0, pwrCd: 0, atkHold: 0, spinCharge: 0, bowHold: 0, spinT: 0, backSeen: false, flaxSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
+      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, spin: 0, bash: 0, parrow: 0, endure: 0, bashT: 0, spinA0: 0, stamina: null, tired: false, restT: 0, running: false, runSeen: false, spinCd: 0, bashCd: 0, pwrCd: 0, atkHold: 0, spinCharge: 0, bowHold: 0, spinT: 0, backSeen: false, flaxSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
     };
   }
   function maxHp() { return P.hearts * C.player.hpPerHeart; }
@@ -180,7 +189,7 @@
   function save() {
     try {
       localStorage.setItem(slotKey(slot), JSON.stringify({ diff: settings.diff, savedAt: Date.now(),
-        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chests: P.chests, minedMap: P.minedMap, maxLevel: P.maxLevel, flax: P.flax, hide: P.hide, rod: P.rod, knife: P.knife, quiver: P.quiver, quiverV: 2, spin: P.spin, bash: P.bash, parrow: P.parrow, endure: P.endure, runSeen: P.runSeen, arrowHead: P.arrowHead, backSeen: P.backSeen, flaxSeen: P.flaxSeen, hasPick: P.hasPick, shield: P.shield, bow: P.bow, arrows: P.arrows, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen
+        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chests: P.chests, minedMap: P.minedMap, maxLevel: P.maxLevel, flax: P.flax, hide: P.hide, rod: P.rod, knife: P.knife, quiver: P.quiver, quiverV: 3, spin: P.spin, bash: P.bash, parrow: P.parrow, endure: P.endure, runSeen: P.runSeen, arrowHead: P.arrowHead, backSeen: P.backSeen, flaxSeen: P.flaxSeen, hasPick: P.hasPick, shield: P.shield, bow: P.bow, arrows: P.arrows, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen
       }));
     } catch (e) {}
   }
@@ -635,7 +644,7 @@
   function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); }
   function continueGame(s) {
     if (s.diff && C.difficulty[s.diff]) { settings.diff = s.diff; applySettings(); }   // svårigheten följer sparplatsen
-    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiverV ? (s.quiver || 0) : (s.quiver ? 3 : 0); P.spin = s.spin || 0; P.bash = s.bash || 0; P.parrow = s.parrow || 0; P.endure = s.endure || 0; P.runSeen = !!s.runSeen; P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.flaxSeen = !!s.flaxSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
+    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiverV === 3 ? (s.quiver || 0) : s.quiverV === 2 ? [0, 1, 3, 5][Math.min(3, s.quiver || 0)] : (s.quiver ? 5 : 0);   /* v3.7.2: fem steg (10/20/30 pilar = steg 1/3/5) */ P.spin = s.spin || 0; P.bash = s.bash || 0; P.parrow = s.parrow || 0; P.endure = s.endure || 0; P.runSeen = !!s.runSeen; P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.flaxSeen = !!s.flaxSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
     startLevel(s.level);
   }
 
@@ -665,9 +674,11 @@
     if (fire) doSpin();
     return false;
   }
+  function spinAngle() { var S = C.powers.spin; return (P.spinA0 || 0) + (1 - Math.max(0, P.spinT) / S.time) * Math.PI * 3; }   // v3.7.2: ett och ett halvt varv
   function doSpin() {                                          // svärdet snurrar runt gubben och träffar alla nära
     var S = C.powers.spin, L = P.spin, rad = S.radius[L], dmg = damage() * S.dmgMul[L], hit = 0;
-    P.spinCd = S.cooldown[L]; P.spinT = 0.35; P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.3);
+    P.spinCd = S.cooldown[L]; P.spinT = S.time; P.spinA0 = Math.atan2(P.fy, P.fx); P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.35);
+    for (var di = 0; di < 14; di++) { var da = di / 14 * 6.283; fx.push({ k: 'p', x: P.x + Math.cos(da) * 10, y: P.y + 10 + Math.sin(da) * 5, vx: Math.cos(da) * 120, vy: Math.sin(da) * 60 - 20, t: 0.45, life: 0.45, col: biome.i === 3 ? '#ffffff' : '#cdbf9a', s: 2.2 }); }   // damm
     mons.forEach(function (m) {
       if (m.hidden) return;
       var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy);
@@ -678,11 +689,19 @@
       sparks(m.x, m.y, PAL.bolt, 6); floatText(m.x, m.y - m.r - 8, fmt(dmg), '#ffffff');
     });
     fx.push({ k: 'r', x: P.x, y: P.y, t: 0.4, life: 0.4 });
-    if (hit) { sfx('hit'); freeze(0.06); }
+    if (hit) { sfx('hit'); freeze(0.07); addTrauma(0.2); }
+  }
+  var shieldDownAt = null;                                       // v3.7.2: snabbt tryck på Sköld = knuff
+  function shieldPress() { shieldDownAt = performance.now(); }
+  function shieldRelease() {
+    var quick = shieldDownAt != null && performance.now() - shieldDownAt <= C.powers.bash.tap; shieldDownAt = null;
+    if (quick && state === 'play' && P.shield > 0 && P.bash > 0 && P.bashCd <= 0) shieldBash();
   }
   function shieldBash() {                                      // v3.7: alla monster runt gubben kastas bort och blir yra
     var B = C.powers.bash, L = P.bash, rad = B.radius[L], dmg = damage() * B.dmgMul;
-    P.bashCd = B.cooldown[L]; P.blockFlash = 0.3; sfx('block'); addTrauma(0.45);
+    P.bashCd = B.cooldown[L]; P.blockFlash = 0.35; P.bashT = 0.3; sfx('block'); sfx('hit'); addTrauma(0.6); freeze(0.08);
+    for (var di = 0; di < 18; di++) { var da = di / 18 * 6.283; fx.push({ k: 'p', x: P.x + Math.cos(da) * 12, y: P.y + 9 + Math.sin(da) * 6, vx: Math.cos(da) * 190, vy: Math.sin(da) * 95 - 25, t: 0.5, life: 0.5, col: biome.i === 3 ? '#ffffff' : '#cdbf9a', s: 2.6 }); }   // damm
+    sparks(P.x + P.fx * 14, P.y - 4 + P.fy * 10, '#bfe8ff', 14);
     mons.forEach(function (m) {
       if (m.hidden) return;
       var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy) || 1, boss = m.type === 'boss';
@@ -691,7 +710,8 @@
       if (!boss) { m.stunT = B.stun[L]; m.cd = Math.max(m.cd, m.stunT); }
       m.hp -= dmg; m.hit = 0.12; m.pop = 0; floatText(m.x, m.y - m.r - 8, fmt(dmg), '#e6f5ff');
     });
-    fx.push({ k: 'bash', x: P.x, y: P.y, t: 0.35, life: 0.35, R: rad });
+    fx.push({ k: 'bash', x: P.x, y: P.y, t: 0.45, life: 0.45, R: rad * 1.25 });
+    fx.push({ k: 'bash', x: P.x, y: P.y, t: 0.3, life: 0.3, R: rad * 0.7 });
   }
   function attack() {
     if (P.blocking && P.bash > 0 && P.bashCd <= 0 && state === 'play') { shieldBash(); return; }   // slag med skölden uppe = knuff
@@ -841,7 +861,15 @@
     if (state !== 'play') return;
     P.cd -= dt; P.inv -= dt; P.swing -= dt; P.shootCd -= dt; P.shotT -= dt; P.blockFlash -= dt;
     P.spinCd -= dt; P.bashCd -= dt; P.pwrCd -= dt; P.spinT -= dt; if (P.bowHold > 0) P.bowHold += dt;   // v3.7: krafter
-    P.blocking = P.shield > 0 && !!(held('shield') || mouse.rdown || touch.shieldId != null);   // håller skölden uppe
+    if (P.bashT > 0) P.bashT -= dt;
+    if (P.spinT > 0 && Math.random() < dt * 40) {               // v3.7.2: gnistor från svärdsspetsen när han snurrar
+      var sa2 = spinAngle(), sr2 = reach() * 0.95; sparks(P.x + Math.cos(sa2) * sr2, P.y - 4 + Math.sin(sa2) * sr2, swordLook(Math.max(1, P.sword)).edge, 1);
+    }
+    if (P.bowHold > 0 && P.pwrCd <= 0 && P.arrows > 0) {        // v3.7.2: kraftpilen laddas, ljus dras in mot bågen
+      P.shotT = 0.35; var chg = Math.min(1, P.bowHold / C.powers.arrow.charge);
+      if (Math.random() < dt * (10 + 30 * chg)) { var ia = Math.random() * 6.283, ir = 34 + Math.random() * 14; fx.push({ k: 's', x: P.x + Math.cos(ia) * ir, y: P.y - 4 + Math.sin(ia) * ir, vx: -Math.cos(ia) * ir * 2.4, vy: -Math.sin(ia) * ir * 2.4, t: 0.4, life: 0.4, s: 1.6 + chg, col: chg >= 1 ? '#ffffff' : '#9fe0ff' }); }
+    }
+    P.blocking = P.shield > 0 && !!(held('shield') || touch.shieldId != null);   // v3.7.2: musknappar finns i keys   // håller skölden uppe
     P.calmT += dt;
     if (DF().regen && P.calmT > 3 && P.hp < maxHp() && !mons.some(function (m) { return !m.hidden && dist(m, P) < 170; })) {   /* Lätt: läker när det är lugnt */
       P.hp = Math.min(maxHp(), P.hp + DF().regen * C.player.hpPerHeart * dt);
@@ -887,7 +915,7 @@
     }
     if (window.LJUD) LJUD.setCave(isCave[clamp(Math.floor(P.y / TS), 0, H - 1)][clamp(Math.floor(P.x / TS), 0, W - 1)]);
     if (touch.atkId !== null && !P.moving) aimNearest();
-    var atkHeld = !!(held('attack') || mouse.down || touch.atkId !== null);
+    var atkHeld = !!(held('attack') || touch.atkId !== null);
     if (!chargeSpin(atkHeld, dt) && atkHeld) attack();         // v3.7: håller man in laddas snurrslaget
 
     // monster
@@ -940,6 +968,7 @@
     });
     // pilar i luften
     arrows = arrows.filter(function (a) {
+      if (a.trail) { a.trail.push({ x: a.x, y: a.y }); if (a.trail.length > 12) a.trail.shift(); }   // v3.7.2: kraftpilens ljussvans
       var stp = Math.hypot(a.vx, a.vy) * dt; a.x += a.vx * dt; a.y += a.vy * dt; a.left -= stp;
       if (a.left <= 0 || blockedAt(a.x, a.y, 2)) { sparks(a.x, a.y, '#c9a06a', 4); return false; }
       for (var ai = 0; ai < mons.length; ai++) {
@@ -949,6 +978,7 @@
           var l2 = Math.hypot(a.vx, a.vy) || 1, kb = C.monsters.knockback * 0.4 * (m.type === 'boss' ? 0.25 : 1);
           m.hp -= a.dmg; m.hit = 0.12; m.pop = 0; m.kx = a.vx / l2 * kb; m.ky = a.vy / l2 * kb;
           sparks(m.x, m.y, PAL.bolt, 5); floatText(m.x, m.y - m.r - 8, fmt(a.dmg), '#ffffff'); sfx('hit');
+          if (a.power) { sparks(m.x, m.y, '#bfe8ff', 12); fx.push({ k: 'bash', x: m.x, y: m.y, t: 0.25, life: 0.25, R: 26 }); freeze(0.04); addTrauma(0.2); }   // v3.7.2: ljusutbrott vid varje träff
           if (a.power && a.pierce > 1) { a.pierce--; a.hits.push(m); continue; }
           return false;
         }
@@ -1209,7 +1239,13 @@
     var dx = best ? best.x - P.x : P.fx, dy = best ? best.y - P.y : P.fy, l = Math.hypot(dx, dy) || 1;
     dx /= l; dy /= l; P.fx = dx; P.fy = dy;
     var ar = { x: P.x + dx * 12, y: P.y - 4 + dy * 12, vx: dx * B.speed, vy: dy * B.speed, left: B.range[P.bow], dmg: arrowDamage(), head: P.arrowHead };
-    if (power) { ar.power = true; ar.dmg *= PA.dmgMul[P.parrow]; ar.pierce = PA.pierce[P.parrow]; ar.hits = []; ar.left *= PA.rangeMul; ar.vx *= 1.25; ar.vy *= 1.25; P.pwrCd = PA.cooldown[P.parrow]; addTrauma(0.25); }
+    if (power) {
+      ar.power = true; ar.dmg *= PA.dmgMul[P.parrow]; ar.pierce = PA.pierce[P.parrow]; ar.hits = []; ar.left *= PA.rangeMul; ar.vx *= 1.25; ar.vy *= 1.25; ar.trail = [];
+      P.pwrCd = PA.cooldown[P.parrow]; addTrauma(0.45); freeze(0.05); sfx('charge');   // v3.7.2: blixt vid bågen och rekyl
+      fx.push({ k: 'bash', x: P.x + dx * 14, y: P.y - 4 + dy * 14, t: 0.3, life: 0.3, R: 34 });
+      sparks(P.x + dx * 16, P.y - 4 + dy * 16, '#bfe8ff', 12);
+      move(P, -dx * 10, -dy * 10);
+    }
     arrows.push(ar);
     P.arrows--; P.shootCd = B.cooldown; P.shotT = 0.35; sfx('bow'); save();
   }
@@ -1812,7 +1848,7 @@
       g.restore();
     }
     // svepbåge när man slår
-    if (P.swing > 0) {
+    if (P.swing > 0 && !(P.spinT > 0)) {
       var k = P.swing / 0.18, a0 = Math.atan2(P.fy, P.fx);
       g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
       g.strokeStyle = 'rgba(255,250,220,' + (0.45 * k) + ')'; g.lineWidth = 7 * k + 1;
@@ -1822,15 +1858,22 @@
     var sd = P.fx >= 0 ? 1 : -1, bobP = P.moving ? Math.abs(Math.cos(P.walk)) * 1.2 : 0, shooting = P.bow > 0 && P.shotT > 0, offH = null;
     if (P.bow > 0 && P.arrows > 0) drawQuiver(P.x - sd * 4, P.y - 5 - bobP, sd, P.arrows);                    // på ryggen, bakom kroppen
     if (P.bow > 0 && !shooting) drawBowShape(P.x - sd * 2, P.y - 4 - bobP, sd > 0 ? Math.PI + 0.9 : -0.9, 10, P.bow, 0, false);
-    if (P.shield > 0 && !P.blocking) drawShieldShape(P.x - sd * 5, P.y - 3 - bobP, 0.7, P.shield - 1, false);
+    if (P.shield > 0 && !P.blocking && !(P.bashT > 0)) drawShieldShape(P.x - sd * 5, P.y - 3 - bobP, 0.7, P.shield - 1, false);
     var hxP = P.x + P.fx * 9, hyP = P.y - 2 - bobP + P.fy * 6, pull = shooting ? clamp((P.shotT - 0.2) / 0.15, 0, 1) : 0;
     var shX = P.x + P.fx * 9, shY = P.y - 5 - bobP + P.fy * 5, bf = Math.max(0, P.blockFlash);
     if (shooting) offH = { x: hxP - P.fx * (4.6 + pull * 5), y: hyP - P.fy * (4.6 + pull * 5) };   // handen på strängen
     else if (P.blocking) offH = { x: shX, y: shY + 2 };
-    stick(P.x, P.y, P.fx, P.fy, P.swing, (shooting || P.fish) ? null : armed, P.walk, P.moving, offH);
+    var dfx = P.fx, dfy = P.fy, spinning = P.spinT > 0;
+    if (spinning) { var sa = spinAngle(); dfx = Math.cos(sa); dfy = Math.sin(sa); }   // v3.7.2: kroppen och svärdet snurrar
+    stick(P.x, P.y, dfx, dfy, spinning ? 0 : P.swing, (shooting || P.fish) && !spinning ? null : armed, P.walk, P.moving, spinning ? null : offH);
     drawArmor();
     if (shooting) drawBowShape(hxP, hyP, Math.atan2(P.fy, P.fx), 11, P.bow, pull, pull > 0);
     if (P.fish) drawRodLine(hxP, hyP);
+    if (P.shield > 0 && P.bashT > 0 && !P.blocking) {          // v3.7.2: knuff, skölden stöts framåt och lyser
+      var bkk = P.bashT / 0.3, push = Math.sin((1 - bkk) * Math.PI) * 10;
+      g.save(); g.globalCompositeOperation = 'lighter'; glow(shX + P.fx * push, shY + P.fy * push, 26, '170,220,255', 0.6 * bkk); g.restore();
+      drawShieldShape(shX + P.fx * push, shY + P.fy * push, 1.15, P.shield - 1, true);
+    }
     if (P.shield > 0 && P.blocking) {                          // skölden uppe framför
       g.save(); g.globalCompositeOperation = 'lighter'; glow(shX, shY, 16 + bf * 40, '230,245,255', 0.18 + bf * 1.6); g.restore();
       drawShieldShape(shX, shY, 1, P.shield - 1, bf > 0);
@@ -2139,22 +2182,35 @@
       g.strokeStyle = k >= 1 ? (Math.sin(time * 22) > 0 ? '#e6f7ff' : '#7cc8ff') : 'rgba(124,200,255,0.75)'; g.lineWidth = k >= 1 ? 4 : 2.5;
       g.beginPath(); g.arc(P.x, P.y - 4, 20, -1.571, -1.571 + k * 6.283); g.stroke();
     }
-    if (P.spinT > 0) {
-      var sk = 1 - P.spinT / 0.35, rad = C.powers.spin.radius[Math.max(1, P.spin)] * 0.85, a0 = sk * 9.4;
-      g.save(); g.globalCompositeOperation = 'lighter';
-      for (var i = 0; i < 3; i++) { g.strokeStyle = 'rgba(255,240,170,' + (0.55 - i * 0.15) * (1 - sk * 0.6) + ')'; g.lineWidth = 6 - i * 1.5; g.beginPath(); g.arc(P.x, P.y - 4, rad - i * 6, a0 - 1.6 + i * 0.2, a0); g.stroke(); }
+    if (P.spinT > 0) {                                            // v3.7.2: svep i svärdets färg som följer spetsen
+      var S2 = C.powers.spin, sk = 1 - P.spinT / S2.time, a1 = spinAngle(), rad = S2.radius[Math.max(1, P.spin)], sl2 = swordLook(Math.max(1, P.sword));
+      var fade = Math.min(1, P.spinT / 0.12), hex = sl2.col.replace('#', ''), rgb = parseInt(hex.substr(0, 2), 16) + ',' + parseInt(hex.substr(2, 2), 16) + ',' + parseInt(hex.substr(4, 2), 16);
+      g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+      for (var i = 0; i < 6; i++) {                              // bred båge bakom svärdet, tunnare och svagare längre bak
+        g.strokeStyle = 'rgba(' + rgb + ',' + (0.42 - i * 0.06) * fade + ')'; g.lineWidth = 16 - i * 2;
+        g.beginPath(); g.arc(P.x, P.y - 4, rad * 0.62, a1 - 0.35 - i * 0.32, a1 - i * 0.32); g.stroke();
+      }
+      g.strokeStyle = 'rgba(255,255,255,' + 0.85 * fade + ')'; g.lineWidth = 2.5; g.beginPath(); g.arc(P.x, P.y - 4, rad * 0.9, a1 - 1.8, a1); g.stroke();   // spetsens vita linje
+      g.strokeStyle = 'rgba(255,225,77,' + 0.35 * fade * (1 - sk) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(P.x, P.y + 6, rad * (0.5 + sk * 0.6), 0, 7); g.stroke();   // ring på marken
       g.restore();
     }
   }
   function drawArrows() {
     arrows.forEach(function (a) {
       var l = Math.hypot(a.vx, a.vy) || 1, ux = a.vx / l, uy = a.vy / l;
-      if (a.power) { g.save(); g.globalCompositeOperation = 'lighter'; glow(a.x - ux * 4, a.y - uy * 4, 16, '124,200,255', 0.55); g.restore(); }
+      if (a.power) {                                             // v3.7.2: lysande svans och större pil
+        g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+        var tr = a.trail || [];
+        for (var ti = 1; ti < tr.length; ti++) { var tk = ti / tr.length; g.strokeStyle = 'rgba(140,210,255,' + 0.6 * tk + ')'; g.lineWidth = 2 + 7 * tk; g.beginPath(); g.moveTo(tr[ti - 1].x, tr[ti - 1].y); g.lineTo(tr[ti].x, tr[ti].y); g.stroke(); }
+        glow(a.x - ux * 4, a.y - uy * 4, 24, '124,200,255', 0.7); glow(a.x, a.y, 10, '255,255,255', 0.6);
+        g.restore(); g.save(); g.translate(a.x, a.y); g.scale(1.5, 1.5); g.translate(-a.x, -a.y);
+      }
       g.strokeStyle = '#8a5a2b'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(a.x - ux * 12, a.y - uy * 12); g.lineTo(a.x, a.y); g.stroke();
       g.fillStyle = ['#9a9ea6', '#e0763a', '#c9d0da', '#f0c94a', '#6ab8ff'][a.head || 0]; g.beginPath(); g.moveTo(a.x + ux * 4, a.y + uy * 4); g.lineTo(a.x - uy * 2.5, a.y + ux * 2.5); g.lineTo(a.x + uy * 2.5, a.y - ux * 2.5); g.closePath(); g.fill();
       g.strokeStyle = '#f4f4f4'; g.lineWidth = 1.2; g.beginPath();
       g.moveTo(a.x - ux * 12, a.y - uy * 12); g.lineTo(a.x - ux * 15 - uy * 3, a.y - uy * 15 + ux * 3);
       g.moveTo(a.x - ux * 12, a.y - uy * 12); g.lineTo(a.x - ux * 15 + uy * 3, a.y - uy * 15 - ux * 3); g.stroke();
+      if (a.power) g.restore();
     });
   }
   function drawShots() {                                     // spindelnät i luften
@@ -2668,7 +2724,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.1', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.2', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -2903,7 +2959,7 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.1', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.2', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
@@ -2938,11 +2994,18 @@
     else if (k === 'ArrowLeft' || k === 'ArrowRight') { if (keySel < N) keySlot = 1 - keySlot; else keySel = keySel === N ? N + 1 : N; }
     else if (k === 'Enter' || k === ' ') { if (keySel < N) keyWait = true; else if (keySel === N) resetKeys(); else closeKeys(); }
   }
-  function keysHit(p) {
+  function keysHit(p, btn) {
+    btn = btn || 0;
+    var onBox = null;
     for (var i = 0; i < KEY_ACTS.length; i++) {
       var y = KY0 + i * KSTEP;
-      for (var j = 0; j < 2; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + 126 && p.y > y && p.y < y + KH) { keySel = i; keySlot = j; keyWait = true; sfx('click'); return; }
+      for (var j = 0; j < 2; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + 126 && p.y > y && p.y < y + KH) onBox = { i: i, j: j };
     }
+    if (keyWait && (btn !== 0 || (onBox && onBox.i === keySel && onBox.j === keySlot))) {   // v3.7.2: en musknapp väljs som tangent
+      setKey(KEY_ACTS[keySel][0], keySlot, 'Mouse' + btn); keyWait = false; sfx('click'); return;
+    }
+    if (btn !== 0) return;
+    if (onBox) { keySel = onBox.i; keySlot = onBox.j; keyWait = true; sfx('click'); return; }
     keyWait = false;
     if (inBox(p, KB_RESET)) resetKeys(); else if (inBox(p, KB_DONE)) closeKeys();
   }
@@ -2960,8 +3023,8 @@
         var bx = keyBoxX(j), on = i === keySel && j === keySlot, wait = on && keyWait, kk = kb[a[0]][j];
         rr(g, bx, y + 3, 126, KH - 6, 6); g.fillStyle = wait ? 'rgba(255,225,77,0.35)' : 'rgba(250,250,242,0.08)'; g.fill();
         g.strokeStyle = on ? PAL.bolt : 'rgba(250,250,242,0.3)'; g.lineWidth = on ? 2 : 1; g.stroke();
-        g.textAlign = 'center'; g.font = (wait ? '' : 'bold ') + '15px ' + TXT; g.fillStyle = kk || wait ? PAL.chalk : 'rgba(250,250,242,0.35)';
-        g.fillText(wait ? 'Tryck en tangent' : kk ? keyName(kk) : 'tom', bx + 63, y + KH / 2 + 1);
+        g.textAlign = 'center'; g.font = (wait ? '' : 'bold ') + ((kk && kk.indexOf('Mouse') === 0) ? '13px ' : '15px ') + TXT; g.fillStyle = kk || wait ? PAL.chalk : 'rgba(250,250,242,0.35)';
+        g.fillText(wait ? 'Tryck nu' : kk ? keyName(kk) : 'tom', bx + 63, y + KH / 2 + 1);
       }
     });
     [[KB_RESET, 'Som från början', KEY_ACTS.length], [KB_DONE, 'Klar', KEY_ACTS.length + 1]].forEach(function (b) {
@@ -2970,7 +3033,7 @@
       g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 19px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
     });
     g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.textAlign = 'center';
-    g.fillText(keyWait ? 'Tryck tangenten du vill ha. Backsteg tömmer rutan, Esc ångrar.' : 'Klicka på en ruta och tryck sedan tangenten. Musen slår (vänster) och håller skölden (höger).', LW / 2, KBY + 40);
+    g.fillText(keyWait ? 'Tryck en tangent eller en musknapp (vänster: klicka i samma ruta). Backsteg tömmer, Esc ångrar.' : 'Klicka på en ruta och tryck sedan en tangent eller musknapp.', LW / 2, KBY + 40);
     g.textAlign = 'left';
   }
 
@@ -3000,6 +3063,7 @@
     if (k === 'endure') return { moon: C.powers.endure.cost[lvl] };   // v3.7.1   // v3.7: krafter kostar månsten
     return Cc.lantern[lvl];                                       // v3.6: lyktan kostar metall, månsten blir kraft
   }
+  var QUIVER_NAME = ['Större koger', 'Läderkoger', 'Förstärkt koger', 'Koger med kopparband', 'Stort koger med järnband'];   // v3.7.2: fem steg
   function swordName(l) { return l <= 2 ? 'Stensvärd' : l <= 5 ? 'Kopparsvärd' : l <= 8 ? 'Järnsvärd' : l <= 11 ? 'Guldsvärd' : 'Stjärnsvärd'; }
   function cap(s2) { return s2.charAt(0).toUpperCase() + s2.slice(1); }
   function allRows() {
@@ -3023,13 +3087,13 @@
       { tab: 2, k: 'spin', name: 'Snurrslag' + (P.spin ? ', nivå ' + Math.min(3, P.spin + 1) : ''), lvl: P.spin, max: 3,
         desc: P.spin ? 'Större och starkare snurr' : (touchMode ? 'Håll fingret till höger, släpp: slår alla runt dig' : 'Håll in ' + KN('attack') + ', släpp: slår alla runt dig'), icon: iconSpin },
       { tab: 2, k: 'bash', name: 'Sköldknuff' + (P.bash ? ', nivå ' + Math.min(3, P.bash + 1) : ''), lvl: P.bash, max: 3,
-        desc: !P.shield ? 'Kräver en sköld' : P.bash ? 'Längre knuff, yrare monster' : 'Slå med skölden uppe: alla runt dig flyger', icon: iconBash },
+        desc: !P.shield ? 'Kräver en sköld' : P.bash ? 'Längre knuff, yrare monster' : 'Tryck snabbt på Sköld: alla runt dig flyger', icon: iconBash },
       { tab: 2, k: 'parrow', name: 'Kraftpil' + (P.parrow ? ', nivå ' + Math.min(3, P.parrow + 1) : ''), lvl: P.parrow, max: 3,
         desc: !P.bow ? 'Kräver en pilbåge' : P.parrow ? 'Starkare, går igenom fler' : (touchMode ? 'Håll in Skjut, släpp: pilen går igenom flera' : 'Håll in ' + KN('bow') + ', släpp: pilen går igenom flera'), icon: iconPowerArrow },
       { tab: 2, k: 'endure', name: 'Uthållighet' + (P.endure ? ', nivå ' + Math.min(3, P.endure + 1) : ''), lvl: P.endure, max: 3,
         desc: P.endure < 3 ? 'Spring längre: ' + fmt(C.powers.endure.stamina[P.endure + 1]) + ' s i stället för ' + fmt(C.powers.endure.stamina[P.endure]) + ' s' : 'Du orkar springa ' + fmt(C.powers.endure.stamina[3]) + ' s', icon: iconRun },
-      { tab: 1, k: 'quiver', name: P.quiver < 3 ? ['Större koger', 'Läderkoger', 'Stort koger'][P.quiver] : 'Koger', lvl: P.quiver, max: 3,
-        desc: P.quiver < 3 ? 'Bär ' + maxArrows(P.quiver + 1) + ' pilar i stället för ' + maxArrows() : 'Bär ' + maxArrows() + ' pilar', icon: iconQuiverBig }
+      { tab: 1, k: 'quiver', name: P.quiver < QUIVER_NAME.length ? QUIVER_NAME[P.quiver] : 'Koger', lvl: P.quiver, max: QUIVER_NAME.length,
+        desc: P.quiver < QUIVER_NAME.length ? 'Bär ' + maxArrows(P.quiver + 1) + ' pilar i stället för ' + maxArrows() : 'Bär ' + maxArrows() + ' pilar', icon: iconQuiverBig }
     ];
     rows.forEach(function (r) { r.cost = r.lvl < r.max ? recipe(r.k, r.lvl + 1) : null; });
     return rows;
@@ -3067,10 +3131,20 @@
     keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null;
     sfx('click'); if (window.LJUD) LJUD.duck(true);
   }
-  function closeForge() { if (state !== 'forge') return; state = 'play'; if (window.LJUD) LJUD.duck(false); }
+  function closeForge() { if (state !== 'forge') return; state = 'play'; if (window.LJUD) LJUD.duck(false); if (powerReminder) { say(powerReminder); powerReminder = ''; } }
   function switchTab(t) { if (forgeTab === t) return; forgeTab = t; forgeSel = 0; sfx('click'); }
+  var howToT = 0, powerReminder = '';                            // v3.7.2: Så gör du-rutan lyser efter köp; påminnelse när smedjan stängs
+  function howTo(k) {                                            // hur man använder en kraft, tre rader
+    var T = touchMode;
+    if (k === 'spin') return [T ? 'Håll fingret på högra sidan av skärmen.' : 'Håll in ' + KN('attack') + '.', 'En gul ring växer runt gubben. Släpp när den är hel:', 'svärdet snurrar runt dig och träffar alla nära. Ett kort tryck slår som vanligt.'];
+    if (k === 'bash') return ['Tryck snabbt på ' + (T ? 'Sköld-knappen' : KN('shield')) + ' och släpp direkt.', 'Alla monster nära dig knuffas bort och blir yra en stund.', 'Håller du in ' + (T ? 'Sköld' : KN('shield')) + ' skyddar skölden dig som förut.' + (T ? ' Blå ring på knappen = redo.' : '')];
+    if (k === 'parrow') return ['Håll in ' + (T ? 'Skjut-knappen' : KN('bow')) + '. En blå ring växer runt gubben.', 'Släpp när ringen är hel: en kraftpil som går igenom flera monster.', 'Ett kort tryck skjuter en vanlig pil.'];
+    if (k === 'endure') return ['Spring: ' + (T ? 'dra styrspaken ända ut.' : 'håll in ' + KN('run') + ' medan du går.'), 'Mätaren under gubben visar hur länge du orkar.', 'Tom mätare: gubben är trött en liten stund. Mer Uthållighet = längre spring.'];
+    return null;
+  }
   function buy(i) {
     var r = forgeRows()[i]; if (!r) return;
+    forgeSel = i;                                                 // v3.7.2: Så gör du visar det man just köpt
     if (r.k === 'arrows' && !P.bow) { sfx('deny'); say('Du behöver en pilbåge först.'); return; }
     if (r.k === 'bash' && !P.shield) { sfx('deny'); say('Sköldknuffen kräver en sköld. Gör en under Vapen och skydd.'); return; }
     if (r.k === 'parrow' && !P.bow) { sfx('deny'); say('Kraftpilen kräver en pilbåge. Gör en under Vapen och skydd.'); return; }
@@ -3081,7 +3155,7 @@
     else if (r.k === 'armor') { var ap = (P.armor) % 4, am = Math.floor(P.armor / 4); P.armor++; say(ARMOR_PART[ap] + ' av ' + MET[am].name + '! Rustningen är nu nivå ' + P.armor + ' av 16.'); }
     else if (r.k === 'pick') { if (!P.hasPick) { P.hasPick = true; say('Du gjorde en stenhacka! Nu kan du bryta koppar.'); } else { P.pick++; say('Ny ' + PICK_NAME[P.pick] + '! Nu kan du bryta ' + MET[P.pick].name + '.'); } }
     else if (r.k === 'lamp') { P.lamp++; say('Lyktan är nu nivå ' + P.lamp); }
-    else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : KN('shield') + ' eller höger musknapp') + ' för att parera.'); }
+    else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : KN2('shield')) + ' för att parera.'); }
     else if (r.k === 'bow') { P.bow++; if (P.bow === 1) P.arrows = Math.max(P.arrows, Math.min(5, maxArrows())); say(['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow - 1] + '! ' + (touchMode ? 'Tryck Skjut' : 'Tryck ' + KN('bow')) + ' för att skjuta.'); }
     else if (r.k === 'arrows') { var a0 = P.arrows; P.arrows = Math.max(a0, Math.min(maxArrows(), a0 + C.bow.arrowsPerCraft)); say('+' + (P.arrows - a0) + ' pilar (du har ' + P.arrows + ' av ' + maxArrows() + ')'); }
     else if (r.k === 'head') { P.arrowHead++; say('Pilspetsar av ' + MET[P.arrowHead - 1].name + '! Pilarna gör nu ' + fmt(arrowDamage()) + ' i skada.'); }
@@ -3089,9 +3163,10 @@
     else if (r.k === 'knife') { P.knife = 1; say('En jaktkniv! Fånga ett djur och tryck ' + (touchMode ? 'Flå' : KN('use')) + ' för att flå det.'); }
     else if (r.k === 'endure') { P.endure++; P.stamina = C.powers.endure.stamina[P.endure]; say('Uthållighet nivå ' + P.endure + '! Nu orkar du springa ' + fmt(P.stamina) + ' sekunder.'); }
     else if (r.k === 'spin') { P.spin++; say(P.spin === 1 ? 'Snurrslag! ' + (touchMode ? 'Håll fingret på högra sidan tills ringen är full och släpp.' : 'Håll in ' + KN('attack') + ' tills ringen är full och släpp.') : 'Snurrslaget är nu nivå ' + P.spin + '.'); }
-    else if (r.k === 'bash') { P.bash++; say(P.bash === 1 ? 'Sköldknuff! Håll upp skölden och ' + (touchMode ? 'tryck på högra sidan.' : 'tryck ' + KN('attack') + '.') : 'Sköldknuffen är nu nivå ' + P.bash + '.'); }
+    else if (r.k === 'bash') { P.bash++; say(P.bash === 1 ? 'Sköldknuff! Tryck snabbt på ' + (touchMode ? 'Sköld' : KN('shield')) + ' och släpp direkt.' : 'Sköldknuffen är nu nivå ' + P.bash + '.'); }
     else if (r.k === 'parrow') { P.parrow++; say(P.parrow === 1 ? 'Kraftpil! Håll in ' + (touchMode ? 'Skjut' : KN('bow')) + ' tills den blå ringen är full och släpp.' : 'Kraftpilen är nu nivå ' + P.parrow + '.'); }
-    else { P.quiver++; say(['Större koger', 'Läderkoger', 'Stort koger'][P.quiver - 1] + '! Nu kan du bära ' + maxArrows() + ' pilar.'); }
+    else { P.quiver++; say(QUIVER_NAME[P.quiver - 1] + '! Nu kan du bära ' + maxArrows() + ' pilar.'); }
+    if (howTo(r.k)) { howToT = 3; powerReminder = { spin: 'Snurrslag: håll in och släpp när ringen är hel.', bash: 'Sköldknuff: tryck snabbt på Sköld.', parrow: 'Kraftpil: håll in Skjut och släpp när ringen är hel.', endure: 'Spring: ' + (touchMode ? 'dra styrspaken ända ut.' : 'håll in ' + KN('run') + '.') }[r.k]; }
     sfx('craft'); powerUp(); save();
   }
   function forgeHit(p) {
@@ -3152,6 +3227,14 @@
       g.font = 'bold 15px ' + TXT; g.fillStyle = maxed ? '#c9bfff' : can ? '#7dff8a' : '#ff9a8a';
       g.fillText(maxed ? (r.k === 'arrows' ? 'Fullt' : 'Klar') : r.cost ? costText(r.cost) : 'Kräver båge', FX0 + FW - 18, y + 36);
     });
+    var hr = forgeTab === 2 && forgeRows()[forgeSel], ht2 = hr && howTo(hr.k);   // v3.7.2: Så gör du, för den valda kraften
+    if (ht2) {
+      var hy = FY0 + forgeRows().length * FSTEP + 4, hh = 86;
+      tag(FX0, hy, FW, hh);
+      if (howToT > 0) { rr(g, FX0, hy, FW, hh, 9); g.fillStyle = 'rgba(255,225,77,' + 0.16 * Math.min(1, howToT) + ')'; g.fill(); g.strokeStyle = PAL.bolt; g.lineWidth = 2; g.stroke(); howToT -= 1 / 60; }
+      g.textAlign = 'left'; g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Så gör du: ' + hr.name.replace(/, nivå \d/, ''), FX0 + 16, hy + 18);
+      g.font = '14px ' + TXT; g.fillStyle = PAL.chalk; ht2.forEach(function (ln, li) { g.fillText(ln, FX0 + 16, hy + 39 + li * 18); });
+    }
     tag(LW / 2 - 95, FBY - 24, 190, 48);
     g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 22px ' + TXT; g.fillText('Stäng', LW / 2, FBY + 1);
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
@@ -3222,6 +3305,11 @@
     touchButton(BTN_ATK, touch.atkId !== null, iconSwordBig, 'Slå');
     touchButton(BTN_BOLT, touch.boltId != null, iconBolt, 'Blixt', P.bolts === 0, P.bolts || null);
     if (P.shield > 0) touchButton(BTN_SHIELD, touch.shieldId != null, iconShieldRound, 'Sköld');
+    if (P.shield > 0 && P.bash > 0) {                          // v3.7.2: blå ring = knuffen är redo, annars laddar den
+      var bcd = Math.max(0, P.bashCd) / C.powers.bash.cooldown[P.bash]; g.lineCap = 'round'; g.lineWidth = 4;
+      g.strokeStyle = bcd > 0 ? 'rgba(160,215,255,0.55)' : 'rgba(160,215,255,' + (0.55 + 0.4 * Math.sin(time * 5)) + ')';
+      g.beginPath(); g.arc(BTN_SHIELD.x, BTN_SHIELD.y, BTN_SHIELD.r + 5, -1.571, -1.571 + (1 - bcd) * 6.283); g.stroke();
+    }
     if (P.bow > 0) touchButton(BTN_BOW, touch.bowId != null, iconBow, 'Skjut', P.arrows === 0, P.arrows || null);
     var em = eMode();
     if (em === 'forge' || nearSmelt) touchButton(BTN_E, touch.eId !== null, iconHammer, 'Smid', false);
@@ -3260,6 +3348,7 @@
       else if (k === 'ArrowRight' || k === 'd' || k === 'Enter' || k === ' ') cycleRow(pauseSel, 1);
       return;
     }
+    if (isKey('shield', k)) shieldPress();
     if (state === 'play' && isKey('attack', k)) attack();   // slå direkt, så att korta tryck aldrig missas
     if (state === 'title') {                               // sparplatser
       if (moreSlot >= 0 && (k === 'Enter' || k === ' ')) return;
@@ -3281,8 +3370,8 @@
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
     }
   });
-  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (isKey('bow', k)) releaseBow(); });
-  window.addEventListener('blur', function () { keys = {}; mouse.down = false; mouse.rdown = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
+  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (isKey('bow', k)) releaseBow(); if (isKey('shield', k)) shieldRelease(); });
+  window.addEventListener('blur', function () { keys = {}; mouse.down = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
   document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
     if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
     else if (window.LJUD) LJUD.resume();
@@ -3297,18 +3386,30 @@
     if (window.LJUD) LJUD.init();
     mpos(e);
     var mp = { x: mouse.x, y: mouse.y };
+    if (e.button === 1 || e.button > 2) e.preventDefault();     // mitten- och sidoknappar: ingen rullning eller bakåt
+    if (state === 'keys') { keysHit(toBox(mp), e.button); return; }
+    if (state !== 'play' && e.button !== 0) return;            // menyerna svarar bara på vänster knapp
     if (state === 'forge') { forgeHit(toBox(mp)); return; }
     if (state === 'paused') { pauseHit(toBox(mp)); return; }
-    if (state === 'keys') { keysHit(toBox(mp)); return; }
     if (state === 'title') { titleHit(toBox(mp), false); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
-    if (e.button === 2) { mouse.rdown = true; return; }       // höger musknapp: skölden
-    mouse.down = true;
-    if (state === 'play' && !P.moving) { var mw2 = toWorld(mouse.x, mouse.y), dx = mw2.x - P.x, dy = mw2.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
-    attack();
+    var mk = 'Mouse' + e.button;                                 // v3.7.2: musknapparna är som tangenter (Styrning)
+    if (keys[mk]) return; keys[mk] = true; mouse.down = true;
+    if (!P.moving && (isKey('attack', mk) || isKey('bow', mk))) { var mw2 = toWorld(mouse.x, mouse.y), dx = mw2.x - P.x, dy = mw2.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
+    if (isKey('shield', mk)) shieldPress();
+    if (isKey('attack', mk)) attack();
+    if (isKey('bow', mk)) pressBow();
+    if (isKey('bolt', mk)) castStorm();
+    if (isKey('use', mk)) useE();
   });
-  window.addEventListener('mouseup', function (e) { if (e.button === 2) mouse.rdown = false; else mouse.down = false; });
+  window.addEventListener('mouseup', function (e) {
+    var mk = 'Mouse' + e.button; if (e.button === 1 || e.button > 2) e.preventDefault();
+    if (!keys[mk]) return; keys[mk] = false; mouse.down = e.buttons !== 0;
+    if (isKey('bow', mk)) releaseBow();
+    if (isKey('shield', mk)) shieldRelease();
+  });
+  window.addEventListener('auxclick', function (e) { if (e.button !== 0) e.preventDefault(); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // pekskärm och penna (Android-plattor). Musen hanteras ovan.
@@ -3340,7 +3441,7 @@
       if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); }   // spärr så att ett kvarglömt finger inte startar om direkt
       return;
     }
-    if (P.shield > 0 && Math.hypot(p.x - BTN_SHIELD.x, p.y - BTN_SHIELD.y) < BTN_SHIELD.r * 1.1) { touch.shieldId = e.pointerId; return; }
+    if (P.shield > 0 && Math.hypot(p.x - BTN_SHIELD.x, p.y - BTN_SHIELD.y) < BTN_SHIELD.r * 1.1) { touch.shieldId = e.pointerId; shieldPress(); return; }
     if (P.bow > 0 && Math.hypot(p.x - BTN_BOW.x, p.y - BTN_BOW.y) < BTN_BOW.r * 1.1) { touch.bowId = e.pointerId; pressBow(); return; }
     if (Math.hypot(p.x - BTN_BOLT.x, p.y - BTN_BOLT.y) < BTN_BOLT.r * 1.1) { touch.boltId = e.pointerId; castStorm(); return; }
     if (onBtn(p, BTN_E)) { touch.eId = e.pointerId; useE(); return; }
@@ -3366,7 +3467,7 @@
     if (e.pointerId === touch.atkId) touch.atkId = null;
     if (e.pointerId === touch.eId) touch.eId = null;
     if (e.pointerId === touch.boltId) touch.boltId = null;
-    if (e.pointerId === touch.shieldId) touch.shieldId = null;
+    if (e.pointerId === touch.shieldId) { touch.shieldId = null; shieldRelease(); }
     if (e.pointerId === touch.bowId) { touch.bowId = null; releaseBow(); }
   }
   cv.addEventListener('pointerup', endTouch);
@@ -3385,7 +3486,7 @@
   }
   requestAnimationFrame(frame);
   // för test: window.__sg exponerar läge
-  window.__sg = { maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
+  window.__sg = { get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
     step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram

@@ -118,7 +118,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.1', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.2', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);

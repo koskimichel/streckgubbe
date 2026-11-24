@@ -4,7 +4,15 @@
     if (state !== 'play') return;
     P.cd -= dt; P.inv -= dt; P.swing -= dt; P.shootCd -= dt; P.shotT -= dt; P.blockFlash -= dt;
     P.spinCd -= dt; P.bashCd -= dt; P.pwrCd -= dt; P.spinT -= dt; if (P.bowHold > 0) P.bowHold += dt;   // v3.7: krafter
-    P.blocking = P.shield > 0 && !!(held('shield') || mouse.rdown || touch.shieldId != null);   // håller skölden uppe
+    if (P.bashT > 0) P.bashT -= dt;
+    if (P.spinT > 0 && Math.random() < dt * 40) {               // v3.7.2: gnistor från svärdsspetsen när han snurrar
+      var sa2 = spinAngle(), sr2 = reach() * 0.95; sparks(P.x + Math.cos(sa2) * sr2, P.y - 4 + Math.sin(sa2) * sr2, swordLook(Math.max(1, P.sword)).edge, 1);
+    }
+    if (P.bowHold > 0 && P.pwrCd <= 0 && P.arrows > 0) {        // v3.7.2: kraftpilen laddas, ljus dras in mot bågen
+      P.shotT = 0.35; var chg = Math.min(1, P.bowHold / C.powers.arrow.charge);
+      if (Math.random() < dt * (10 + 30 * chg)) { var ia = Math.random() * 6.283, ir = 34 + Math.random() * 14; fx.push({ k: 's', x: P.x + Math.cos(ia) * ir, y: P.y - 4 + Math.sin(ia) * ir, vx: -Math.cos(ia) * ir * 2.4, vy: -Math.sin(ia) * ir * 2.4, t: 0.4, life: 0.4, s: 1.6 + chg, col: chg >= 1 ? '#ffffff' : '#9fe0ff' }); }
+    }
+    P.blocking = P.shield > 0 && !!(held('shield') || touch.shieldId != null);   // v3.7.2: musknappar finns i keys   // håller skölden uppe
     P.calmT += dt;
     if (DF().regen && P.calmT > 3 && P.hp < maxHp() && !mons.some(function (m) { return !m.hidden && dist(m, P) < 170; })) {   /* Lätt: läker när det är lugnt */
       P.hp = Math.min(maxHp(), P.hp + DF().regen * C.player.hpPerHeart * dt);
@@ -50,7 +58,7 @@
     }
     if (window.LJUD) LJUD.setCave(isCave[clamp(Math.floor(P.y / TS), 0, H - 1)][clamp(Math.floor(P.x / TS), 0, W - 1)]);
     if (touch.atkId !== null && !P.moving) aimNearest();
-    var atkHeld = !!(held('attack') || mouse.down || touch.atkId !== null);
+    var atkHeld = !!(held('attack') || touch.atkId !== null);
     if (!chargeSpin(atkHeld, dt) && atkHeld) attack();         // v3.7: håller man in laddas snurrslaget
 
     // monster
@@ -103,6 +111,7 @@
     });
     // pilar i luften
     arrows = arrows.filter(function (a) {
+      if (a.trail) { a.trail.push({ x: a.x, y: a.y }); if (a.trail.length > 12) a.trail.shift(); }   // v3.7.2: kraftpilens ljussvans
       var stp = Math.hypot(a.vx, a.vy) * dt; a.x += a.vx * dt; a.y += a.vy * dt; a.left -= stp;
       if (a.left <= 0 || blockedAt(a.x, a.y, 2)) { sparks(a.x, a.y, '#c9a06a', 4); return false; }
       for (var ai = 0; ai < mons.length; ai++) {
@@ -112,6 +121,7 @@
           var l2 = Math.hypot(a.vx, a.vy) || 1, kb = C.monsters.knockback * 0.4 * (m.type === 'boss' ? 0.25 : 1);
           m.hp -= a.dmg; m.hit = 0.12; m.pop = 0; m.kx = a.vx / l2 * kb; m.ky = a.vy / l2 * kb;
           sparks(m.x, m.y, PAL.bolt, 5); floatText(m.x, m.y - m.r - 8, fmt(a.dmg), '#ffffff'); sfx('hit');
+          if (a.power) { sparks(m.x, m.y, '#bfe8ff', 12); fx.push({ k: 'bash', x: m.x, y: m.y, t: 0.25, life: 0.25, R: 26 }); freeze(0.04); addTrauma(0.2); }   // v3.7.2: ljusutbrott vid varje träff
           if (a.power && a.pierce > 1) { a.pierce--; a.hits.push(m); continue; }
           return false;
         }
@@ -372,7 +382,13 @@
     var dx = best ? best.x - P.x : P.fx, dy = best ? best.y - P.y : P.fy, l = Math.hypot(dx, dy) || 1;
     dx /= l; dy /= l; P.fx = dx; P.fy = dy;
     var ar = { x: P.x + dx * 12, y: P.y - 4 + dy * 12, vx: dx * B.speed, vy: dy * B.speed, left: B.range[P.bow], dmg: arrowDamage(), head: P.arrowHead };
-    if (power) { ar.power = true; ar.dmg *= PA.dmgMul[P.parrow]; ar.pierce = PA.pierce[P.parrow]; ar.hits = []; ar.left *= PA.rangeMul; ar.vx *= 1.25; ar.vy *= 1.25; P.pwrCd = PA.cooldown[P.parrow]; addTrauma(0.25); }
+    if (power) {
+      ar.power = true; ar.dmg *= PA.dmgMul[P.parrow]; ar.pierce = PA.pierce[P.parrow]; ar.hits = []; ar.left *= PA.rangeMul; ar.vx *= 1.25; ar.vy *= 1.25; ar.trail = [];
+      P.pwrCd = PA.cooldown[P.parrow]; addTrauma(0.45); freeze(0.05); sfx('charge');   // v3.7.2: blixt vid bågen och rekyl
+      fx.push({ k: 'bash', x: P.x + dx * 14, y: P.y - 4 + dy * 14, t: 0.3, life: 0.3, R: 34 });
+      sparks(P.x + dx * 16, P.y - 4 + dy * 16, '#bfe8ff', 12);
+      move(P, -dx * 10, -dy * 10);
+    }
     arrows.push(ar);
     P.arrows--; P.shootCd = B.cooldown; P.shotT = 0.35; sfx('bow'); save();
   }

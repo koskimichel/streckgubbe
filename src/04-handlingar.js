@@ -24,9 +24,11 @@
     if (fire) doSpin();
     return false;
   }
+  function spinAngle() { var S = C.powers.spin; return (P.spinA0 || 0) + (1 - Math.max(0, P.spinT) / S.time) * Math.PI * 3; }   // v3.7.2: ett och ett halvt varv
   function doSpin() {                                          // svärdet snurrar runt gubben och träffar alla nära
     var S = C.powers.spin, L = P.spin, rad = S.radius[L], dmg = damage() * S.dmgMul[L], hit = 0;
-    P.spinCd = S.cooldown[L]; P.spinT = 0.35; P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.3);
+    P.spinCd = S.cooldown[L]; P.spinT = S.time; P.spinA0 = Math.atan2(P.fy, P.fx); P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.35);
+    for (var di = 0; di < 14; di++) { var da = di / 14 * 6.283; fx.push({ k: 'p', x: P.x + Math.cos(da) * 10, y: P.y + 10 + Math.sin(da) * 5, vx: Math.cos(da) * 120, vy: Math.sin(da) * 60 - 20, t: 0.45, life: 0.45, col: biome.i === 3 ? '#ffffff' : '#cdbf9a', s: 2.2 }); }   // damm
     mons.forEach(function (m) {
       if (m.hidden) return;
       var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy);
@@ -37,11 +39,19 @@
       sparks(m.x, m.y, PAL.bolt, 6); floatText(m.x, m.y - m.r - 8, fmt(dmg), '#ffffff');
     });
     fx.push({ k: 'r', x: P.x, y: P.y, t: 0.4, life: 0.4 });
-    if (hit) { sfx('hit'); freeze(0.06); }
+    if (hit) { sfx('hit'); freeze(0.07); addTrauma(0.2); }
+  }
+  var shieldDownAt = null;                                       // v3.7.2: snabbt tryck på Sköld = knuff
+  function shieldPress() { shieldDownAt = performance.now(); }
+  function shieldRelease() {
+    var quick = shieldDownAt != null && performance.now() - shieldDownAt <= C.powers.bash.tap; shieldDownAt = null;
+    if (quick && state === 'play' && P.shield > 0 && P.bash > 0 && P.bashCd <= 0) shieldBash();
   }
   function shieldBash() {                                      // v3.7: alla monster runt gubben kastas bort och blir yra
     var B = C.powers.bash, L = P.bash, rad = B.radius[L], dmg = damage() * B.dmgMul;
-    P.bashCd = B.cooldown[L]; P.blockFlash = 0.3; sfx('block'); addTrauma(0.45);
+    P.bashCd = B.cooldown[L]; P.blockFlash = 0.35; P.bashT = 0.3; sfx('block'); sfx('hit'); addTrauma(0.6); freeze(0.08);
+    for (var di = 0; di < 18; di++) { var da = di / 18 * 6.283; fx.push({ k: 'p', x: P.x + Math.cos(da) * 12, y: P.y + 9 + Math.sin(da) * 6, vx: Math.cos(da) * 190, vy: Math.sin(da) * 95 - 25, t: 0.5, life: 0.5, col: biome.i === 3 ? '#ffffff' : '#cdbf9a', s: 2.6 }); }   // damm
+    sparks(P.x + P.fx * 14, P.y - 4 + P.fy * 10, '#bfe8ff', 14);
     mons.forEach(function (m) {
       if (m.hidden) return;
       var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy) || 1, boss = m.type === 'boss';
@@ -50,7 +60,8 @@
       if (!boss) { m.stunT = B.stun[L]; m.cd = Math.max(m.cd, m.stunT); }
       m.hp -= dmg; m.hit = 0.12; m.pop = 0; floatText(m.x, m.y - m.r - 8, fmt(dmg), '#e6f5ff');
     });
-    fx.push({ k: 'bash', x: P.x, y: P.y, t: 0.35, life: 0.35, R: rad });
+    fx.push({ k: 'bash', x: P.x, y: P.y, t: 0.45, life: 0.45, R: rad * 1.25 });
+    fx.push({ k: 'bash', x: P.x, y: P.y, t: 0.3, life: 0.3, R: rad * 0.7 });
   }
   function attack() {
     if (P.blocking && P.bash > 0 && P.bashCd <= 0 && state === 'play') { shieldBash(); return; }   // slag med skölden uppe = knuff

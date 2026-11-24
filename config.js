@@ -99,7 +99,7 @@ const CONFIG = {
     arrowHead: [null, { wood: 1, metal: 0, n: 4 }, { wood: 1, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 2, metal: 3, n: 7 }],   // pilspetsar: koppar, järn, guld, stjärnmalm
     rod: { wood: 2, flax: 3 },                                   // v3.3: fiskespö
     knife: { wood: 1, stone: 2 },                                // v3.3: jaktkniv av sten
-    quiver: [null, { wood: 1, flax: 2 }, { flax: 2, hide: 2 }, { flax: 3, hide: 3 }],   // v3.5: kogret i tre steg (kostnad för att nå steg 1-3)
+    quiver: [null, { wood: 2, flax: 2 }, { wood: 1, flax: 3, hide: 1 }, { flax: 3, hide: 2 }, { flax: 4, hide: 3, metal: 0, n: 3 }, { flax: 5, hide: 4, metal: 1, n: 3 }],   // v3.7.2: fem steg om +5 pilar, de två sista kräver koppar och järn
     lantern: [null, { metal: 0, n: 4 }, { wood: 1, metal: 1, n: 4 }, { wood: 1, metal: 2, n: 5 }, { wood: 2, metal: 3, n: 6 }]   // v3.6: lyktan kostar metall (förut månsten)
   },
 
@@ -116,7 +116,7 @@ const CONFIG = {
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
   shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2] },   // v3.6: arc = hur långt runt skölden skyddar (cos), bounce = knuff, stun = sekunder yr
-  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 20, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
+  bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 15, 20, 25, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
     headDmg: [3, 5, 8, 11, 15], bowMul: [0, 1.0, 1.15, 1.3], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
 
   // Natur (v3.3): lin på marken, en damm var tredje nivå (2, 5, 8 ...), bytesdjur på de andra nivåerna.
@@ -130,7 +130,7 @@ const CONFIG = {
   // Svårighetsgrader (v2.3). mHp/mDmg = monster, bHp = bossens hälsa, gap = sekunder mellan bossens anfall,
   // wind = hur länge bossen varnar (1 = som förut), keep = andel malm kvar efter död, minions = hjälpare i bossens andra fas
   difficulty: {
-    latt:  { mHp: 0.7, mDmg: 0.6, bHp: 0.7, gap: [2.5, 4.5], wind: 1.3,  keep: 1.0,  minions: 2, regen: 0.25, invMul: 1.6, quiverCap: [10, 15, 25, 40] },   // v3.2: snällare
+    latt:  { mHp: 0.7, mDmg: 0.6, bHp: 0.7, gap: [2.5, 4.5], wind: 1.3,  keep: 1.0,  minions: 2, regen: 0.25, invMul: 1.6, quiverCap: [15, 20, 25, 30, 35, 40] },   // v3.2: snällare
     //       regen = hjärtan per sekund när inget monster är nära och man inte blivit träffad på 3 s; invMul = längre skydd efter träff
     medel: { mHp: 1.4, mDmg: 1.3, bHp: 2.0, gap: [1.5, 2.5], wind: 0.75, keep: 0.5,  minions: 4, oreMul: 0.85, bonusYield: false, metalDrop: 0.1, costMul: [1.2, 1.5, 2.0, 2.6] },
     svar:  { mHp: 1.8, mDmg: 1.7, bHp: 3.0, gap: [1.0, 1.8], wind: 0.55, keep: 0.0,  minions: 5, oreMul: 0.8, bonusYield: false, metalDrop: 0.08, costMul: [1.3, 1.7, 2.2, 2.9] }
@@ -141,8 +141,8 @@ const CONFIG = {
   // Krafter (v3.7): lärs i smedjan för månsten, tre nivåer var. Håll in och släpp.
   powers: {
     cost: [null, 1, 3, 5],                                     // månsten för att nå nivå 1-3 (v3.7.1: dyrare, man hittar knappt en per nivå)
-    spin:  { hold: 0.35, charge: 0.55, radius: [0, 62, 72, 84], dmgMul: [0, 1.0, 1.3, 1.6], cooldown: [0, 3, 2.5, 2] },        // snurrslag: håll in Slå, släpp
-    bash:  { radius: [0, 72, 86, 100], push: 380, stun: [0, 1.0, 1.3, 1.6], dmgMul: 0.5, cooldown: [0, 4, 3.5, 3] },        // sköldknuff: slå medan skölden är uppe
+    spin:  { hold: 0.35, charge: 0.55, time: 0.45, radius: [0, 62, 72, 84], dmgMul: [0, 1.0, 1.3, 1.6], cooldown: [0, 3, 2.5, 2] },        // snurrslag: håll in Slå, släpp
+    bash:  { tap: 260, radius: [0, 72, 86, 100], push: 380, stun: [0, 1.0, 1.3, 1.6], dmgMul: 0.5, cooldown: [0, 4, 3.5, 3] },        // sköldknuff: tryck snabbt på Sköld (tap = ms), håll in = skydda
     arrow: { charge: 0.6, dmgMul: [0, 2, 2.5, 3], pierce: [0, 2, 3, 4], rangeMul: 1.3, cooldown: [0, 2.5, 2, 1.5] },          // kraftpil: håll in Skjut, släpp
     // v3.7.1: spring (alla kan), ork i sekunder per nivå av kraften Uthållighet (0-3), regen = ork per sekund efter delay s vila
     endure: { speedMul: 1.6, stamina: [2.5, 3.5, 4.5, 6], regen: [0.8, 1.0, 1.25, 1.5], delay: 0.6, cost: [null, 1, 2, 4] }

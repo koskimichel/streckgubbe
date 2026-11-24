@@ -129,7 +129,7 @@
     for (i = 1; i <= 4; i++) { if (!cr.shield[i]) miss.push('sköld ' + i); if (!cr.arrowHead[i]) miss.push('pilspets ' + i); }
     for (i = 1; i <= 3; i++) if (!cr.bow[i]) miss.push('båge ' + i);
     ['stonePick', 'arrows', 'rod', 'knife'].forEach(function (k) { if (!cr[k]) miss.push(k); });
-    for (i = 1; i <= 3; i++) if (!cr.quiver[i]) miss.push('koger ' + i);
+    for (i = 1; i <= 5; i++) if (!cr.quiver[i]) miss.push('koger ' + i);
     for (i = 1; i <= 4; i++) if (!cr.lantern[i] || cr.lantern[i].metal == null) miss.push('lykta ' + i + ' (metall)');
     check('alla recept finns för varje nivå', !miss.length, miss.join(', '));
     check('pilar kostar ingen metall', cr.arrows.metal == null, JSON.stringify(cr.arrows));
@@ -160,16 +160,16 @@
     check('pilspetsar nivå 1 till 4', P.arrowHead === 4 && same(spent(P, b), costSum(cr.arrowHead, 1, 4)), 'nivå ' + P.arrowHead);
     P.arrows = 0; for (i = 0; i < 20; i++) s.buy(5);
     check('pilar stannar vid ' + s.maxArrows() + ' utan koger', P.quiver === 0 && P.arrows === s.maxArrows(0), P.arrows);
-    check('kogret: Lätt 10/15/25/40, annars 5/10/20/30', same(C.difficulty.latt.quiverCap, [10, 15, 25, 40]) && same(C.bow.quiverCap, [5, 10, 20, 30]) && !C.difficulty.medel.quiverCap && !C.difficulty.svar.quiverCap);
+    check('kogret i steg om +5: Lätt 15 till 40, annars 5 till 30', same(C.difficulty.latt.quiverCap, [15, 20, 25, 30, 35, 40]) && same(C.bow.quiverCap, [5, 10, 15, 20, 25, 30]) && !C.difficulty.medel.quiverCap && !C.difficulty.svar.quiverCap);
     s.tab(1); P.hasPick = false; P.pick = 0; b = stock(P); for (i = 0; i < 4; i++) s.buy(0);
     var pickCost = costSum([null, cr.stonePick, cr.pick[1], cr.pick[2], cr.pick[3]], 1, 4);
     check('stenhacka och sedan koppar-, järn- och guldhacka', P.hasPick && P.pick === 3 && same(spent(P, b), pickCost), 'hacka ' + P.pick);
     s.buy(2); s.buy(3);
     check('fiskespö och jaktkniv', P.rod === 1 && P.knife === 1);
     b = stock(P); for (i = 0; i < 5; i++) s.buy(4);
-    check('kogret steg 1 till 3 kostar exakt receptet', P.quiver === 3 && same(spent(P, b), costSum(cr.quiver, 1, 3)), 'steg ' + P.quiver);
+    check('kogret steg 1 till 5 kostar exakt receptet', P.quiver === 5 && same(spent(P, b), costSum(cr.quiver, 1, 5)), 'steg ' + P.quiver);
     s.tab(0); for (i = 0; i < 10; i++) s.buy(5);
-    check('största kogret: pilar stannar vid ' + s.maxArrows(3), P.arrows === s.maxArrows(3) && s.maxArrows(3) > s.maxArrows(0), P.arrows);
+    check('största kogret: pilar stannar vid ' + s.maxArrows(5), P.arrows === s.maxArrows(5) && s.maxArrows(5) > s.maxArrows(0), P.arrows);
     Object.assign(P, { sword: 2, wood: 0, stone: 0, ore: 0 }); b = stock(P); s.buy(0);
     check('utan material händer ingenting', P.sword === 2 && same(stock(P), b));
     s.setDiff('medel'); P.sword = 11; P.lamp = 1;
@@ -260,6 +260,13 @@
     for (var n = 1; n <= 70; n++) { P2.maxLevel = n; s.build(n);
       cum += s.items.filter(function (it) { return it.t === 'moon'; }).length + (n % 5 === 0 ? 1 : 0) + (s.puzzle && s.puzzle.chest ? 1 : 0) + s.mons.filter(function (mm) { return mm.type === 'ghost'; }).length * 0.05;
       if (firstAll == null && cum >= tier1) firstAll = n; if (allMax == null && cum >= total) allMax = n; }
+    // kogret (v3.7.2): lin på kartan och från spindlar, skinn från bytesdjur (kniv), järn från Djungeln
+    var Cq = CFG(), qc = Cq.crafting.quiver, flax = 0, hide = 0, wood = 0, step = 0, qAt = [];
+    for (n = 1; n <= 40 && step < 5; n++) { s.build(n);
+      for (var yy = 0; yy < s.map.length; yy++) for (var xx = 0; xx < s.map[yy].length; xx++) if (s.map[yy][xx] === 8) flax++;
+      flax += s.mons.filter(function (mm) { return mm.type === 'spider'; }).length * Cq.drops.spiderFlax; hide += s.prey.length * Cq.prey.hideChance; wood += 6;
+      while (step < 5) { var qq = qc[step + 1]; if (flax < (qq.flax || 0) || hide < (qq.hide || 0) || wood < (qq.wood || 0) || (qq.metal === 1 && n < 6)) break; flax -= qq.flax || 0; hide -= qq.hide || 0; wood -= qq.wood || 0; step++; qAt.push(n); } }
+    check('kogret tar tid: steg 3 tidigast nivå 3, sista steget i Djungeln eller senare', qAt[2] >= 3 && qAt[4] >= 6 && qAt[4] <= 22, 'steg på nivå ' + qAt.join(', '));
     check('månsten: första nivån av alla fyra krafter tidigt (senast nivå 9)', firstAll != null && firstAll <= 9, 'nivå ' + firstAll + ' (' + tier1 + ' st)');
     check('månsten: alla krafter färdiga först i varv 2 (nivå 35-50)', allMax >= 35 && allMax <= 50, 'nivå ' + allMax + ' (' + total + ' st)');
     s.setDiff('latt'); s.toTitle(); clearSaves(); await reloadGame();
@@ -360,6 +367,21 @@
     var kb = JSON.parse(localStorage.getItem('mm-installningar')).keys;
     key('Escape'); key('Escape');
     check('Som från början återställer W', kb.up[0] === 'w' && kb.up[1] === 'ArrowUp', JSON.stringify(kb.up));
+    // musknappar (v3.7.2)
+    var ww = w(), cvs = ww.document.getElementById('c');
+    function mouse(type, btn) { var r = cvs.getBoundingClientRect(); (type === 'mouseup' ? ww : cvs).dispatchEvent(new ww.MouseEvent(type, { button: btn, buttons: type === 'mouseup' ? 0 : 1 << btn, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true })); }
+    P = s.P; P.shield = 1; mouse('mousedown', 2); s.step(0.05); var rb = P.blocking; mouse('mouseup', 2); s.step(0.05);
+    check('höger musknapp håller skölden från början', rb && !P.blocking, s.state + ', sköld ' + P.shield + ', rb ' + rb + ', touch ' + w().eval('typeof touchMode'));
+    key('Escape'); for (i = 0; i < 7; i++) key('ArrowDown'); key('Enter');
+    for (i = 0; i < 5; i++) key('ArrowDown'); key('Enter'); mouse('mousedown', 1); mouse('mouseup', 1);   // Sköld, första rutan: mittenknappen
+    kb = JSON.parse(localStorage.getItem('mm-installningar')).keys; key('Escape'); key('Escape'); await wait(30);
+    mouse('mousedown', 1); s.step(0.05); var mb = P.blocking; mouse('mouseup', 1); s.step(0.05);
+    check('en musknapp kan väljas i Styrning (mittenknappen = sköld)', kb.shield[0] === 'Mouse1' && mb, JSON.stringify(kb.shield));
+    var old = { up: ['w', 'ArrowUp'], down: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], attack: [' ', ''], shield: ['Shift', ''], bow: ['f', ''], run: ['c', ''], bolt: ['q', ''], use: ['e', ''] };
+    localStorage.setItem('mm-installningar', JSON.stringify({ keys: old })); await reloadGame(); s = S(); s.playSlot(1); await wait(80);
+    key('Escape'); for (i = 0; i < 7; i++) key('ArrowDown'); key('Enter'); key('Escape'); key('Escape');
+    kb = JSON.parse(localStorage.getItem('mm-installningar')).keys;
+    check('sparade tangenter från v3.7.1 får vänster och höger musknapp', kb.attack[1] === 'Mouse0' && kb.shield[1] === 'Mouse2', JSON.stringify([kb.attack, kb.shield]));
     s.toTitle();
   }
 
@@ -393,6 +415,13 @@
     bm.forEach(function (m) { s.mons.push(m); });
     keyDown('Shift'); s.step(0.05); keyDown(' '); s.step(0.05); keyUp(' '); s.step(0.3); keyUp('Shift'); s.step(0.05);
     check('sköldknuffen kastar bort alla runt och gör dem yra', bm.every(function (m) { return m.stunT > 0; }) && bm[0].x < bx0 - 10, 'knuff ' + (bx0 - bm[0].x).toFixed(1) + ' px');
+    // v3.7.2: snabbt tryck på Sköld = knuff, håll in = ingen knuff
+    s.step(0.3); s.mons.length = 0; P.bashCd = 0; var tm = [freshMon(s, P.x + 40, P.y)]; s.mons.push(tm[0]);
+    keyDown('Shift'); await wait(400); keyUp('Shift'); s.step(0.1);
+    var heldNoBash = !(tm[0].stunT > 0);
+    s.shieldTap(); s.step(0.2);
+    check('snabbt tryck på Sköld knuffar, att hålla in gör det inte', heldNoBash && tm[0].stunT > 0, 'håll: ' + (heldNoBash ? 'ingen knuff' : 'knuff') + ', tryck: ' + (tm[0].stunT > 0 ? 'knuff' : 'ingen'));
+    s.mons.length = 0;
     // kraftpil
     s.step(0.3); s.mons.length = 0; Object.assign(P, { parrow: 1, bow: 1, arrows: 10, pwrCd: 0, shootCd: 0, fx: 1, fy: 0 });
     var line = [80, 130, 180].map(function (dx) { return freshMon(s, P.x + dx, P.y); });
@@ -484,7 +513,7 @@
     s.playSlot(1); await wait(100); P = s.P;
     check('gammal sparning flyttas till plats 1', moved);
     check('gammal sparning: stenhacka, kistor och brutna rutor tolkas rätt', P.hasPick === true && JSON.stringify(P.chests) === '[2,8]' && P.minedMap['10'] && P.minedMap['10'].length === 2 && P.maxLevel === 10, JSON.stringify(P.chests));
-    check('gammal sparning: stort koger blir högsta steget, pilarna finns kvar', P.quiver === 3 && P.arrows === 40, P.quiver + ', ' + P.arrows);
+    check('gammal sparning: stort koger blir högsta steget, pilarna finns kvar', P.quiver === 5 && P.arrows === 40, P.quiver + ', ' + P.arrows);
     s.toTitle();
     // nytt spel på plats 3 med Svår, via titeln
     var cx = 55 + 2 * 290, cy = 262;

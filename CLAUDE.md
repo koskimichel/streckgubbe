@@ -1,4 +1,13 @@
-# Malm & Monster (Mines & Monsters), version 3.7.1
+# Malm & Monster (Mines & Monsters), version 3.7.2
+
+v3.7.2:
+- Kogret har fem steg om +5 pilar (`crafting.quiver[1..5]`, `QUIVER_NAME`, `C.bow.quiverCap` 5-30, Lätt 15-40); steg 4 kräver koppar och steg 5 järn. Sparningen har `quiverV: 3`; v2 (tre steg) räknas om [0,1,3,5], äldre stort koger = 5. Balansmätningen visar på vilken nivå varje steg går att köpa.
+- Sköldknuff: snabbt tryck på Sköld (släpp inom `C.powers.bash.tap` ms) = knuff, håll in = skydda (`shieldPress`/`shieldRelease`, tangent, musknapp och pekknapp). Slå med skölden uppe fungerar också. Tydligare effekt (`P.bashT`, skölden stöts framåt, två vågor, damm, skak, hit-stop). Blå ring runt sköldknappen på plattan visar när knuffen är redo.
+- Snurrslag: gubben och svärdet snurrar ett och ett halvt varv (`spinAngle`, `P.spinA0`, `C.powers.spin.time`), svep i svärdets färg, vit spetslinje, ring på marken, gnistor och damm.
+- Kraftpil: ljus dras in mot bågen medan den laddas, blixt, rekyl och skak när den skjuts, ljussvans (`a.trail`) och ljusutbrott vid varje träff.
+- Smedjans flik Krafter har en ruta Så gör du för den valda kraften (`howTo`); den lyser efter köp, och när smedjan stängs kommer en kort påminnelse (`powerReminder`).
+- Styrning: musknappar går att välja (`Mouse0`-`Mouse4`, `MOUSE_NAME`). Från början slår vänster och höger håller skölden (i `KEY_DEF`); äldre sparade tangenter får dem (`settings.keysV`). I Styrning väljs musknappen genom att trycka den (vänster: klicka i samma ruta). Mitten- och sidoknappar har `preventDefault`. `mouse.rdown` finns inte längre.
+- Fix: `lastTouch` börjar på -9999, så att musklick de första 0,8 s efter att sidan laddats inte ignoreras.
 
 v3.7.1:
 - Monster efter värld: `MON_LOOK[biome.i]` (färg per monstertyp + `deco`: leaf, sand, frost, magma), `monBase(m)` ger färgen (även `monColor`), `monDeco(m)` ritar detaljen. Ängen har grundfärgerna i config.

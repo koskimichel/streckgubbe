@@ -27,6 +27,7 @@
       else if (k === 'ArrowRight' || k === 'd' || k === 'Enter' || k === ' ') cycleRow(pauseSel, 1);
       return;
     }
+    if (isKey('shield', k)) shieldPress();
     if (state === 'play' && isKey('attack', k)) attack();   // slå direkt, så att korta tryck aldrig missas
     if (state === 'title') {                               // sparplatser
       if (moreSlot >= 0 && (k === 'Enter' || k === ' ')) return;
@@ -48,8 +49,8 @@
       if (state === 'dead') { P.hp = maxHp(); startLevel(level); }
     }
   });
-  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (isKey('bow', k)) releaseBow(); });
-  window.addEventListener('blur', function () { keys = {}; mouse.down = false; mouse.rdown = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
+  window.addEventListener('keyup', function (e) { var k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[k] = false; if (isKey('bow', k)) releaseBow(); if (isKey('shield', k)) shieldRelease(); });
+  window.addEventListener('blur', function () { keys = {}; mouse.down = false; touch.shieldId = null; touch.bowId = null; touch.joyId = touch.atkId = touch.eId = null; if (P) { P.bowHold = 0; P.atkHold = 0; P.spinCharge = 0; } pauseGame(); });
   document.addEventListener('visibilitychange', function () {   // appen i bakgrunden: pausa och tysta
     if (document.hidden) { pauseGame(); if (window.LJUD) LJUD.suspend(); }
     else if (window.LJUD) LJUD.resume();
@@ -64,18 +65,30 @@
     if (window.LJUD) LJUD.init();
     mpos(e);
     var mp = { x: mouse.x, y: mouse.y };
+    if (e.button === 1 || e.button > 2) e.preventDefault();     // mitten- och sidoknappar: ingen rullning eller bakåt
+    if (state === 'keys') { keysHit(toBox(mp), e.button); return; }
+    if (state !== 'play' && e.button !== 0) return;            // menyerna svarar bara på vänster knapp
     if (state === 'forge') { forgeHit(toBox(mp)); return; }
     if (state === 'paused') { pauseHit(toBox(mp)); return; }
-    if (state === 'keys') { keysHit(toBox(mp)); return; }
     if (state === 'title') { titleHit(toBox(mp), false); return; }
     if (state === 'dead') { if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); } return; }
     if (state === 'play' && onPauseBtn(mp)) { pauseGame(); return; }
-    if (e.button === 2) { mouse.rdown = true; return; }       // höger musknapp: skölden
-    mouse.down = true;
-    if (state === 'play' && !P.moving) { var mw2 = toWorld(mouse.x, mouse.y), dx = mw2.x - P.x, dy = mw2.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
-    attack();
+    var mk = 'Mouse' + e.button;                                 // v3.7.2: musknapparna är som tangenter (Styrning)
+    if (keys[mk]) return; keys[mk] = true; mouse.down = true;
+    if (!P.moving && (isKey('attack', mk) || isKey('bow', mk))) { var mw2 = toWorld(mouse.x, mouse.y), dx = mw2.x - P.x, dy = mw2.y - P.y, l = Math.hypot(dx, dy) || 1; P.fx = dx / l; P.fy = dy / l; }
+    if (isKey('shield', mk)) shieldPress();
+    if (isKey('attack', mk)) attack();
+    if (isKey('bow', mk)) pressBow();
+    if (isKey('bolt', mk)) castStorm();
+    if (isKey('use', mk)) useE();
   });
-  window.addEventListener('mouseup', function (e) { if (e.button === 2) mouse.rdown = false; else mouse.down = false; });
+  window.addEventListener('mouseup', function (e) {
+    var mk = 'Mouse' + e.button; if (e.button === 1 || e.button > 2) e.preventDefault();
+    if (!keys[mk]) return; keys[mk] = false; mouse.down = e.buttons !== 0;
+    if (isKey('bow', mk)) releaseBow();
+    if (isKey('shield', mk)) shieldRelease();
+  });
+  window.addEventListener('auxclick', function (e) { if (e.button !== 0) e.preventDefault(); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // pekskärm och penna (Android-plattor). Musen hanteras ovan.
@@ -107,7 +120,7 @@
       if (performance.now() - deadAt > 700) { P.hp = maxHp(); startLevel(level); }   // spärr så att ett kvarglömt finger inte startar om direkt
       return;
     }
-    if (P.shield > 0 && Math.hypot(p.x - BTN_SHIELD.x, p.y - BTN_SHIELD.y) < BTN_SHIELD.r * 1.1) { touch.shieldId = e.pointerId; return; }
+    if (P.shield > 0 && Math.hypot(p.x - BTN_SHIELD.x, p.y - BTN_SHIELD.y) < BTN_SHIELD.r * 1.1) { touch.shieldId = e.pointerId; shieldPress(); return; }
     if (P.bow > 0 && Math.hypot(p.x - BTN_BOW.x, p.y - BTN_BOW.y) < BTN_BOW.r * 1.1) { touch.bowId = e.pointerId; pressBow(); return; }
     if (Math.hypot(p.x - BTN_BOLT.x, p.y - BTN_BOLT.y) < BTN_BOLT.r * 1.1) { touch.boltId = e.pointerId; castStorm(); return; }
     if (onBtn(p, BTN_E)) { touch.eId = e.pointerId; useE(); return; }
@@ -133,7 +146,7 @@
     if (e.pointerId === touch.atkId) touch.atkId = null;
     if (e.pointerId === touch.eId) touch.eId = null;
     if (e.pointerId === touch.boltId) touch.boltId = null;
-    if (e.pointerId === touch.shieldId) touch.shieldId = null;
+    if (e.pointerId === touch.shieldId) { touch.shieldId = null; shieldRelease(); }
     if (e.pointerId === touch.bowId) { touch.bowId = null; releaseBow(); }
   }
   cv.addEventListener('pointerup', endTouch);
@@ -152,7 +165,7 @@
   }
   requestAnimationFrame(frame);
   // för test: window.__sg exponerar läge
-  window.__sg = { maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
+  window.__sg = { get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
     step: function (sec) { for (var t = 0; t < sec; t += 0.02) { realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram

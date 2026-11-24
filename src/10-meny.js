@@ -60,7 +60,7 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.1', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.2', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
@@ -95,11 +95,18 @@
     else if (k === 'ArrowLeft' || k === 'ArrowRight') { if (keySel < N) keySlot = 1 - keySlot; else keySel = keySel === N ? N + 1 : N; }
     else if (k === 'Enter' || k === ' ') { if (keySel < N) keyWait = true; else if (keySel === N) resetKeys(); else closeKeys(); }
   }
-  function keysHit(p) {
+  function keysHit(p, btn) {
+    btn = btn || 0;
+    var onBox = null;
     for (var i = 0; i < KEY_ACTS.length; i++) {
       var y = KY0 + i * KSTEP;
-      for (var j = 0; j < 2; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + 126 && p.y > y && p.y < y + KH) { keySel = i; keySlot = j; keyWait = true; sfx('click'); return; }
+      for (var j = 0; j < 2; j++) if (p.x > keyBoxX(j) && p.x < keyBoxX(j) + 126 && p.y > y && p.y < y + KH) onBox = { i: i, j: j };
     }
+    if (keyWait && (btn !== 0 || (onBox && onBox.i === keySel && onBox.j === keySlot))) {   // v3.7.2: en musknapp väljs som tangent
+      setKey(KEY_ACTS[keySel][0], keySlot, 'Mouse' + btn); keyWait = false; sfx('click'); return;
+    }
+    if (btn !== 0) return;
+    if (onBox) { keySel = onBox.i; keySlot = onBox.j; keyWait = true; sfx('click'); return; }
     keyWait = false;
     if (inBox(p, KB_RESET)) resetKeys(); else if (inBox(p, KB_DONE)) closeKeys();
   }
@@ -117,8 +124,8 @@
         var bx = keyBoxX(j), on = i === keySel && j === keySlot, wait = on && keyWait, kk = kb[a[0]][j];
         rr(g, bx, y + 3, 126, KH - 6, 6); g.fillStyle = wait ? 'rgba(255,225,77,0.35)' : 'rgba(250,250,242,0.08)'; g.fill();
         g.strokeStyle = on ? PAL.bolt : 'rgba(250,250,242,0.3)'; g.lineWidth = on ? 2 : 1; g.stroke();
-        g.textAlign = 'center'; g.font = (wait ? '' : 'bold ') + '15px ' + TXT; g.fillStyle = kk || wait ? PAL.chalk : 'rgba(250,250,242,0.35)';
-        g.fillText(wait ? 'Tryck en tangent' : kk ? keyName(kk) : 'tom', bx + 63, y + KH / 2 + 1);
+        g.textAlign = 'center'; g.font = (wait ? '' : 'bold ') + ((kk && kk.indexOf('Mouse') === 0) ? '13px ' : '15px ') + TXT; g.fillStyle = kk || wait ? PAL.chalk : 'rgba(250,250,242,0.35)';
+        g.fillText(wait ? 'Tryck nu' : kk ? keyName(kk) : 'tom', bx + 63, y + KH / 2 + 1);
       }
     });
     [[KB_RESET, 'Som från början', KEY_ACTS.length], [KB_DONE, 'Klar', KEY_ACTS.length + 1]].forEach(function (b) {
@@ -127,7 +134,7 @@
       g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 19px ' + TXT; g.fillText(b[1], B.x, B.y + 1);
     });
     g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)'; g.textAlign = 'center';
-    g.fillText(keyWait ? 'Tryck tangenten du vill ha. Backsteg tömmer rutan, Esc ångrar.' : 'Klicka på en ruta och tryck sedan tangenten. Musen slår (vänster) och håller skölden (höger).', LW / 2, KBY + 40);
+    g.fillText(keyWait ? 'Tryck en tangent eller en musknapp (vänster: klicka i samma ruta). Backsteg tömmer, Esc ångrar.' : 'Klicka på en ruta och tryck sedan en tangent eller musknapp.', LW / 2, KBY + 40);
     g.textAlign = 'left';
   }
 
@@ -157,6 +164,7 @@
     if (k === 'endure') return { moon: C.powers.endure.cost[lvl] };   // v3.7.1   // v3.7: krafter kostar månsten
     return Cc.lantern[lvl];                                       // v3.6: lyktan kostar metall, månsten blir kraft
   }
+  var QUIVER_NAME = ['Större koger', 'Läderkoger', 'Förstärkt koger', 'Koger med kopparband', 'Stort koger med järnband'];   // v3.7.2: fem steg
   function swordName(l) { return l <= 2 ? 'Stensvärd' : l <= 5 ? 'Kopparsvärd' : l <= 8 ? 'Järnsvärd' : l <= 11 ? 'Guldsvärd' : 'Stjärnsvärd'; }
   function cap(s2) { return s2.charAt(0).toUpperCase() + s2.slice(1); }
   function allRows() {
@@ -180,13 +188,13 @@
       { tab: 2, k: 'spin', name: 'Snurrslag' + (P.spin ? ', nivå ' + Math.min(3, P.spin + 1) : ''), lvl: P.spin, max: 3,
         desc: P.spin ? 'Större och starkare snurr' : (touchMode ? 'Håll fingret till höger, släpp: slår alla runt dig' : 'Håll in ' + KN('attack') + ', släpp: slår alla runt dig'), icon: iconSpin },
       { tab: 2, k: 'bash', name: 'Sköldknuff' + (P.bash ? ', nivå ' + Math.min(3, P.bash + 1) : ''), lvl: P.bash, max: 3,
-        desc: !P.shield ? 'Kräver en sköld' : P.bash ? 'Längre knuff, yrare monster' : 'Slå med skölden uppe: alla runt dig flyger', icon: iconBash },
+        desc: !P.shield ? 'Kräver en sköld' : P.bash ? 'Längre knuff, yrare monster' : 'Tryck snabbt på Sköld: alla runt dig flyger', icon: iconBash },
       { tab: 2, k: 'parrow', name: 'Kraftpil' + (P.parrow ? ', nivå ' + Math.min(3, P.parrow + 1) : ''), lvl: P.parrow, max: 3,
         desc: !P.bow ? 'Kräver en pilbåge' : P.parrow ? 'Starkare, går igenom fler' : (touchMode ? 'Håll in Skjut, släpp: pilen går igenom flera' : 'Håll in ' + KN('bow') + ', släpp: pilen går igenom flera'), icon: iconPowerArrow },
       { tab: 2, k: 'endure', name: 'Uthållighet' + (P.endure ? ', nivå ' + Math.min(3, P.endure + 1) : ''), lvl: P.endure, max: 3,
         desc: P.endure < 3 ? 'Spring längre: ' + fmt(C.powers.endure.stamina[P.endure + 1]) + ' s i stället för ' + fmt(C.powers.endure.stamina[P.endure]) + ' s' : 'Du orkar springa ' + fmt(C.powers.endure.stamina[3]) + ' s', icon: iconRun },
-      { tab: 1, k: 'quiver', name: P.quiver < 3 ? ['Större koger', 'Läderkoger', 'Stort koger'][P.quiver] : 'Koger', lvl: P.quiver, max: 3,
-        desc: P.quiver < 3 ? 'Bär ' + maxArrows(P.quiver + 1) + ' pilar i stället för ' + maxArrows() : 'Bär ' + maxArrows() + ' pilar', icon: iconQuiverBig }
+      { tab: 1, k: 'quiver', name: P.quiver < QUIVER_NAME.length ? QUIVER_NAME[P.quiver] : 'Koger', lvl: P.quiver, max: QUIVER_NAME.length,
+        desc: P.quiver < QUIVER_NAME.length ? 'Bär ' + maxArrows(P.quiver + 1) + ' pilar i stället för ' + maxArrows() : 'Bär ' + maxArrows() + ' pilar', icon: iconQuiverBig }
     ];
     rows.forEach(function (r) { r.cost = r.lvl < r.max ? recipe(r.k, r.lvl + 1) : null; });
     return rows;
@@ -224,10 +232,20 @@
     keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null;
     sfx('click'); if (window.LJUD) LJUD.duck(true);
   }
-  function closeForge() { if (state !== 'forge') return; state = 'play'; if (window.LJUD) LJUD.duck(false); }
+  function closeForge() { if (state !== 'forge') return; state = 'play'; if (window.LJUD) LJUD.duck(false); if (powerReminder) { say(powerReminder); powerReminder = ''; } }
   function switchTab(t) { if (forgeTab === t) return; forgeTab = t; forgeSel = 0; sfx('click'); }
+  var howToT = 0, powerReminder = '';                            // v3.7.2: Så gör du-rutan lyser efter köp; påminnelse när smedjan stängs
+  function howTo(k) {                                            // hur man använder en kraft, tre rader
+    var T = touchMode;
+    if (k === 'spin') return [T ? 'Håll fingret på högra sidan av skärmen.' : 'Håll in ' + KN('attack') + '.', 'En gul ring växer runt gubben. Släpp när den är hel:', 'svärdet snurrar runt dig och träffar alla nära. Ett kort tryck slår som vanligt.'];
+    if (k === 'bash') return ['Tryck snabbt på ' + (T ? 'Sköld-knappen' : KN('shield')) + ' och släpp direkt.', 'Alla monster nära dig knuffas bort och blir yra en stund.', 'Håller du in ' + (T ? 'Sköld' : KN('shield')) + ' skyddar skölden dig som förut.' + (T ? ' Blå ring på knappen = redo.' : '')];
+    if (k === 'parrow') return ['Håll in ' + (T ? 'Skjut-knappen' : KN('bow')) + '. En blå ring växer runt gubben.', 'Släpp när ringen är hel: en kraftpil som går igenom flera monster.', 'Ett kort tryck skjuter en vanlig pil.'];
+    if (k === 'endure') return ['Spring: ' + (T ? 'dra styrspaken ända ut.' : 'håll in ' + KN('run') + ' medan du går.'), 'Mätaren under gubben visar hur länge du orkar.', 'Tom mätare: gubben är trött en liten stund. Mer Uthållighet = längre spring.'];
+    return null;
+  }
   function buy(i) {
     var r = forgeRows()[i]; if (!r) return;
+    forgeSel = i;                                                 // v3.7.2: Så gör du visar det man just köpt
     if (r.k === 'arrows' && !P.bow) { sfx('deny'); say('Du behöver en pilbåge först.'); return; }
     if (r.k === 'bash' && !P.shield) { sfx('deny'); say('Sköldknuffen kräver en sköld. Gör en under Vapen och skydd.'); return; }
     if (r.k === 'parrow' && !P.bow) { sfx('deny'); say('Kraftpilen kräver en pilbåge. Gör en under Vapen och skydd.'); return; }
@@ -238,7 +256,7 @@
     else if (r.k === 'armor') { var ap = (P.armor) % 4, am = Math.floor(P.armor / 4); P.armor++; say(ARMOR_PART[ap] + ' av ' + MET[am].name + '! Rustningen är nu nivå ' + P.armor + ' av 16.'); }
     else if (r.k === 'pick') { if (!P.hasPick) { P.hasPick = true; say('Du gjorde en stenhacka! Nu kan du bryta koppar.'); } else { P.pick++; say('Ny ' + PICK_NAME[P.pick] + '! Nu kan du bryta ' + MET[P.pick].name + '.'); } }
     else if (r.k === 'lamp') { P.lamp++; say('Lyktan är nu nivå ' + P.lamp); }
-    else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : KN('shield') + ' eller höger musknapp') + ' för att parera.'); }
+    else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : KN2('shield')) + ' för att parera.'); }
     else if (r.k === 'bow') { P.bow++; if (P.bow === 1) P.arrows = Math.max(P.arrows, Math.min(5, maxArrows())); say(['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow - 1] + '! ' + (touchMode ? 'Tryck Skjut' : 'Tryck ' + KN('bow')) + ' för att skjuta.'); }
     else if (r.k === 'arrows') { var a0 = P.arrows; P.arrows = Math.max(a0, Math.min(maxArrows(), a0 + C.bow.arrowsPerCraft)); say('+' + (P.arrows - a0) + ' pilar (du har ' + P.arrows + ' av ' + maxArrows() + ')'); }
     else if (r.k === 'head') { P.arrowHead++; say('Pilspetsar av ' + MET[P.arrowHead - 1].name + '! Pilarna gör nu ' + fmt(arrowDamage()) + ' i skada.'); }
@@ -246,9 +264,10 @@
     else if (r.k === 'knife') { P.knife = 1; say('En jaktkniv! Fånga ett djur och tryck ' + (touchMode ? 'Flå' : KN('use')) + ' för att flå det.'); }
     else if (r.k === 'endure') { P.endure++; P.stamina = C.powers.endure.stamina[P.endure]; say('Uthållighet nivå ' + P.endure + '! Nu orkar du springa ' + fmt(P.stamina) + ' sekunder.'); }
     else if (r.k === 'spin') { P.spin++; say(P.spin === 1 ? 'Snurrslag! ' + (touchMode ? 'Håll fingret på högra sidan tills ringen är full och släpp.' : 'Håll in ' + KN('attack') + ' tills ringen är full och släpp.') : 'Snurrslaget är nu nivå ' + P.spin + '.'); }
-    else if (r.k === 'bash') { P.bash++; say(P.bash === 1 ? 'Sköldknuff! Håll upp skölden och ' + (touchMode ? 'tryck på högra sidan.' : 'tryck ' + KN('attack') + '.') : 'Sköldknuffen är nu nivå ' + P.bash + '.'); }
+    else if (r.k === 'bash') { P.bash++; say(P.bash === 1 ? 'Sköldknuff! Tryck snabbt på ' + (touchMode ? 'Sköld' : KN('shield')) + ' och släpp direkt.' : 'Sköldknuffen är nu nivå ' + P.bash + '.'); }
     else if (r.k === 'parrow') { P.parrow++; say(P.parrow === 1 ? 'Kraftpil! Håll in ' + (touchMode ? 'Skjut' : KN('bow')) + ' tills den blå ringen är full och släpp.' : 'Kraftpilen är nu nivå ' + P.parrow + '.'); }
-    else { P.quiver++; say(['Större koger', 'Läderkoger', 'Stort koger'][P.quiver - 1] + '! Nu kan du bära ' + maxArrows() + ' pilar.'); }
+    else { P.quiver++; say(QUIVER_NAME[P.quiver - 1] + '! Nu kan du bära ' + maxArrows() + ' pilar.'); }
+    if (howTo(r.k)) { howToT = 3; powerReminder = { spin: 'Snurrslag: håll in och släpp när ringen är hel.', bash: 'Sköldknuff: tryck snabbt på Sköld.', parrow: 'Kraftpil: håll in Skjut och släpp när ringen är hel.', endure: 'Spring: ' + (touchMode ? 'dra styrspaken ända ut.' : 'håll in ' + KN('run') + '.') }[r.k]; }
     sfx('craft'); powerUp(); save();
   }
   function forgeHit(p) {
@@ -309,6 +328,14 @@
       g.font = 'bold 15px ' + TXT; g.fillStyle = maxed ? '#c9bfff' : can ? '#7dff8a' : '#ff9a8a';
       g.fillText(maxed ? (r.k === 'arrows' ? 'Fullt' : 'Klar') : r.cost ? costText(r.cost) : 'Kräver båge', FX0 + FW - 18, y + 36);
     });
+    var hr = forgeTab === 2 && forgeRows()[forgeSel], ht2 = hr && howTo(hr.k);   // v3.7.2: Så gör du, för den valda kraften
+    if (ht2) {
+      var hy = FY0 + forgeRows().length * FSTEP + 4, hh = 86;
+      tag(FX0, hy, FW, hh);
+      if (howToT > 0) { rr(g, FX0, hy, FW, hh, 9); g.fillStyle = 'rgba(255,225,77,' + 0.16 * Math.min(1, howToT) + ')'; g.fill(); g.strokeStyle = PAL.bolt; g.lineWidth = 2; g.stroke(); howToT -= 1 / 60; }
+      g.textAlign = 'left'; g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Så gör du: ' + hr.name.replace(/, nivå \d/, ''), FX0 + 16, hy + 18);
+      g.font = '14px ' + TXT; g.fillStyle = PAL.chalk; ht2.forEach(function (ln, li) { g.fillText(ln, FX0 + 16, hy + 39 + li * 18); });
+    }
     tag(LW / 2 - 95, FBY - 24, 190, 48);
     g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.font = 'bold 22px ' + TXT; g.fillText('Stäng', LW / 2, FBY + 1);
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
@@ -379,6 +406,11 @@
     touchButton(BTN_ATK, touch.atkId !== null, iconSwordBig, 'Slå');
     touchButton(BTN_BOLT, touch.boltId != null, iconBolt, 'Blixt', P.bolts === 0, P.bolts || null);
     if (P.shield > 0) touchButton(BTN_SHIELD, touch.shieldId != null, iconShieldRound, 'Sköld');
+    if (P.shield > 0 && P.bash > 0) {                          // v3.7.2: blå ring = knuffen är redo, annars laddar den
+      var bcd = Math.max(0, P.bashCd) / C.powers.bash.cooldown[P.bash]; g.lineCap = 'round'; g.lineWidth = 4;
+      g.strokeStyle = bcd > 0 ? 'rgba(160,215,255,0.55)' : 'rgba(160,215,255,' + (0.55 + 0.4 * Math.sin(time * 5)) + ')';
+      g.beginPath(); g.arc(BTN_SHIELD.x, BTN_SHIELD.y, BTN_SHIELD.r + 5, -1.571, -1.571 + (1 - bcd) * 6.283); g.stroke();
+    }
     if (P.bow > 0) touchButton(BTN_BOW, touch.bowId != null, iconBow, 'Skjut', P.arrows === 0, P.arrows || null);
     var em = eMode();
     if (em === 'forge' || nearSmelt) touchButton(BTN_E, touch.eId !== null, iconHammer, 'Smid', false);
