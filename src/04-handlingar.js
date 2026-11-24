@@ -74,7 +74,7 @@
           if (oreHp[key] <= 0.001) {
             map[t.y][t.x] = isCave[t.y][t.x] ? CAVE : GRASS; delete oreHp[key]; mapDirty = true; markMined(t.x, t.y);
             sparks(cx2, cy2, '#9a9ea6', 12);
-            var yieldN = C.mining.oreYield + (P.pick - ot >= 2 ? 1 : 0); addMetal(ot, yieldN); sfx('ore');
+            var yieldN = C.mining.oreYield + (P.pick - ot >= 2 && DF().bonusYield !== false ? 1 : 0);   /* v3.6: dubbel malm bara på Lätt */ addMetal(ot, yieldN); sfx('ore');
             floatText(cx2, t.y * TS, '+' + yieldN + ' ' + MET[ot].name, MET[ot].c2); save();
           }
         }

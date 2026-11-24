@@ -118,7 +118,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.5', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.6', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -172,7 +172,7 @@
     }
     g.scale(ZW, ZW); g.translate(-camX, -camY);                // kameran; på dator och platta visar den hela kartan
     g.drawImage(mapCv, 0, 0, WW, WH);
-    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPrey(); drawPuzzle(); drawMonsters(); drawShots(); drawArrows(); drawPlayer(); drawEHint(); drawFx();
+    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPrey(); drawPuzzle(); drawMonsters(); drawStuns(); drawShots(); drawArrows(); drawPlayer(); drawEHint(); drawFx();
     if (biome.canopy) g.drawImage(canCv, 0, 0, WW, WH);          // djungelns lövtak
     var lapT = lapOf(level);                                     // varv 2 kväll, varv 3+ natt
     if (lapT > 0) { g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = lapT === 1 ? 0.5 : 0.75; g.fillStyle = lapT === 1 ? '#ffb07a' : '#6a78c0'; g.fillRect(0, 0, WW, WH); g.restore(); }

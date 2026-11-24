@@ -277,6 +277,17 @@
     g.fillStyle = '#111'; g.beginPath(); g.arc(x - gap + lx, y + ly, pr, 0, 7); g.arc(x + gap + lx, y + ly, pr, 0, 7); g.fill();
   }
 
+  function drawStuns() {                                       // v3.6: små stjärnor över yra monster
+    mons.forEach(function (m) {
+      if (!(m.stunT > 0)) return;
+      for (var i = 0; i < 3; i++) {
+        var a = time * 6 + i * 2.094, x = m.x + Math.cos(a) * (m.r + 3), y = m.y - m.r - 8 + Math.sin(a) * 3;
+        g.fillStyle = i === 0 ? PAL.bolt : '#fff6c4'; g.beginPath();
+        for (var k = 0; k < 10; k++) { var rr2 = k % 2 ? 1.4 : 3.4, b = k * 0.628 - 1.571; g.lineTo(x + Math.cos(b) * rr2, y + Math.sin(b) * rr2); }
+        g.closePath(); g.fill();
+      }
+    });
+  }
   function drawMonsters() {
     mons.forEach(function (m) {
       var d = m.type === 'boss' ? { color: biome.bossColor } : C.monsters[m.type], flash = m.hit > 0, white = flash && FXC.flash !== false;

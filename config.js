@@ -76,7 +76,7 @@ const CONFIG = {
   upgrades: {
     armor:   { max: 16, reducePerLevel: 0.0375 },   // v3.0: fyra delar x fyra material, totalt 60 % mindre skada
     pickaxe: { max: 3, costBase: 6, costStep: 6 },                         // färre slag per malm, nivå 3 ger dubbel malm
-    lantern: { max: 4, oreCost: 4, moonCost: [1, 2, 3], lightPerLevel: 30 }  // v2.3: fås gratis i Djungeln, uppgraderas med månsten
+    lantern: { max: 4, lightBase: 80, lightPerLevel: 40, night: [0, 0.3, 0.5] }  // v3.6: kostar metall (crafting.lantern), mörkt ute på kvällen (varv 2) och natten (varv 3+)
   },
 
   // Hantverk (v3.0). Malmsort: 0 koppar, 1 järn, 2 guld, 3 stjärnmalm. Hackans nivå n bryter sort 0..n.
@@ -100,14 +100,14 @@ const CONFIG = {
     rod: { wood: 2, flax: 3 },                                   // v3.3: fiskespö
     knife: { wood: 1, stone: 2 },                                // v3.3: jaktkniv av sten
     quiver: [null, { wood: 1, flax: 2 }, { flax: 2, hide: 2 }, { flax: 3, hide: 3 }],   // v3.5: kogret i tre steg (kostnad för att nå steg 1-3)
-    lantern0: { metal: 0, n: 4 }
+    lantern: [null, { metal: 0, n: 4 }, { wood: 1, metal: 1, n: 4 }, { wood: 1, metal: 2, n: 5 }, { wood: 2, metal: 3, n: 6 }]   // v3.6: lyktan kostar metall (förut månsten)
   },
 
   // Skattkammare (v3.0): en per värld på en slumpad nivå. Kistan ger trä, metall av nästa sort och en månsten.
   treasure: { chestWood: 3, moon: 1 },
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
-  shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5 },
+  shield: { block: [0, 0.5, 0.65, 0.8, 0.9], slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2] },   // v3.6: arc = hur långt runt skölden skyddar (cos), bounce = knuff, stun = sekunder yr
   bow: { range: [0, 260, 300, 340], dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 20, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
     headDmg: [3, 5, 8, 11, 15], bowMul: [0, 1.0, 1.15, 1.3], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
 
@@ -124,8 +124,10 @@ const CONFIG = {
   difficulty: {
     latt:  { mHp: 0.7, mDmg: 0.6, bHp: 0.7, gap: [2.5, 4.5], wind: 1.3,  keep: 1.0,  minions: 2, regen: 0.25, invMul: 1.6, quiverCap: [10, 15, 25, 40] },   // v3.2: snällare
     //       regen = hjärtan per sekund när inget monster är nära och man inte blivit träffad på 3 s; invMul = längre skydd efter träff
-    medel: { mHp: 1.4, mDmg: 1.3, bHp: 2.0, gap: [1.5, 2.5], wind: 0.75, keep: 0.5,  minions: 4 },
-    svar:  { mHp: 1.8, mDmg: 1.7, bHp: 3.0, gap: [1.0, 1.8], wind: 0.55, keep: 0.0,  minions: 5 }
+    medel: { mHp: 1.4, mDmg: 1.3, bHp: 2.0, gap: [1.5, 2.5], wind: 0.75, keep: 0.5,  minions: 4, oreMul: 0.85, bonusYield: false, metalDrop: 0.1, costMul: [1.2, 1.5, 2.0, 2.6] },
+    svar:  { mHp: 1.8, mDmg: 1.7, bHp: 3.0, gap: [1.0, 1.8], wind: 0.55, keep: 0.0,  minions: 5, oreMul: 0.8, bonusYield: false, metalDrop: 0.08, costMul: [1.3, 1.7, 2.2, 2.9] }
+    // v3.6: oreMul = andel malm per nivå, bonusYield = dubbel malm med bättre hacka (bara Lätt), metalDrop = chans att monster tappar metall,
+    //       costMul = metallpriset gånger detta (koppar, järn, guld, stjärnmalm). Lätt har dagens värden. Mål: allt klart runt nivå 28 på Medel (test.html mäter).
   },
 
   // Blixtkraft (v2.3): varje kristall ger en laddning. Q eller Blixt-knappen slår ned blixtar på alla monster.

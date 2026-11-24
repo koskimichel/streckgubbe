@@ -1,7 +1,8 @@
-// Malm & Monster (Mines & Monsters), version 3.5 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
+// Malm & Monster (Mines & Monsters), version 3.6 - 2D-monsterfighting med en streckgubbe. Ren canvas, inga beroenden.
 // v2.1 nytt: ljud och musik (ljud.js), paus med inställningar, auto-paus, guide på nivå 1.
 // v2.2 nytt: visar hur man äter (E-tangent i HUD, tips vid låg hälsa).
 // Byggs av src/ med verktyg/bygg.py. Ändra i src/, aldrig direkt i spel.js.
+// v3.6 nytt: balans per svårighet (pris och malm), sköld som studsar och yrar monster, lykta av metall, mörkare grottor och nätter.
 // v3.5 nytt: kogret har tre steg (färre pilar i början), koden delad i src/.
 // v3.4 nytt: tre sparplatser med spara fil och hämta fil, tydligare lin, annat byte från monster.
 // v3.3 nytt: lin, damm och fiske, jaktkniv och bytesdjur, portal tillbaka, smedjan med två flikar.

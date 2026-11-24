@@ -1,4 +1,11 @@
-# Malm & Monster (Mines & Monsters), version 3.5
+# Malm & Monster (Mines & Monsters), version 3.6
+
+v3.6:
+- Balans per svårighet i `C.difficulty` (Lätt har dagens värden): `oreMul` (andel malm per nivå, i `buildLevel`), `bonusYield` (dubbel malm med bättre hacka, false på Medel/Svår), `metalDrop` (chans att monster tappar metall, `dropLoot`), `costMul` (metallpriset gånger detta, tal eller lista per metall; `recipe` räknar om `baseRecipe`). Mål: på Medel har man råd med allt runt nivå 28 (förut 18). `test.html` gruppen Balans spelar nivå för nivå med det riktiga nivåbygget (`econSim`) och mäter det.
+- Sköld: skyddar en bred båge (`C.shield.arc`, cos-gräns). Monster som slår på skölden studsar bort (`shieldBounce`, `C.shield.bounce`) och blir yra (`m.stunT`, `C.shield.stun` per sköldnivå): glider, jagar och anfaller inte, stjärnor ritas i `drawStuns`. Bossen knuffas lite men blir inte yr. `hurtPlayer(dmg, sx, sy, src)`.
+- Pilraden heter efter spetsen (Pilar med järnspets) och visar skadan; pilarna kostar fortfarande trä och sten.
+- Lyktan kostar metall (`crafting.lantern[1..4]`), månsten används inte längre till den (sparas till krafter i v3.7). Ljusets radie `lightR()` = `lantern.lightBase` + kraft + `lightPerLevel` per nivå. Grottorna är mörkare (`CAVE_DARK`), och ute blir det mörkt på kvällen/natten (`lantern.night` per varv, i `drawLighting`); monsterögon syns då även ute.
+- Testkroken `__sg` har `setDiff(d)`, `allRows()`, `go(n)` (startar nivå n).
 
 v3.5:
 - **Koden ligger i `src/` (12 delar i nummerordning, en sektion var). `spel.js` byggs av dem: `python -I verktyg/bygg.py`. Ändra alltid i `src/`, aldrig direkt i `spel.js`.** `--kolla` kontrollerar att `spel.js` stämmer med `src/`, `--publicera` bygger och kopierar spelets filer till `publicera/`. Delarna är bitar av samma IIFE och är inte giltig JS var för sig; patchskript ska rikta sig mot `src/`-filen där koden finns.

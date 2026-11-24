@@ -50,8 +50,9 @@
       var d = dist(m, P) || 0.01, inCave = isCave[clamp(Math.floor(m.y / TS), 0, H - 1)][clamp(Math.floor(m.x / TS), 0, W - 1)];
       if (m.type === 'boss') { updateBoss(m, dt, d); return; }
       var range = inCave ? C.monsters.caveAggroRange : C.monsters.aggroRange;
-      if (m.type === 'spider' && spiderAI(m, dt, d)) return;
+      if (m.type === 'spider' && !(m.stunT > 0) && spiderAI(m, dt, d)) return;
       var vx = m.kx, vy = m.ky; m.kx *= 0.85; m.ky *= 0.85;
+      if (m.stunT > 0) { m.stunT -= dt; move(m, vx * dt, vy * dt); return; }   // v3.6: yr efter sköldstuds, glider bakåt och anfaller inte
       if (d < range) {
         var s = m.speed * (m.type === 'bat' ? 1 + 0.3 * Math.sin(time * 6 + m.ph) : 1);
         vx += (P.x - m.x) / d * s; vy += (P.y - m.y) / d * s;
@@ -66,7 +67,7 @@
           move(m, (P.y - m.y) / d * m.speed * dt, -(P.x - m.x) / d * m.speed * dt);
         }
       }
-      if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg, m.x, m.y); }
+      if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg, m.x, m.y, m); }
     });
     if (P.fish) {                                               // fiske: vänta, napp, för sent
       if (P.moving || P.blocking) P.fish = null;
@@ -129,7 +130,7 @@
     items = items.filter(function (it) {
       if (Math.hypot(it.x - P.x, it.y - P.y) > 18) return true;
       if (it.t === 'meat') { if (P.meat >= C.items.maxMeat) return true; P.meat++; say('+ köttklubba'); sfx('meat'); floatText(it.x, it.y - 14, '+1 kött', '#ffb38a'); }
-      else if (it.t === 'moon') { P.moon++; P.moonEver = true; say('Månsten! Lyktan kan bli starkare i smedjan.'); sfx('heart'); floatText(it.x, it.y - 14, '+1 månsten', '#cfe6ff'); }
+      else if (it.t === 'moon') { P.moon++; P.moonEver = true; say('Månsten! Spara den, den blir viktig.'); sfx('heart'); floatText(it.x, it.y - 14, '+1 månsten', '#cfe6ff'); }
       else if (it.t === 'arrows') { if (P.arrows >= maxArrows()) return true; P.arrows = Math.min(maxArrows(), P.arrows + C.drops.arrowsN); sfx('meat'); floatText(it.x, it.y - 14, '+' + C.drops.arrowsN + ' pilar', '#e1e4ea'); }
       else if (it.t === 'flax') { P.flax++; sfx('meat'); floatText(it.x, it.y - 14, '+1 lin', '#a8c8ff'); }
       else if (it.t === 'ore') { var okk = it.k || 0; addMetal(okk, 1); sfx('ore'); floatText(it.x, it.y - 14, '+1 ' + MET[okk].name, MET[okk].c2); }
@@ -195,14 +196,20 @@
 
   // ---------- v2.2: skada, boss, spindel, luft ----------
   function monColor(m) { return m.type === 'boss' ? biome.bossColor : C.monsters[m.type].color; }
+  function shieldBounce(m) {                                  // v3.6: den som slår på skölden kastas bakåt och blir yr
+    var dx = m.x - P.x, dy = m.y - P.y, l = Math.hypot(dx, dy) || 1, boss = m.type === 'boss', kb = C.shield.bounce * (boss ? 0.3 : 1);
+    m.kx = dx / l * kb; m.ky = dy / l * kb;
+    if (!boss) { m.stunT = C.shield.stun[P.shield]; m.cd = Math.max(m.cd, m.stunT); }
+  }
   function blockedFrom(sx, sy) {                              // kommer skadan framifrån medan skölden är uppe?
     if (!P.blocking || !P.shield || sx == null) return false;
     var dx = sx - P.x, dy = sy - P.y, l = Math.hypot(dx, dy) || 1;
-    return (dx * P.fx + dy * P.fy) / l > 0.25;
+    return (dx * P.fx + dy * P.fy) / l > C.shield.arc;            // v3.6: skyddar en bred båge, inte bara rakt fram
   }
-  function hurtPlayer(dmg, sx, sy) {                          // rustningen minskar all skada, skölden det som kommer framifrån
+  function hurtPlayer(dmg, sx, sy, src) {                     // rustningen minskar all skada, skölden det som kommer framifrån
     if (P.inv > 0 || state !== 'play') return false;
     if (blockedFrom(sx, sy)) {
+      if (src) shieldBounce(src);                              // v3.6: monstret studsar tillbaka och blir yrt
       dmg *= 1 - C.shield.block[P.shield]; sfx('block'); P.blockFlash = 0.25;
       sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 10); floatText(P.x, P.y - 40, 'parerad!', '#e6f5ff');
     }
@@ -274,7 +281,7 @@
         if (Math.hypot(P.x - m.x, P.y - m.y) < 46) hurtPlayer(m.dmg * 1.2, m.x, m.y);
       }
     } else if (m.aiT <= 0) { m.ai = 'walk'; m.aiT = (Df.gap[0] + Math.random() * (Df.gap[1] - Df.gap[0])) * (m.phase2 ? 0.7 : 1); }
-    if (!m.hidden && d < m.r + P.r + 3 && m.cd <= 0 && hurtPlayer(m.ai === 'charge' ? m.dmg * 1.4 : m.dmg, m.x, m.y)) m.cd = 0.8;
+    if (!m.hidden && d < m.r + P.r + 3 && m.cd <= 0 && hurtPlayer(m.ai === 'charge' ? m.dmg * 1.4 : m.dmg, m.x, m.y, m)) m.cd = 0.8;
     if (!m.phase2 && m.hp < m.maxHp / 2) {                        // andra fasen: snabbare, stenregn och hjälpare
       m.phase2 = true; say(biome.boss + ' blir rasande och kallar på hjälp!'); sfx('summon'); addTrauma(0.5);
       for (var i = 0; i < Df.minions + lapOf(level); i++) {
@@ -308,7 +315,7 @@
       m.shot = S.shotCooldown * (0.8 + Math.random() * 0.4);
       shots.push({ x: m.x, y: m.y, vx: ux * S.shotSpeed, vy: uy * S.shotSpeed, t: 2 }); sfx('web');
     }
-    if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg, m.x, m.y); }
+    if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg, m.x, m.y, m); }
     return true;
   }
   function spawnAir() {

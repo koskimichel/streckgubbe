@@ -66,7 +66,13 @@
   var FX0 = LW / 2 - 270, FW = 540, FY0 = 164, FH = 50, FSTEP = 56, FBY = FY0 + 6 * FSTEP + 18, forgeTab = 0;   // två flikar, högst sex rader
   var TABS = ['Vapen och skydd', 'Verktyg'], TAB_W = 220, TAB_Y = 118, TAB_H = 36;
   function tabX(i) { return 480 - TAB_W - 6 + i * (TAB_W + 12); }
-  function recipe(k, lvl) {                                      // kostnaden för att nå nivå lvl
+  function recipe(k, lvl) {                                      // v3.6: metallen kostar mer på Medel och Svår (costMul, tal eller lista per metall)
+    var c = baseRecipe(k, lvl), m = DF().costMul || 1;
+    if (c && c.metal != null && m.length) m = m[c.metal];        // en faktor per metall: koppar, järn, guld, stjärnmalm
+    if (!c || c.metal == null || m === 1) return c;
+    var o = {}; for (var q in c) o[q] = c[q]; o.n = Math.round(c.n * m); return o;
+  }
+  function baseRecipe(k, lvl) {                                  // kostnaden för att nå nivå lvl (som i config)
     var Cc = C.crafting;
     if (k === 'sword') return Cc.sword[lvl];
     if (k === 'pick') return lvl === 1 ? Cc.stonePick : Cc.pick[lvl - 1];
@@ -78,7 +84,7 @@
     if (k === 'knife') return Cc.knife;
     if (k === 'quiver') return Cc.quiver[lvl];
     if (k === 'head') return Cc.arrowHead[lvl];
-    return lvl === 1 ? Cc.lantern0 : { moon: C.upgrades.lantern.moonCost[Math.min(lvl - 2, 2)] };
+    return Cc.lantern[lvl];                                       // v3.6: lyktan kostar metall, månsten blir kraft
   }
   function swordName(l) { return l <= 2 ? 'Stensvärd' : l <= 5 ? 'Kopparsvärd' : l <= 8 ? 'Järnsvärd' : l <= 11 ? 'Guldsvärd' : 'Stjärnsvärd'; }
   function cap(s2) { return s2.charAt(0).toUpperCase() + s2.slice(1); }
@@ -92,12 +98,12 @@
       { tab: 0, k: 'bow', name: P.bow < 3 ? ['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow] : 'Pilbåge', lvl: P.bow, max: 3,
         desc: P.bow === 0 ? 'Skjut pilar på avstånd, siktar själv' : 'Längre räckvidd och mer skada', icon: iconBow },
       { tab: 0, k: 'head', name: P.arrowHead < 4 ? 'Pilspetsar av ' + MET[P.arrowHead].name : 'Pilspetsar', lvl: P.arrowHead, max: 4,
-        desc: 'Pilarna gör mer skada' + (P.bow ? ': ' + fmt(arrowDamage()) + (P.arrowHead < 4 ? ' blir ' + fmt(Math.max(C.bow.headDmg[P.arrowHead + 1] * C.bow.bowMul[P.bow], damage() * C.bow.dmgMul[P.bow])) : '') : ''), icon: iconArrows },
-      { tab: 0, k: 'arrows', name: 'Pilar (+' + C.bow.arrowsPerCraft + ')', lvl: P.arrows, max: maxArrows(),
-        desc: P.bow ? 'Till pilbågen' : 'Kräver en pilbåge', icon: iconArrows },
+        desc: 'Alla dina pilar gör mer skada' + (P.bow ? ': ' + fmt(arrowDamage()) + (P.arrowHead < 4 ? ' blir ' + fmt(Math.max(C.bow.headDmg[P.arrowHead + 1] * C.bow.bowMul[P.bow], damage() * C.bow.dmgMul[P.bow])) : '') : ''), icon: iconArrows },
+      { tab: 0, k: 'arrows', name: 'Pilar med ' + (P.arrowHead ? MET[P.arrowHead - 1].name : 'sten') + 'spets (+' + C.bow.arrowsPerCraft + ')', lvl: P.arrows, max: maxArrows(),
+        desc: P.bow ? 'Trä och sten. Skada ' + fmt(arrowDamage()) + ' (spetsen ovan)' : 'Kräver en pilbåge', icon: iconArrows },
       { tab: 1, k: 'pick', name: !P.hasPick ? 'Stenhacka' : P.pick < 3 ? cap(PICK_NAME[P.pick + 1]) : 'Guldhacka', lvl: P.hasPick ? P.pick + 1 : 0, max: 4,
         desc: !P.hasPick ? 'Behövs för att bryta koppar' : P.pick < 3 ? 'Kan bryta ' + MET[P.pick + 1].name : 'Bryter all malm', icon: iconPick },
-      { tab: 1, k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus. Kostar månsten, som är sällsynt.', icon: iconLamp },
+      { tab: 1, k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus i grottorna och på natten', icon: iconLamp },
       { tab: 1, k: 'rod', name: 'Fiskespö', lvl: P.rod, max: 1, desc: 'Fiska vid dammar. En fisk räknas som mat.', icon: iconRod },
       { tab: 1, k: 'knife', name: 'Jaktkniv', lvl: P.knife, max: 1, desc: 'Flå djur som du fångat. Ger kött och ibland skinn.', icon: iconKnife },
       { tab: 1, k: 'quiver', name: P.quiver < 3 ? ['Större koger', 'Läderkoger', 'Stort koger'][P.quiver] : 'Koger', lvl: P.quiver, max: 3,

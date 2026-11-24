@@ -128,7 +128,9 @@
     for (i = 1; i <= 3; i++) if (!cr.pick[i]) miss.push('hacka ' + i);
     for (i = 1; i <= 4; i++) { if (!cr.shield[i]) miss.push('sköld ' + i); if (!cr.arrowHead[i]) miss.push('pilspets ' + i); }
     for (i = 1; i <= 3; i++) if (!cr.bow[i]) miss.push('båge ' + i);
-    ['stonePick', 'arrows', 'rod', 'knife', 'quiver', 'lantern0'].forEach(function (k) { if (!cr[k]) miss.push(k); });
+    ['stonePick', 'arrows', 'rod', 'knife'].forEach(function (k) { if (!cr[k]) miss.push(k); });
+    for (i = 1; i <= 3; i++) if (!cr.quiver[i]) miss.push('koger ' + i);
+    for (i = 1; i <= 4; i++) if (!cr.lantern[i] || cr.lantern[i].metal == null) miss.push('lykta ' + i + ' (metall)');
     check('alla recept finns för varje nivå', !miss.length, miss.join(', '));
     check('pilar kostar ingen metall', cr.arrows.metal == null, JSON.stringify(cr.arrows));
     check('tre svårighetsgrader', ['latt', 'medel', 'svar'].every(function (k) { return !!C.difficulty[k]; }));
@@ -143,7 +145,7 @@
   async function testForge() {
     grp('Smedjan');
     var s = S(); clearSaves(); s.playSlot(1); await wait(100); ensurePlay();
-    var P = s.P, C = CFG(), cr = C.crafting;
+    var P = s.P, C = CFG(), cr = C.crafting; s.setDiff('latt');
     Object.assign(P, { wood: 999, stone: 999, ore: 999, iron: 999, gold: 999, star: 999, flax: 99, hide: 99, moon: 9 });
     s.forge(); s.tab(0);
     var b = stock(P); for (var i = 0; i < 15; i++) s.buy(0);
@@ -170,6 +172,11 @@
     check('största kogret: pilar stannar vid ' + s.maxArrows(3), P.arrows === s.maxArrows(3) && s.maxArrows(3) > s.maxArrows(0), P.arrows);
     Object.assign(P, { sword: 2, wood: 0, stone: 0, ore: 0 }); b = stock(P); s.buy(0);
     check('utan material händer ingenting', P.sword === 2 && same(stock(P), b));
+    s.setDiff('medel'); P.sword = 11; P.lamp = 1;
+    var rs = s.allRows(), swc = rs.filter(function (r) { return r.k === 'sword'; })[0].cost, lpc = rs.filter(function (r) { return r.k === 'lamp'; })[0].cost;
+    check('Medel: stjärnsvärd kostar mer (gånger ' + C.difficulty.medel.costMul[3] + ')', swc.metal === 3 && swc.n === Math.round(cr.sword[12].n * C.difficulty.medel.costMul[3]), swc.n + ' stjärnmalm');
+    check('lyktan kostar metall, inte månsten', lpc && lpc.metal === 1 && !lpc.moon, JSON.stringify(lpc));
+    s.setDiff('latt');
     key('Escape');
   }
 
@@ -188,12 +195,65 @@
     h0 = P.hp; P.inv = 0; s.hurt(4, P.x - 30, P.y); var back = h0 - P.hp;
     keyUp('Shift'); s.step(0.04);
     check('kopparsköld stoppar hälften framifrån, inget bakifrån', near(front, 4 * (1 - C.shield.block[1])) && near(back, 4), 'fram ' + front.toFixed(2) + ', bak ' + back.toFixed(2));
+    keyDown('Shift'); s.step(0.05); h0 = P.hp; P.inv = 0; s.hurt(4, P.x, P.y - 30); var side = h0 - P.hp;
+    s.step(0.25); P.inv = 0; m = freshMon(s, P.x + 22, P.y); m.dmg = 4; m.cd = 0; s.mons.push(m); var x0 = m.x; s.step(0.3);   // hit-stop efter förra träffen
+    var stunned = m.stunT > 0, pushed = m.x - x0;
+    keyUp('Shift'); s.step(0.04); s.mons.length = 0;
+    check('skölden skyddar från sidan också', near(side, 4 * (1 - C.shield.block[1])), side.toFixed(2));
+    check('monster som slår på skölden studsar bort och blir yrt', stunned && pushed > 10, 'yr ' + stunned + ', knuff ' + pushed.toFixed(1) + ' px');
     P.hp = 30; P.bow = 2; P.arrowHead = 2; P.arrows = 5; P.shootCd = 0; m = freshMon(s, 420, 300); s.mons.push(m); s.shoot();
     var a = s.arrows[s.arrows.length - 1], expA = Math.max(C.bow.headDmg[2] * C.bow.bowMul[2], (C.weapon.swordBaseDamage + C.weapon.damagePerSwordLevel * 3) * C.bow.dmgMul[2]);
     check('pil med järnspets och järnbåge gör ' + expA.toFixed(2), a && near(a.dmg, expA), a ? a.dmg.toFixed(2) : 'ingen pil');
     s.step(0.6);
     check('pilen träffar monstret', m.hp < 999, (999 - m.hp).toFixed(2));
     s.mons.length = 0;
+  }
+
+  // ---------- balans (v3.6): på vilken nivå har man råd med allt i smedjan? ----------
+  function econSim(diff, maxN) {
+    var s = S(), C = CFG(), P = s.P, Df = C.difficulty[diff], MK = ['ore', 'iron', 'gold', 'star'];
+    var keys = ['pick', 'sword', 'armor', 'shield', 'bow', 'head', 'lamp'], field = { sword: 'sword', armor: 'armor', shield: 'shield', bow: 'bow', head: 'arrowHead', lamp: 'lamp' };
+    s.setDiff(diff);
+    Object.assign(P, { hasPick: false, pick: 0, sword: 0, armor: 0, shield: 0, bow: 0, arrowHead: 0, lamp: 0, ore: 0, iron: 0, gold: 0, star: 0, wood: 9999, stone: 9999, flax: 99, hide: 99, moon: 0, chests: [], minedMap: {}, maxLevel: 1, bossDone: 0, rod: 1, knife: 1, quiver: 3 });
+    function rowsOf() { return s.allRows().filter(function (r) { return keys.indexOf(r.k) >= 0; }); }
+    function buyAll() {
+      var any = true;
+      while (any) { any = false; keys.forEach(function (k) {
+        var r = rowsOf().filter(function (x) { return x.k === k; })[0], c = r && r.cost; if (!c) return;
+        if ((c.moon && P.moon < c.moon) || (c.metal != null && P[MK[c.metal]] < c.n)) return;
+        if (c.metal != null) P[MK[c.metal]] -= c.n; if (c.moon) P.moon -= c.moon;
+        if (k === 'pick') { if (!P.hasPick) P.hasPick = true; else P.pick++; } else P[field[k]]++;
+        any = true;
+      }); }
+    }
+    var doneAt = null, swordAt = null, drop = Df.metalDrop != null ? Df.metalDrop : C.drops.ore;
+    for (var n = 1; n <= maxN && doneAt == null; n++) {
+      P.maxLevel = n; s.build(n); buyAll();
+      var map = s.map, oreT = s.oreT, got = [0, 0, 0, 0], mix = C.crafting.oreMix[n > 25 ? 4 : Math.min(4, Math.floor((n - 1) / 5))];
+      for (var y = 0; y < map.length; y++) for (var x = 0; x < map[y].length; x++) if (map[y][x] === 4) {
+        var ot = oreT[x + ',' + y] || 0; if (!P.hasPick || P.pick < ot) continue;
+        got[ot] += C.mining.oreYield + (Df.bonusYield !== false && P.pick - ot >= 2 ? 1 : 0);
+      }
+      var nm = s.mons.filter(function (m) { return m.type !== 'boss'; }).length;
+      for (var t = 0; t < 4; t++) got[t] += nm * drop * mix[t];
+      if (n % 5 === 0) for (var i = 0; i < C.boss.rewardOre; i++) got[Math.min(3, Math.floor((n - 1) / 5) % 5 + (i % 2))] += 1;
+      if (s.puzzle && s.puzzle.chest) { var wi = Math.floor((n - 1) / 5) % 5; got[Math.min(3, wi + 1)] += 4 + wi; }
+      for (t = 0; t < 4; t++) P[MK[t]] += got[t];
+      buyAll();
+      if (swordAt == null && P.sword >= C.weapon.maxSwordLevel) swordAt = n;
+      if (rowsOf().every(function (r) { return r.lvl >= r.max; })) doneAt = n;
+    }
+    return { doneAt: doneAt, swordAt: swordAt };
+  }
+  async function testBalance() {
+    grp('Balans: när har man råd med allt?');
+    clearSaves(); await reloadGame(); var s = S(); s.playSlot(1); await wait(100);
+    var m = econSim('medel', 45), l = econSim('latt', 45), h = econSim('svar', 45);
+    check('Medel: allt klart runt nivå 28 (24-34)', m.doneAt >= 24 && m.doneAt <= 34, 'allt nivå ' + m.doneAt + ', svärdet nivå ' + m.swordAt);
+    check('Medel: svärdet tar slut tidigast i Snölandet', m.swordAt >= 18, 'nivå ' + m.swordAt);
+    check('Lätt är som förut (allt klart senast nivå 22)', l.doneAt != null && l.doneAt <= 22, 'allt nivå ' + l.doneAt + ', svärdet nivå ' + l.swordAt);
+    check('Svår tar längre tid än Medel', h.doneAt == null || h.doneAt > m.doneAt, 'allt nivå ' + (h.doneAt || 'efter 45') + ', svärdet nivå ' + h.swordAt);
+    s.setDiff('latt'); s.toTitle(); clearSaves(); await reloadGame();
   }
 
   // ---------- 6. hacka, lin, fiske och jakt ----------
@@ -294,7 +354,7 @@
   async function runAll() {
     btn.disabled = true; results.length = 0; tbl.innerHTML = ''; sum.textContent = 'Kör ...';
     var t0 = performance.now();
-    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves];
+    var steps = [testConfig, testLevels, testOre, testForge, testCombat, testNature, testPortals, testSaves, testBalance];
     for (var i = 0; i < steps.length; i++) {
       try { await steps[i](); } catch (e) { check('testet kraschade', false, e && e.message); }
     }

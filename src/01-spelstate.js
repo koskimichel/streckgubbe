@@ -40,7 +40,7 @@
   var biome = BIOMES[0];
   var AIR_RATE = { snow: 0.05, sand: 0.09, embers: 0.12, fireflies: 0.45 };
   BIOMES[1].treeMul = 1.9; BIOMES[1].canopy = true;           // djungeln: tät skog och lövtak
-  var CAVE_DARK = [0.62, 0.76, 0.83, 0.88, 0.93];              // grottorna blir mörkare för varje värld
+  var CAVE_DARK = [0.62, 0.8, 0.9, 0.95, 0.97];                // grottorna blir mörkare för varje värld (v3.6: mörkare, lyktan behövs)
   var BOSS_KIND = ['golem', 'ape', 'scorpion', 'yeti', 'demon'];
   var MET = [                                                  // v3.0: malmsorter
     { name: 'koppar', c1: '#ffc49a', c2: '#e0763a', c3: '#7a3414' },

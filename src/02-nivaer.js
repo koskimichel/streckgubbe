@@ -46,7 +46,7 @@
   }
 
   function buildLevel(n, attempt) {
-    var rnd = mulberry(n * 7919 + attempt * 104729 + 13), L = C.level;
+    var rnd = mulberry(n * 7919 + attempt * 104729 + 13), L = C.level, oreMul = DF().oreMul || 1;   // v3.6: mindre malm på Medel och Svår
     map = []; isCave = []; oreHp = {}; oreT = {}; treeHp = {}; stoneHp = {}; puzzle = null; pond = null; prey = [];
     var x, y;
     for (y = 0; y < H; y++) { map[y] = []; isCave[y] = []; for (x = 0; x < W; x++) { map[y][x] = GRASS; isCave[y][x] = false; } }
@@ -64,10 +64,10 @@
       caves.push({ x: cx, y: cy, w: cw, h: ch });
       for (y = cy; y < cy + ch; y++) for (x = cx; x < cx + cw; x++) { map[y][x] = CAVE; isCave[y][x] = true; }
       // malm i grottans kant
-      for (x = cx; x < cx + cw; x++) { if (rnd() < 0.45) { map[cy][x] = ORE; } if (rnd() < 0.45) { map[cy + ch - 1][x] = ORE; } }
+      for (x = cx; x < cx + cw; x++) { if (rnd() < 0.45 * oreMul) { map[cy][x] = ORE; } if (rnd() < 0.45 * oreMul) { map[cy + ch - 1][x] = ORE; } }
     }
     // extra malm på marken, intill sten
-    var oreWanted = Math.min(L.maxOre || 99, Math.round(L.baseOre + L.orePerLevel * n)), placed = 0, tries = 0;
+    var oreWanted = Math.min(L.maxOre || 99, Math.round((L.baseOre + L.orePerLevel * n) * oreMul)), placed = 0, tries = 0;
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (map[y][x] === ORE) placed++;
     while (placed < oreWanted && tries++ < 2000) {
       x = 2 + Math.floor(rnd() * (W - 4)); y = 2 + Math.floor(rnd() * (H - 4));
@@ -235,10 +235,10 @@
     });
   }
   function dropLoot(m) {                                         // kött, annars ibland metall eller pilar; spindlar tappar lin
-    var Dr = C.drops, r = Math.random(), pm = C.items.meatDropChance;
+    var Dr = C.drops, r = Math.random(), pm = C.items.meatDropChance, dOre = DF().metalDrop != null ? DF().metalDrop : Dr.ore;   // v3.6: metall per svårighet
     if (r < pm) items.push({ t: 'meat', x: m.x, y: m.y });
-    else if (r < pm + Dr.ore) items.push({ t: 'ore', k: lootMetal(), x: m.x, y: m.y });
-    else if (P.bow && r < pm + Dr.ore + Dr.arrows) items.push({ t: 'arrows', x: m.x, y: m.y });
+    else if (r < pm + dOre) items.push({ t: 'ore', k: lootMetal(), x: m.x, y: m.y });
+    else if (P.bow && r < pm + dOre + Dr.arrows) items.push({ t: 'arrows', x: m.x, y: m.y });
     if (m.type === 'spider' && Math.random() < Dr.spiderFlax) items.push({ t: 'flax', x: m.x + 12, y: m.y + 4 });
   }
   function lootMetal() {

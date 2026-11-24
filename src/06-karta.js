@@ -371,12 +371,15 @@
     gr.addColorStop(0, 'rgba(' + col + ',' + a + ')'); gr.addColorStop(1, 'rgba(' + col + ',0)');
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
   }
+  function lightR() { return C.upgrades.lantern.lightBase + Math.min(power(), 12) * 6 + P.lamp * C.upgrades.lantern.lightPerLevel; }   // v3.6: ljusets radie
   function drawLighting() {
     var pw = lightCv.width, ph = lightCv.height, pw_ = Math.min(power(), 12);
     lg.setTransform(1, 0, 0, 1, 0, 0); lg.globalCompositeOperation = 'source-over'; lg.clearRect(0, 0, pw, ph);
+    var LT = C.upgrades.lantern, nightA = LT.night[Math.min(lapOf(level), LT.night.length - 1)];
+    if (nightA > 0) { lg.fillStyle = 'rgba(6,7,18,' + nightA + ')'; lg.fillRect(0, 0, pw, ph); }   // v3.6: kväll och natt är mörka även ute
     lg.drawImage(caveCv, 0, 0);
     lg.setTransform(RSW, 0, 0, RSW, 0, 0); lg.globalCompositeOperation = 'destination-out';
-    hole(P.x, P.y, 100 + pw_ * 6 + P.lamp * C.upgrades.lantern.lightPerLevel, 1);   // lyktan ger mer ljus
+    hole(P.x, P.y, lightR(), 1);                                  // lyktan ger mer ljus
     if (smeltPos) hole(smeltPos.x, smeltPos.y, 80, 0.9);
     if (exitPos) hole(exitPos.x, exitPos.y, 60, 0.7);
     items.forEach(function (it) { if (it.t !== 'meat') hole(it.x, it.y, 36, 0.7); });
@@ -392,7 +395,7 @@
     g.save(); g.globalCompositeOperation = 'lighter';
     mons.forEach(function (m) {
       var cx = clamp(Math.floor(m.x / TS), 0, W - 1), cy = clamp(Math.floor(m.y / TS), 0, H - 1);
-      if (!isCave[cy][cx] || dist(m, P) < 120 + P.lamp * C.upgrades.lantern.lightPerLevel) return;
+      if ((!isCave[cy][cx] && !(lapOf(level) > 0)) || dist(m, P) < lightR() + 20) return;   /* v3.6: ögon syns också ute på natten */
       var blink = Math.sin(time * 1.3 + m.ph * 3) > 0.97 ? 0.2 : 1;
       g.fillStyle = 'rgba(255,60,60,' + 0.95 * blink + ')';
       g.beginPath(); g.ellipse(m.x - 4, m.y - 2, 2.2, 1.6 * blink + 0.2, 0, 0, 7); g.ellipse(m.x + 4, m.y - 2, 2.2, 1.6 * blink + 0.2, 0, 0, 7); g.fill();
