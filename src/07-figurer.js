@@ -41,7 +41,8 @@
     if (l <= 5) return { col: '#e0763a', edge: '#ffc49a', glow: null };
     if (l <= 8) return { col: '#c9d0da', edge: '#ffffff', glow: l >= 8 ? 'rgba(210,225,255,0.18)' : null };
     if (l <= 11) return { col: '#f0c94a', edge: '#fff1a8', glow: 'rgba(255,225,77,0.25)' };
-    return { col: '#6ab8ff', edge: '#e6f5ff', glow: 'rgba(120,190,255,0.35)', star: true };
+    if (l <= 15) return { col: '#6ab8ff', edge: '#e6f5ff', glow: 'rgba(120,190,255,0.35)', star: true };
+    return { col: '#e4ecff', edge: '#ffffff', glow: 'rgba(205,225,255,0.5)', star: true };   // v3.8: Månsvärd
   }
   function drawWeapon(hx, hy, ang, a) {
     var ca = Math.cos(ang), sa = Math.sin(ang), L = a.len;
@@ -77,9 +78,9 @@
 
   // Rustningen växer: 1 bröstplåt, 2 axelskydd, 3 hjälm, 4 blått stål med plym, 5 guld som glimmar
   // Rustningen har fyra delar (0 bröstplåt, 1 hjälm, 2 axelskydd, 3 benskydd) som byggs och byts en i taget.
-  var ARMOR_MAT = [{ col: '#e0763a', dark: '#7a3414' }, { col: '#c9d0da', dark: '#545c6a' }, { col: '#f0c94a', dark: '#a8781f' }, { col: '#6ab8ff', dark: '#2a5aa0' }];
+  var ARMOR_MAT = [{ col: '#e0763a', dark: '#7a3414' }, { col: '#c9d0da', dark: '#545c6a' }, { col: '#f0c94a', dark: '#a8781f' }, { col: '#6ab8ff', dark: '#2a5aa0' }, { col: '#e4ecff', dark: '#5d6fa8' }];   // v3.8: månsilver
   var ARMOR_PART = ['Bröstplåt', 'Hjälm', 'Axelskydd', 'Benskydd'];
-  function armorPartTier(p, a) { a = a == null ? P.armor : a; return a < p + 1 ? -1 : Math.min(3, Math.floor((a - p - 1) / 4)); }
+  function armorPartTier(p, a) { a = a == null ? P.armor : a; if (a > 16) return 4; return a < p + 1 ? -1 : Math.min(3, Math.floor((a - p - 1) / 4)); }   // v3.8: 17 = Månrustning
   function drawArmor() {
     var a = P.armor; if (a <= 0) return;
     var bob = P.moving ? Math.abs(Math.cos(P.walk)) * 1.2 : 0, lgw = P.moving ? Math.sin(P.walk) * 5 : 0, x = P.x, y = P.y - bob, M, s;
@@ -135,6 +136,9 @@
       g.strokeStyle = M.dark; g.lineWidth = 0.8; g.beginPath(); g.moveTo(0, -9); g.lineTo(0, 10); g.moveTo(-7, -1.4); g.lineTo(7, -1.4); g.stroke();
       g.fillStyle = '#c8324a'; g.beginPath(); g.moveTo(0, -5.4); g.lineTo(3, -1.4); g.lineTo(0, 2.6); g.lineTo(-3, -1.4); g.closePath(); g.fill();   /* röd ädelsten */
       g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.moveTo(0, -4.4); g.lineTo(1.2, -2.6); g.lineTo(0, -1.8); g.closePath(); g.fill();
+    } else if (tier === 4) {                                      // v3.8: Månsköld med en halvmåne
+      g.fillStyle = '#6f83b8'; g.beginPath(); g.arc(0, -0.8, 4.4, 0, 7); g.fill();
+      g.fillStyle = '#ffffff'; g.beginPath(); g.arc(-0.6, -0.8, 4, Math.PI * 0.5, Math.PI * 1.5); g.arc(0.9, -0.8, 3.1, Math.PI * 1.5, Math.PI * 0.5, true); g.closePath(); g.fill();
     } else {
       g.fillStyle = '#ffffff'; g.beginPath();
       for (var si = 0; si < 10; si++) { var sa = -Math.PI / 2 + si * Math.PI / 5, sr = si % 2 ? 1.8 : 4.2; g.lineTo(Math.cos(sa) * sr, -0.5 + Math.sin(sa) * sr); }
@@ -144,14 +148,14 @@
     g.restore();
     if (tier < 2) { g.fillStyle = '#d9b24a'; g.beginPath(); g.arc(0, -1.4, 1.7, 0, 7); g.fill(); g.strokeStyle = M.dark; g.lineWidth = 0.6; g.stroke(); }
     path(); g.lineWidth = 1.4; g.strokeStyle = lit ? '#ffffff' : M.dark; g.stroke();
-    if (tier >= 2) { g.save(); g.globalCompositeOperation = 'lighter'; glow(0, 0, 12, tier === 3 ? '120,190,255' : '255,210,80', 0.14 + 0.06 * Math.sin(time * 4)); g.restore(); }
+    if (tier >= 2) { g.save(); g.globalCompositeOperation = 'lighter'; glow(0, 0, tier === 4 ? 15 : 12, tier === 4 ? '215,230,255' : tier === 3 ? '120,190,255' : '255,210,80', (tier === 4 ? 0.2 : 0.14) + 0.06 * Math.sin(time * 4)); g.restore(); }
     if (tier === 3 && Math.sin(time * 7) > 0.4) { g.strokeStyle = '#ffffff'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(2, -6); g.lineTo(5, -6); g.moveTo(3.5, -7.5); g.lineTo(3.5, -4.5); g.stroke(); }
     g.restore();
   }
   // Båge: ang = skjutriktning, L = halva längden, pull 0-1 drar strängen bakåt, nocked = pil på strängen.
-  var BOW_COL = [null, { limb: '#a8743c', dark: '#5e3b18' }, { limb: '#c9d0da', dark: '#545c6a' }, { limb: '#f0c94a', dark: '#a8781f' }];
+  var BOW_COL = [null, { limb: '#a8743c', dark: '#5e3b18' }, { limb: '#c9d0da', dark: '#545c6a' }, { limb: '#f0c94a', dark: '#a8781f' }, { limb: '#e4ecff', dark: '#5d6fa8' }];   // v3.8: Månbåge
   function drawBowShape(cx, cy, ang, L, tier, pull, nocked) {
-    var B = BOW_COL[Math.max(1, Math.min(3, tier))], dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx, back = L * 0.42;
+    var B = BOW_COL[Math.max(1, Math.min(4, tier))], dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx, back = L * 0.42;
     var t1x = cx + px * L - dx * back, t1y = cy + py * L - dy * back, t2x = cx - px * L - dx * back, t2y = cy - py * L - dy * back;
     var nx = cx - dx * (back + pull * 5), ny = cy - dy * (back + pull * 5);
     g.lineCap = 'round'; g.lineJoin = 'round';
@@ -170,7 +174,7 @@
     g.strokeStyle = B.limb; g.lineWidth = 2.3; g.stroke();
     g.strokeStyle = B.dark; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + px * 2, cy + py * 2); g.lineTo(cx - px * 2, cy - py * 2); g.stroke();   /* handtag */
     g.fillStyle = B.dark; g.beginPath(); g.arc(t1x, t1y, 1.1, 0, 7); g.arc(t2x, t2y, 1.1, 0, 7); g.fill();
-    if (tier >= 3) { g.save(); g.globalCompositeOperation = 'lighter'; glow(cx, cy, L * 1.2, '255,210,80', 0.16); g.restore(); }
+    if (tier >= 3) { g.save(); g.globalCompositeOperation = 'lighter'; glow(cx, cy, L * 1.2, tier >= 4 ? '215,230,255' : '255,210,80', tier >= 4 ? 0.24 : 0.16); g.restore(); }
   }
   function drawQuiver(x, y, s, n) {                              // koger på ryggen med fjädrar som sticker upp
     g.save(); g.translate(x, y); g.rotate(-s * 0.5);
@@ -187,8 +191,8 @@
 
   function drawPlayer() {
     var pw = power(), armed;
-    if (P.sword === 0) armed = { len: 20 };
-    else { var sl = swordLook(P.sword); armed = { sword: true, len: 22 + Math.min(P.sword, 10) * 1.5, col: sl.col, edge: sl.edge, glow: sl.glow, wood: sl.wood, star: sl.star }; }
+    if (P.sword === 0) armed = { len: Math.max(20, reach() - 9) };   // v3.8: spetsen når så långt som slaget träffar
+    else { var sl = swordLook(P.sword); armed = { sword: true, len: reach() - 9, col: sl.col, edge: sl.edge, glow: sl.glow, wood: sl.wood, star: sl.star }; }
     shadow(P.x, P.y + 12, 9, 0.32);
     var faded = P.inv > 0 && state === 'play' && Math.floor(time * 20) % 2;
     g.save(); if (faded) g.globalAlpha = 0.35;
@@ -204,7 +208,7 @@
       var k = P.swing / 0.18, a0 = Math.atan2(P.fy, P.fx);
       g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
       g.strokeStyle = 'rgba(255,250,220,' + (0.45 * k) + ')'; g.lineWidth = 7 * k + 1;
-      g.beginPath(); g.arc(P.x, P.y - 2, reach() * 0.75, a0 - 0.9 + (1 - k) * 0.6, a0 + 0.3 + (1 - k) * 0.9); g.stroke();
+      g.beginPath(); g.arc(P.x, P.y - 2, reach() * 0.92, a0 - 0.9 + (1 - k) * 0.6, a0 + 0.3 + (1 - k) * 0.9); g.stroke();
       g.restore();
     }
     var sd = P.fx >= 0 ? 1 : -1, bobP = P.moving ? Math.abs(Math.cos(P.walk)) * 1.2 : 0, shooting = P.bow > 0 && P.shotT > 0, offH = null;
@@ -574,6 +578,7 @@
         g.beginPath(); g.ellipse(G2.cx, G2.cy, wr, wr * K2, 0, wa - 0.45, wa); g.stroke();
       }
       g.strokeStyle = 'rgba(255,225,77,' + 0.4 * fade * (1 - ph2) + ')'; g.lineWidth = 3; g.beginPath(); g.ellipse(P.x, P.y + 9, rout * (0.5 + ph2 * 0.8), rout * (0.5 + ph2 * 0.8) * 0.4, 0, 0, 7); g.stroke();   // tryckvåg på marken
+      g.strokeStyle = 'rgba(255,225,77,' + 0.45 * fade + ')'; g.lineWidth = 1.6; g.beginPath(); g.ellipse(G2.cx, G2.cy, G2.R, G2.R * K2, 0, 0, 7); g.stroke();   // v3.8: hur långt snurren når
       g.restore();
     }
   }
@@ -757,15 +762,32 @@
   }
   function drawRock(f) { var k = f.t / f.life; rockShape(f.x, f.y - k * k * 240 - 6, 9, 8, biome.stone[0], biome.stone[1], 50); }
   function drawBossIntro() {                                    // bossens namn glider in
-    var k = bossIntro / 2.4, slide = k > 0.83 ? (1 - k) / 0.17 : 1, a = k < 0.17 ? k / 0.17 : 1;
+    var k = bossIntro / BOSS_INTRO_T, slide = k > 0.88 ? (1 - k) / 0.12 : 1, a = k < 0.12 ? k / 0.12 : 1;
     g.save(); g.globalAlpha = a;
-    g.fillStyle = 'rgba(10,6,6,0.7)'; g.fillRect(0, LH / 2 - 62, LW, 124);
+    g.fillStyle = 'rgba(10,6,6,0.72)'; g.fillRect(0, LH / 2 - 74, LW, 148);
     var x = LW / 2 - (1 - easeOutCubic(slide)) * LW * 0.6;
-    chalkTitle(biome.boss, x, LH / 2 - 8, 58);
-    g.font = 'bold 17px ' + TXT; g.fillStyle = '#ff8a7a'; g.textAlign = 'center'; g.fillText('Boss i ' + biome.name, x, LH / 2 + 38);
+    chalkTitle(biome.boss, x, LH / 2 - 22, 58);
+    g.font = 'bold 16px ' + TXT; g.fillStyle = '#ff8a7a'; g.textAlign = 'center'; g.fillText('Väktare i ' + biome.name, x, LH / 2 + 20);
+    var qa = clamp((1 - k) * BOSS_INTRO_T / 0.5 - 0.6, 0, 1);    // v3.8: repliken kommer strax efter namnet
+    g.globalAlpha = a * qa; g.font = 'italic 19px ' + TXT; g.fillStyle = PAL.chalk; g.fillText('”' + bossQuote() + '”', LW / 2, LH / 2 + 52);
     g.restore(); g.textAlign = 'left';
   }
 
+  function moonDisc(x, y, r, n, dim) {                           // v3.8: månen i tio bitar, n lyser (vänster halva först)
+    g.save(); g.globalCompositeOperation = 'lighter'; if (n > 0) glow(x, y, r * 1.9, '200,220,255', 0.12 + n * 0.025); g.restore();
+    for (var i = 0; i < 10; i++) {
+      var a0 = -Math.PI / 2 - i * Math.PI / 5, a1 = a0 - Math.PI / 5, on = i < n;
+      g.beginPath(); g.moveTo(x, y); g.arc(x, y, r, a1, a0); g.closePath();
+      g.fillStyle = on ? '#eef3ff' : (dim ? 'rgba(60,70,100,0.55)' : '#2b3352'); g.fill();
+      g.strokeStyle = on ? 'rgba(111,131,184,' + (r < 14 ? 0.7 : 0.22) + ')' : 'rgba(150,165,210,' + (r < 14 ? 0.3 : 0.1) + ')'; g.lineWidth = Math.max(0.5, r / 40); g.stroke();   // tunna fogar, synliga i HUD:en
+    }
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.strokeStyle = 'rgba(10,15,30,0.7)'; g.lineWidth = Math.max(1, r / 14); g.stroke();
+    if (n > 0) { g.fillStyle = 'rgba(111,131,184,0.35)'; [[-0.35, -0.3, 0.16], [-0.5, 0.25, 0.1], [-0.15, 0.45, 0.08]].forEach(function (q) { g.beginPath(); g.arc(x + q[0] * r, y + q[1] * r, q[2] * r, 0, 7); g.fill(); }); }   // kratrar
+  }
+  function drawMoonAura() {                                       // v3.8: Månkraften lyser svagt runt gubben
+    if (!P.moonPower) return;
+    g.save(); g.globalCompositeOperation = 'lighter'; glow(P.x, P.y - 4, 30, '200,220,255', 0.1 + 0.04 * Math.sin(time * 2.2)); g.restore();
+  }
   function moonShape(x, y, sc) {                                // månsten
     g.save(); g.globalCompositeOperation = 'lighter'; glow(x, y, 16 * sc, '170,210,255', 0.35); g.restore();
     g.beginPath(); g.moveTo(x, y - 8 * sc); g.lineTo(x + 6 * sc, y - 2 * sc); g.lineTo(x + 4 * sc, y + 7 * sc); g.lineTo(x - 4 * sc, y + 7 * sc); g.lineTo(x - 6 * sc, y - 2 * sc); g.closePath();
@@ -778,6 +800,10 @@
     fx.forEach(function (f) {
       if (f.k === 'ice' || f.k === 'fire') return;                // ritas i drawGroundFx
       if (f.k === 'rock') { drawRock(f); return; }
+      if (f.k === 'shard') {                                     // v3.8: månskärvan stiger och lyser
+        var sk = 1 - f.t / f.life, sy = f.y - easeOutCubic(sk) * 40;
+        g.save(); g.globalAlpha = Math.min(1, f.t / 0.4); g.translate(f.x, sy); g.rotate(sk * 6); moonShape(0, 0, 1.4 - sk * 0.4); g.restore(); return;
+      }
       if (f.k === 'p') {
         var k = Math.max(0, f.t / f.life);
         g.globalAlpha = Math.min(1, k * 1.6); g.fillStyle = f.col;

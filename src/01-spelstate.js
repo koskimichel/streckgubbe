@@ -10,11 +10,11 @@
 
   // inställningar som spelaren ändrar i pausmenyn (sparas per enhet)
   var SET_KEY = 'mm-installningar';
-  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true, diff: 'latt', slot: 1, keys: null, keysV: 0 };   // v3.7.1: keys = egna tangenter
-  try { var ss = JSON.parse(localStorage.getItem(SET_KEY)); if (ss) Object.keys(settings).forEach(function (k) { if (ss[k] !== undefined) settings[k] = ss[k]; }); } catch (e) {}
+  var settings = { music: 0.5, sfx: 0.8, shake: FXC.shake == null ? 1 : FXC.shake, flash: FXC.flash !== false, numbers: FXC.damageNumbers !== false, guide: true, diff: 'latt', slot: 1, keys: null, keysV: 0, song: 'auto', songV: 1 };   // v3.7.1: keys = egna tangenter
+  try { var ss = JSON.parse(localStorage.getItem(SET_KEY)); if (ss) Object.keys(settings).forEach(function (k) { if (ss[k] !== undefined) settings[k] = ss[k]; }); if (ss && ss.songV !== 1) { settings.song = 'auto'; settings.songV = 1; } } catch (e) {}   // v3.8: Efter läge blir standard
   function applySettings() {
     FXC.shake = settings.shake; FXC.flash = settings.flash; FXC.damageNumbers = settings.numbers;
-    if (window.LJUD) LJUD.setVolumes(settings.music, settings.sfx);
+    if (window.LJUD) { LJUD.setVolumes(settings.music, settings.sfx); songWanted = null; }   // v3.8: musikstycket väljs i realUpdate (musicWanted)
     try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch (e) {}
   }
   // v3.7.1: egen styrning på datorn. Två tangenter per handling, sparas i inställningarna.
@@ -46,7 +46,19 @@
   function KN(act) { var b = keyBinds()[act]; if (lastInput === 'pad' && b[2]) return 'knappen ' + keyName(b[2]); return keyName(b[0] || b[1]) || 'ingen tangent'; }
   function KN2(act) { var b = keyBinds()[act]; if (lastInput === 'pad' && b[2]) return 'knappen ' + keyName(b[2]); return [b[0], b[1]].filter(function (k) { return !!k; }).map(keyName).join(' eller ') || 'ingen tangent'; }   // båda valen
   function KS(act) { var b = keyBinds()[act], k = lastInput === 'pad' && b[2] ? b[2] : b[0] || b[1]; return !k ? '' : padName(k) ? padName(k) : k.indexOf('Mouse') === 0 ? 'M' + (+k.charAt(5) + 1) : k === ' ' ? 'Spc' : k.indexOf('Arrow') === 0 ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k.slice(0, 3); }
+  var songWanted = null;                                       // v3.8: musik efter läge
+  function musicWanted() {
+    if (settings.song !== 'auto') return settings.song;
+    if (state === 'title' || state === 'forge' || state === 'story') return 'spel';   // lugn musik i menyer och berättelse
+    if (state !== 'play') return songWanted || 'klassisk';       // paus, styrning, död, Månkraften: som förut
+    return mons.some(function (m) { return m.type === 'boss'; }) ? 'ny' : 'klassisk';   // bossfight: Ny
+  }
+  function updateMusic() {
+    if (!window.LJUD || !LJUD.setSong) return;
+    var k = musicWanted(); if (k !== songWanted) { songWanted = k; LJUD.setSong(k); }
+  }
   function sfx(n) { if (window.LJUD) LJUD.play(n); }
+  function sfxFile(k, fb, rate) { if (window.LJUD && LJUD.playFile && LJUD.playFile(k, rate)) return; sfx(fb); }   // v3.8: ljudfil, annars det skapade ljudet fb
   var guideMoved = 0, eatHintT = 0;                      // eatHintT: sekunder till nästa ät-tips
   var shots = [], arrows = [], ambientT = 0, forgeSel = 0;              // v2.2: nätskott, luftpartiklar, val i smedjan
 
@@ -75,7 +87,8 @@
     { name: 'koppar', c1: '#ffc49a', c2: '#e0763a', c3: '#7a3414' },
     { name: 'järn', c1: '#f4f7fb', c2: '#aeb6c2', c3: '#545c6a' },
     { name: 'guld', c1: '#fff1a8', c2: '#f0c94a', c3: '#a8781f' },
-    { name: 'stjärnmalm', c1: '#e6f5ff', c2: '#6ab8ff', c3: '#2a5aa0' }
+    { name: 'stjärnmalm', c1: '#e6f5ff', c2: '#6ab8ff', c3: '#2a5aa0' },
+    { name: 'månsilver', c1: '#ffffff', c2: '#d9e6ff', c3: '#6f83b8' }   // v3.8: bara namn och färg för månnivåerna, ingen malm
   ];
   var PICK_NAME = ['stenhacka', 'kopparhacka', 'järnhacka', 'guldhacka'];
   var DIFF_ORDER = ['latt', 'medel', 'svar'], DIFF_NAME = { latt: 'Lätt', medel: 'Medel', svar: 'Svår' };
@@ -84,14 +97,14 @@
     var i = DIFF_ORDER.indexOf(settings.diff); if (i < 0) i = 0;
     settings.diff = DIFF_ORDER[(i + (dir || 1) + 3) % 3]; applySettings(); sfx('click');
   }
-  var bossIntro = 0, stormT = 0;
+  var bossIntro = 0, stormT = 0, BOSS_INTRO_T = 3.4;   // v3.8: längre, bossen säger något
 
   function newPlayer() {
     return {
       x: 2.5 * TS, y: 2.5 * TS, r: 10, hearts: C.player.startHearts,
       hp: C.player.startHearts * C.player.hpPerHeart,
       str: C.player.startStrength, ore: 0, meat: 1, sword: 0,
-      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, spin: 0, bash: 0, parrow: 0, endure: 0, bashT: 0, spinA0: 0, atkBuf: 0, stamina: null, tired: false, restT: 0, running: false, runSeen: false, spinCd: 0, bashCd: 0, pwrCd: 0, atkHold: 0, spinCharge: 0, bowHold: 0, spinT: 0, backSeen: false, flaxSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
+      fx: 1, fy: 0, cd: 0, inv: 0, swing: 0, walk: 0, moving: false, pu: 0, spk: 0, armor: 0, pick: 0, lamp: 0, slow: 0, moon: 0, moonEver: false, vx: 0, vy: 0, icy: 0, bolts: 0, wood: 0, stone: 0, iron: 0, gold: 0, star: 0, treasureSeen: false, bossDone: 0, chests: [], minedMap: {}, maxLevel: 1, flax: 0, hide: 0, rod: 0, knife: 0, quiver: 0, arrowHead: 0, spin: 0, bash: 0, parrow: 0, endure: 0, bashT: 0, spinA0: 0, atkBuf: 0, shards: 0, moonPower: 0, seen: [], spinDmg: 0, spinHits: [], spinTiles: [], stamina: null, tired: false, restT: 0, running: false, runSeen: false, spinCd: 0, bashCd: 0, pwrCd: 0, atkHold: 0, spinCharge: 0, bowHold: 0, spinT: 0, backSeen: false, flaxSeen: false, fish: null, portalLock: false, hasPick: false, shield: 0, bow: 0, arrows: 0, blocking: false, shootCd: 0, shotT: 0, blockFlash: 0, calmT: 0
     };
   }
   function maxHp() { return P.hearts * C.player.hpPerHeart; }
@@ -104,7 +117,7 @@
   function addMetal(t, n) { if (t === 0) P.ore += n; else if (t === 1) P.iron += n; else if (t === 2) P.gold += n; else P.star += n; }
   function damage() {
     var base = P.sword > 0 ? C.weapon.swordBaseDamage + C.weapon.damagePerSwordLevel * (P.sword - 1) : C.weapon.stickDamage;
-    return base + C.weapon.damagePerStrength * (P.str - 1);
+    return (base + C.weapon.damagePerStrength * (P.str - 1)) * (P.moonPower ? C.moonPower.dmgMul : 1);   // v3.8: Månkraften
   }
   function power() { return P.sword + P.str - 1; }          // styr blixtarnas storlek
   function reach() { return C.player.baseReach + Math.min(power(), 12) * 2; }
@@ -134,7 +147,7 @@
   function save() {
     try {
       localStorage.setItem(slotKey(slot), JSON.stringify({ diff: settings.diff, savedAt: Date.now(),
-        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chests: P.chests, minedMap: P.minedMap, maxLevel: P.maxLevel, flax: P.flax, hide: P.hide, rod: P.rod, knife: P.knife, quiver: P.quiver, quiverV: 3, spin: P.spin, bash: P.bash, parrow: P.parrow, endure: P.endure, runSeen: P.runSeen, arrowHead: P.arrowHead, backSeen: P.backSeen, flaxSeen: P.flaxSeen, hasPick: P.hasPick, shield: P.shield, bow: P.bow, arrows: P.arrows, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen
+        level: level, hearts: P.hearts, str: P.str, ore: P.ore, meat: P.meat, sword: P.sword, armor: P.armor, pick: P.pick, lamp: P.lamp, moon: P.moon, moonEver: P.moonEver, bolts: P.bolts, armorV: 2, bossDone: P.bossDone, chests: P.chests, minedMap: P.minedMap, maxLevel: P.maxLevel, flax: P.flax, hide: P.hide, rod: P.rod, knife: P.knife, quiver: P.quiver, quiverV: 3, spin: P.spin, bash: P.bash, parrow: P.parrow, endure: P.endure, runSeen: P.runSeen, arrowHead: P.arrowHead, backSeen: P.backSeen, flaxSeen: P.flaxSeen, hasPick: P.hasPick, shield: P.shield, bow: P.bow, arrows: P.arrows, wood: P.wood, stone: P.stone, iron: P.iron, gold: P.gold, star: P.star, treasureSeen: P.treasureSeen, shards: P.shards, moonPower: P.moonPower, seen: P.seen
       }));
     } catch (e) {}
   }

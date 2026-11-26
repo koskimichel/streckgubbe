@@ -8,6 +8,8 @@
     if (window.LJUD) LJUD.init();                        // ljud får starta först efter en tangent eller ett tryck
     if (state === 'keys') { keysKey(k); return; }        // v3.7.1: välj egna tangenter
     if (keys[k]) return; keys[k] = true;
+    if (state === 'story') { if (k === 'Escape' || k === 'Backspace') storyNext(true); else if (k === 'Enter' || k === ' ' || isKey('attack', k) || isKey('use', k)) storyNext(); return; }   // v3.8
+    if (state === 'moonrise') { if (k === 'Enter' || k === ' ' || k === 'Escape' || isKey('attack', k) || isKey('use', k)) endMoonrise(); return; }
     if (state === 'forge') {
       if (k === 'Escape' || k === 'e' || k === 'p' || isKey('use', k)) closeForge();
       else if (k === 'Tab' || k === 'ArrowRight' || k === 'd') switchTab((forgeTab + 1) % TABS.length);
@@ -109,6 +111,8 @@
     if (e.button === 1 || e.button > 2) e.preventDefault();     // mitten- och sidoknappar: ingen rullning eller bakåt
     if (state === 'keys') { keysHit(toBox(mp), e.button); return; }
     if (state !== 'play' && e.button !== 0) return;            // menyerna svarar bara på vänster knapp
+    if (state === 'story') { storyNext(); return; }              // v3.8
+    if (state === 'moonrise') { endMoonrise(); return; }
     if (state === 'forge') { forgeHit(toBox(mp)); return; }
     if (state === 'paused') { pauseHit(toBox(mp)); return; }
     if (state === 'title') { titleHit(toBox(mp), false); return; }
@@ -148,6 +152,8 @@
     try { cv.setPointerCapture(e.pointerId); } catch (er) {}
     if (window.LJUD) LJUD.init();
     var p = lpos(e);
+    if (state === 'story') { storyNext(); return; }              // v3.8
+    if (state === 'moonrise') { endMoonrise(); return; }
     if (state === 'forge') { forgeHit(toBox(p)); return; }
     if (state === 'paused') { pauseHit(toBox(p)); return; }
     if (state === 'keys') { keysHit(toBox(p)); return; }
@@ -206,10 +212,10 @@
   }
   requestAnimationFrame(frame);
   // för test: window.__sg exponerar läge
-  window.__sg = { pollPads: function () { pollPads(0.02); }, get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n) { startLevel(n); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
+  window.__sg = { pollPads: function () { pollPads(0.02); }, get keys() { return keys; }, get settings() { return settings; }, maxArrows: maxArrows, setDiff: function (d) { settings.diff = d; applySettings(); }, go: function (n, story) { startLevel(n); if (!story && state === 'story') endStory(); }, pressBow: function () { pressBow(); }, shieldTap: function () { shieldPress(); shieldRelease(); }, releaseBow: function () { releaseBow(); }, allRows: function () { return allRows(); }, get P() { return P; }, get state() { return state; }, get level() { return level; }, get mons() { return mons; },
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
     step: function (sec) { for (var t = 0; t < sec; t += 0.02) { pollPads(0.02); realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
-    get bossIntro() { return bossIntro; }, get slots() { return slots; }, get slot() { return slot; }, playSlot: function (i) { playSlot(i); }, titleHit: function (x, y, t) { titleHit({ x: x, y: y }, t); }, toTitle: function () { askNew(); }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
+    get bossIntro() { return bossIntro; }, get slots() { return slots; }, get slot() { return slot; }, playSlot: function (i, story) { playSlot(i); if (!story && state === 'story') endStory(); }, storyNext: function (skip) { storyT = 9; storyNext(skip); }, dmg: function () { return damage(); }, musicWanted: function () { return musicWanted(); }, light: function () { return lightR(); }, get story() { return { i: storyI, n: storyCards.length, moonT: moonT, moonDelay: moonDelay }; }, endMoonrise: function () { moonT = 99; endMoonrise(); }, bossDefeated: function (m) { bossDefeated(m); }, titleHit: function (x, y, t) { titleHit({ x: x, y: y }, t); }, toTitle: function () { askNew(); }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
     get fx() { return { trauma: trauma, hitStop: hitStop, texts: texts.length, particles: fx.length }; } };
 })();

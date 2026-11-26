@@ -88,19 +88,20 @@ const CONFIG = {
       { wood: 2, metal: 0, n: 4 }, { wood: 2, metal: 0, n: 5 }, { wood: 2, metal: 0, n: 6 },
       { wood: 3, metal: 1, n: 4 }, { wood: 3, metal: 1, n: 5 }, { wood: 3, metal: 1, n: 6 },
       { wood: 3, metal: 2, n: 4 }, { wood: 3, metal: 2, n: 5 }, { wood: 4, metal: 2, n: 6 },
-      { wood: 4, metal: 3, n: 4 }, { wood: 4, metal: 3, n: 5 }, { wood: 5, metal: 3, n: 6 }, { wood: 5, metal: 3, n: 7 }],
+      { wood: 4, metal: 3, n: 4 }, { wood: 4, metal: 3, n: 5 }, { wood: 5, metal: 3, n: 6 }, { wood: 5, metal: 3, n: 7 },
+      { wood: 6, metal: 3, n: 16, moon: 1 }],                     // v3.8: Månsvärd (nivå 16), kräver Månkraften
     pick: [null, { wood: 2, metal: 0, n: 4 }, { wood: 3, metal: 1, n: 5 }, { wood: 3, metal: 2, n: 6 }],
     // Rustningen: delarna 0 bröstplåt, 1 hjälm, 2 axelskydd, 3 benskydd byggs/byts en i taget, först koppar, sedan järn, guld, stjärnmalm.
-    armor: (function () { var a = [null]; for (var t = 0; t < 4; t++) for (var p = 0; p < 4; p++) a.push({ wood: 1 + (t >= 2 ? 1 : 0), metal: t, n: 2 + t + (p === 0 ? 1 : 0) }); return a; })(),
+    armor: (function () { var a = [null]; for (var t = 0; t < 4; t++) for (var p = 0; p < 4; p++) a.push({ wood: 1 + (t >= 2 ? 1 : 0), metal: t, n: 2 + t + (p === 0 ? 1 : 0) }); a.push({ wood: 3, metal: 3, n: 16, moon: 1 }); return a; })(),   // v3.8: nivå 17 = Månrustning
     stonePick: { wood: 2, stone: 3 },                            // v3.1: stenhacka krävs för koppar
-    shield: [null, { wood: 2, metal: 0, n: 4 }, { wood: 2, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 3, metal: 3, n: 7 }],
-    bow: [null, { wood: 4, stone: 1 }, { wood: 3, metal: 1, n: 4 }, { wood: 3, metal: 2, n: 5 }],   // träbåge, järnbåge, guldbåge
+    shield: [null, { wood: 2, metal: 0, n: 4 }, { wood: 2, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 3, metal: 3, n: 7 }, { wood: 3, metal: 3, n: 14, moon: 1 }],   // v3.8: Månsköld
+    bow: [null, { wood: 4, stone: 1 }, { wood: 3, metal: 1, n: 4 }, { wood: 3, metal: 2, n: 5 }, { wood: 4, metal: 3, n: 13, moon: 1 }],   // träbåge, järnbåge, guldbåge, månbåge (v3.8)
     arrows: { wood: 1, stone: 1 },                               // v3.3: stenspetsar, ger bow.arrowsPerCraft pilar (ingen metall)
-    arrowHead: [null, { wood: 1, metal: 0, n: 4 }, { wood: 1, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 2, metal: 3, n: 7 }],   // pilspetsar: koppar, järn, guld, stjärnmalm
+    arrowHead: [null, { wood: 1, metal: 0, n: 4 }, { wood: 1, metal: 1, n: 5 }, { wood: 2, metal: 2, n: 6 }, { wood: 2, metal: 3, n: 7 }, { wood: 2, metal: 3, n: 14 }],   // pilspetsar: koppar, järn, guld, stjärnmalm, månsilver (v3.8)
     rod: { wood: 2, flax: 3 },                                   // v3.3: fiskespö
     knife: { wood: 1, stone: 2 },                                // v3.3: jaktkniv av sten
     quiver: [null, { wood: 2, flax: 2 }, { wood: 1, flax: 3, hide: 1 }, { flax: 3, hide: 2 }, { flax: 4, hide: 3, metal: 0, n: 3 }, { flax: 5, hide: 4, metal: 1, n: 3 }],   // v3.7.2: fem steg om +5 pilar, de två sista kräver koppar och järn
-    lantern: [null, { metal: 0, n: 4 }, { wood: 1, metal: 1, n: 4 }, { wood: 1, metal: 2, n: 5 }, { wood: 2, metal: 3, n: 6 }]   // v3.6: lyktan kostar metall (förut månsten)
+    lantern: [null, { metal: 0, n: 4 }, { wood: 1, metal: 1, n: 4 }, { wood: 1, metal: 2, n: 5 }, { wood: 2, metal: 3, n: 6 }, { wood: 2, metal: 3, n: 12 }]   // v3.6: lyktan kostar metall (förut månsten); v3.8: Månlykta
   },
 
   // Skattkammare (v3.0): en per värld på en slumpad nivå. Kistan ger trä, metall av nästa sort och en månsten.
@@ -115,9 +116,9 @@ const CONFIG = {
                 ['...PP', '...##', '#B.B.', '.....']] },
 
   // Sköld och pilbåge (v3.1). block = andel skada som stoppas framifrån per sköldnivå (0-4).
-  shield: { block: [0, 0.5, 0.65, 0.8, 0.9], backBlock: 0.5, slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2] },   // v3.6: arc = hur långt runt skölden skyddar fullt (cos), bounce = knuff, stun = sekunder yr; v3.7.4: backBlock = andel av skyddet från sidan/bakifrån
-  bow: { aimCone: 0.7, range: [0, 260, 300, 340],   /* v3.7.3: aimCone = cos för vinkeln framåt där bågen letar först */ dmgMul: [0, 0.7, 0.85, 1.0], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 15, 20, 25, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
-    headDmg: [3, 5, 8, 11, 15], bowMul: [0, 1.0, 1.15, 1.3], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
+  shield: { block: [0, 0.5, 0.65, 0.8, 0.9, 0.95], backBlock: 0.5, slow: 0.5, arc: -0.2, bounce: 260, stun: [0, 0.7, 0.85, 1.0, 1.2, 1.4] },   // v3.6: arc = hur långt runt skölden skyddar fullt (cos), bounce = knuff, stun = sekunder yr; v3.7.4: backBlock = andel av skyddet från sidan/bakifrån
+  bow: { aimCone: 0.7, range: [0, 260, 300, 340, 380],   /* v3.7.3: aimCone = cos för vinkeln framåt där bågen letar först */ dmgMul: [0, 0.7, 0.85, 1.0, 1.15], speed: 420, cooldown: 0.5, quiverCap: [5, 10, 15, 20, 25, 30], arrowsPerCraft: 5,   /* v3.5: pilar man kan bära per kogersteg (Lätt har egna) */
+    headDmg: [3, 5, 8, 11, 15, 19], bowMul: [0, 1.0, 1.15, 1.3, 1.5], scarceOre: 6 },   // v3.3: pilens skada = spetsen x bågen (minst som förut); scarceOre = malm du får om du saknar
 
   // Natur (v3.3): lin på marken, en damm var tredje nivå (2, 5, 8 ...), bytesdjur på de andra nivåerna.
   nature: { flaxPerLevel: 4, flaxByPond: 3, pondEvery: 3 },
@@ -138,10 +139,15 @@ const CONFIG = {
     //       costMul = metallpriset gånger detta (koppar, järn, guld, stjärnmalm). Lätt har dagens värden. Mål: allt klart runt nivå 28 på Medel (test.html mäter).
   },
 
+  // Storyn (v3.8): varje boss släpper en månskärva. Fem skärvor (ett varv) blir Månkraften: mer skada, mer ljus
+  // och en månnivå till på svärd, rustning, sköld, båge, pilspetsar och lykta (recepten ovan, sista nivån).
+  moonPower: { perLap: 5, dmgMul: 1.15, light: 40, delay: 1.6, scene: 4 },   // scene = sekunder innan man kan gå vidare
+
   // Krafter (v3.7): lärs i smedjan för månsten, tre nivåer var. Håll in och släpp.
   powers: {
     cost: [null, 1, 3, 5],                                     // månsten för att nå nivå 1-3 (v3.7.1: dyrare, man hittar knappt en per nivå)
-    spin:  { hold: 0.35, charge: 0.55, time: 0.42, windup: 0.09, turns: 1, flat: 0.55, radius: [0, 62, 72, 84], dmgMul: [0, 1.0, 1.3, 1.6], cooldown: [0, 3, 2.5, 2] },        // snurrslag: håll in Slå, släpp
+    spin:  { hold: 0.3, charge: [0, 0.55, 0.45, 0.32], time: 0.42, windup: 0.09, turns: 1, flat: 0.72, radius: [0, 62, 72, 84], dmgMul: [0, 1.3, 1.6, 2.0], cooldown: [0, 3, 2.5, 2],
+             stun: [0, 0.6, 0.7, 0.8], push: 6.3 },   // v3.8: laddning per nivå, träffen följer svärdet, monstren kastas ut (push x knockback) och blir yra (stun s); gubben skadas inte under snurren        // snurrslag: håll in Slå, släpp
     bash:  { tap: 260, radius: [0, 72, 86, 100], push: 380, stun: [0, 1.0, 1.3, 1.6], dmgMul: 0.5, cooldown: [0, 4, 3.5, 3] },        // sköldknuff: tryck snabbt på Sköld (tap = ms), håll in = skydda
     arrow: { charge: 0.6, dmgMul: [0, 2, 2.5, 3], pierce: [0, 2, 3, 4], rangeMul: 1.3, cooldown: [0, 2.5, 2, 1.5] },          // kraftpil: håll in Skjut, släpp
     // v3.7.1: spring (alla kan), ork i sekunder per nivå av kraften Uthållighet (0-3), regen = ork per sekund efter delay s vila

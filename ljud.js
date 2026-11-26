@@ -1,9 +1,20 @@
-// Ljud och musik för Malm & Monster. Allt skapas med Web Audio direkt i webbläsaren: inga ljudfiler, inga licenser.
+// Ljud och musik för Malm & Monster. Det mesta skapas med Web Audio direkt i webbläsaren. Från v3.8 finns några
+// ljudfiler i ljud/ (Pixabay, fri licens); saknas en fil eller är den inte laddad spelas det skapade ljudet i stället.
+// Bakgrundsmusiken kan vara en fil (Ny, Spelmusik) eller den skapade (Klassisk), valet ligger i pausmenyn.
 // Webbläsare tillåter ljud först efter ett tryck eller en tangent, därför startar LJUD.init() vid första indata.
 var LJUD = (function () {
   'use strict';
-  var ac = null, sfxBus, musicBus, musicFilter, noiseBuf, timer = null;
+  var ac = null, sfxBus, musicBus, musicFilter, noiseBuf, timer = null, synthBus;
+  // v3.8: musik från fil. a/b = slingans start och slut i sekunder (b = hela takter, efter b klingar bara sista tonen ut), gain = volym
+  var SONGS = { ny: { url: 'ljud/musik.mp3', a: 0.02, b: 29.18, gain: 1.4 }, spel: { url: 'ljud/spelmusik.mp3', a: 0.025, b: 27.505, gain: 4.2 } };
+  var songBufs = {}, songKind = 'klassisk', songSrc = null, songGain = null, songLoading = {};
   var vol = { music: 0.5, sfx: 0.8 }, cave = false, ducked = false, last = {}, trans = 0;
+  // v3.8: ljudfiler. start = sekunder att hoppa över (tystnad i början), dur = längd, gain = volym (utjämnad)
+  var FILES = { traff: { url: 'ljud/traff.mp3', start: 0.07, dur: 0.35, gain: 0.6 }, plock: { url: 'ljud/plock.mp3', start: 0.045, dur: 0.6, gain: 0.55 },
+                kraft: { url: 'ljud/kraft.mp3', start: 0.045, dur: 1.1, gain: 0.35 }, laddning: { url: 'ljud/laddning.mp3', start: 0.02, dur: 5, gain: 0.25 },
+                kista: { url: 'ljud/kista.mp3', start: 0.125, dur: 1.2, gain: 1.2 }, boss: { url: 'ljud/boss.mp3', start: 0.05, dur: 1.9, gain: 0.3 },
+                ata: { url: 'ljud/ata.mp3', start: 0.105, dur: 1.45, gain: 0.55 },
+                uppladdning: { url: 'ljud/uppladdning.mp3', start: 0.3, dur: 2.3, gain: 1.2 } }, bufs = {};   // stigande ton medan snurren/kraftpilen laddas
 
   function init() {
     if (ac) { if (ac.state === 'suspended' && !document.hidden) ac.resume(); return; }
@@ -15,9 +26,11 @@ var LJUD = (function () {
     sfxBus = ac.createGain(); sfxBus.gain.value = vol.sfx; sfxBus.connect(comp);
     musicFilter = ac.createBiquadFilter(); musicFilter.type = 'lowpass'; musicFilter.frequency.value = 3200;
     musicBus = ac.createGain(); musicBus.gain.value = musicGain(); musicFilter.connect(musicBus); musicBus.connect(comp);
+    synthBus = ac.createGain(); synthBus.gain.value = 1; synthBus.connect(musicFilter);   // den skapade musiken, tonas bort när en låt spelar
     noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
     var d = noiseBuf.getChannelData(0);
     for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    loadFiles(); if (songKind !== 'klassisk') loadSong(songKind);
     makeMelody();
     nextT = ac.currentTime + 0.15;
     timer = setInterval(schedule, 90);
@@ -51,7 +64,7 @@ var LJUD = (function () {
     hit: function (t) { tone('sine', 190, 60, 0.13, 0.55, t); noise(0.05, 0.3, t, 'highpass', 2200, null, 0.7); },
     mine: function (t) { tone('square', 1250 + Math.random() * 250, 900, 0.07, 0.1, t); tone('triangle', 2600, 2200, 0.09, 0.08, t); noise(0.04, 0.18, t, 'highpass', 3000); },
     ore: function (t) { tone('triangle', 880, 0, 0.09, 0.25, t); tone('triangle', 1320, 0, 0.18, 0.22, t + 0.07); },
-    kill: function (t) { tone('square', 520, 90, 0.22, 0.14, t); noise(0.2, 0.25, t, 'lowpass', 1800, 300); },
+    kill: function (t) { noise(0.2, 0.3, t, 'lowpass', 1800, 300); },   // v3.8: bara puffen, inget pip
     hurt: function (t) { tone('sawtooth', 170, 90, 0.2, 0.2, t); noise(0.1, 0.2, t, 'lowpass', 900); },
     powerup: function (t) {
       [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone('triangle', f, 0, 0.2, 0.2, t + i * 0.06); tone('sine', f * 2, 0, 0.12, 0.05, t + i * 0.06); });
@@ -109,16 +122,73 @@ var LJUD = (function () {
   function schedule() {
     if (!ac || ac.state !== 'running') return;
     while (nextT < ac.currentTime + 0.25) {
-      if (vol.music > 0) {
+      if (vol.music > 0 && !songSrc) {
         var s = stepN % mel.length, inBar = s % 8, ch = CH[Math.floor(s / 8) % 4];
-        if (inBar === 0 || inBar === 4) tone('triangle', mtof(ch[0] - 12 + trans), 0, STEP * 3.5, 0.32, nextT, musicFilter, 0.01);   // bas
-        if (inBar === 0) tone('sine', 110, 45, 0.12, 0.28, nextT, musicFilter);                                              // mjuk trumma
-        if (inBar % 2 === 1) noise(0.04, 0.045, nextT, 'highpass', 7000, null, 0.7, musicFilter);                            // hi-hat
-        tone('sine', mtof(ch[1 + (inBar % 3)] + trans), 0, STEP * 0.9, 0.06, nextT, musicFilter, 0.01);                              // arpeggio
-        if (mel[s]) tone('triangle', mtof(mel[s] + trans), 0, STEP * 1.6, cave ? 0.07 : 0.12, nextT, musicFilter, 0.01);             // melodi
+        if (inBar === 0 || inBar === 4) tone('triangle', mtof(ch[0] - 12 + trans), 0, STEP * 3.5, 0.32, nextT, synthBus, 0.01);   // bas
+        if (inBar === 0) tone('sine', 110, 45, 0.12, 0.28, nextT, synthBus);                                              // mjuk trumma
+        if (inBar % 2 === 1) noise(0.04, 0.045, nextT, 'highpass', 7000, null, 0.7, synthBus);                            // hi-hat
+        tone('sine', mtof(ch[1 + (inBar % 3)] + trans), 0, STEP * 0.9, 0.06, nextT, synthBus, 0.01);                              // arpeggio
+        if (mel[s]) tone('triangle', mtof(mel[s] + trans), 0, STEP * 1.6, cave ? 0.07 : 0.12, nextT, synthBus, 0.01);             // melodi
       }
       nextT += STEP; stepN++;
     }
+  }
+
+  // ---------- ljudfiler (v3.8) ----------
+  function loadFiles() {
+    Object.keys(FILES).forEach(function (k) {
+      try {
+        fetch(FILES[k].url).then(function (r) { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
+          .then(function (b) { return new Promise(function (ok, no) { ac.decodeAudioData(b, ok, no); }); })
+          .then(function (buf) { bufs[k] = buf; }).catch(function () {});
+      } catch (e) {}
+    });
+  }
+  function playFile(k, rate, secs) {                        // spelar en ljudfil; null om den inte är laddad (spelet tar då det skapade ljudet). secs = exakt längd i sekunder, tonas ut på slutet
+    var f = FILES[k], b = bufs[k];
+    if (!ac || !f || !b || vol.sfx <= 0 || ac.state !== 'running') return null;
+    var now = ac.currentTime; if (last['f' + k] && now - last['f' + k] < 0.03) return { src: null };   // samma ljud tätt: smälter ihop
+    last['f' + k] = now;
+    var s = ac.createBufferSource(), g = ac.createGain(); s.buffer = b; s.playbackRate.value = rate || 1; g.gain.value = f.gain;
+    var r = rate || 1, len = secs ? Math.min(f.dur, secs * r) : f.dur;   // längd i filens sekunder
+    if (secs) { var end = now + 0.005 + len / r; g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(f.gain, now + 0.04); g.gain.setValueAtTime(f.gain, Math.max(now + 0.05, end - 0.05)); g.gain.exponentialRampToValueAtTime(0.0001, end); }
+    s.connect(g); g.connect(sfxBus); s.start(now + 0.005, f.start, len);
+    return { src: s, g: g };
+  }
+  function stopFile(h, fade) {
+    if (!h || !h.src || !ac) return;
+    try { var t = ac.currentTime; h.g.gain.setTargetAtTime(0.0001, t, (fade || 0.2) / 3); h.src.stop(t + (fade || 0.2) + 0.05); } catch (e) {}
+  }
+
+  // ---------- musik från fil (v3.8) ----------
+  function loadSong(k) {
+    if (!ac || !SONGS[k] || songBufs[k] || songLoading[k]) { if (songBufs[k] && k === songKind) startSong(); return; }
+    songLoading[k] = true;
+    try {
+      fetch(SONGS[k].url).then(function (r) { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
+        .then(function (b) { return new Promise(function (ok, no) { ac.decodeAudioData(b, ok, no); }); })
+        .then(function (buf) { songBufs[k] = buf; songLoading[k] = false; if (k === songKind) startSong(); })
+        .catch(function () { songLoading[k] = false; });            // går det inte: den skapade musiken spelar vidare
+    } catch (e) { songLoading[k] = false; }
+  }
+  function startSong() {                                    // tona över från den skapade musiken till låten
+    var S = SONGS[songKind], b = songBufs[songKind];
+    if (!ac || songSrc || !S || !b) return;
+    var t = ac.currentTime; songSrc = ac.createBufferSource(); songSrc.buffer = b; songSrc.loop = true; songSrc.loopStart = S.a; songSrc.loopEnd = S.b;
+    songGain = ac.createGain(); songGain.gain.setValueAtTime(0.0001, t); songGain.gain.exponentialRampToValueAtTime(S.gain, t + 1.5);
+    songSrc.connect(songGain); songGain.connect(musicFilter); songSrc.start(t, S.a);
+    synthBus.gain.setTargetAtTime(0.0001, t, 0.4);
+  }
+  function stopSong() {
+    if (!songSrc) return;
+    var t = ac.currentTime, s0 = songSrc; try { songGain.gain.setTargetAtTime(0.0001, t, 0.25); s0.stop(t + 1); } catch (e) {}
+    songSrc = null; songGain = null; nextT = Math.max(nextT, t + 0.1); synthBus.gain.setTargetAtTime(1, t, 0.3);
+  }
+  function preload(k) { if (ac && SONGS[k]) loadSong(k); }   // laddar utan att spela (spelas bara om k är vald)
+  function setSong(k) {                                    // 'ny', 'spel' eller 'klassisk' (den skapade)
+    if (k === songKind) return; songKind = k;
+    if (!ac) return;
+    stopSong(); if (k !== 'klassisk') loadSong(k);
   }
 
   // ---------- styrning från spelet ----------
@@ -142,6 +212,6 @@ var LJUD = (function () {
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume().then(function () { nextT = Math.max(nextT, ac.currentTime + 0.1); }); }
 
-  return { init: init, play: play, note: note, setVolumes: setVolumes, setCave: setCave, setBiome: setBiome, duck: duck, suspend: suspend, resume: resume,
+  return { init: init, play: play, playFile: playFile, stopFile: stopFile, setSong: setSong, preload: preload, get song() { return songSrc ? songKind : 'klassisk'; }, note: note, setVolumes: setVolumes, setCave: setCave, setBiome: setBiome, duck: duck, suspend: suspend, resume: resume,
     get state() { return ac ? ac.state : 'ingen'; } };
 })();

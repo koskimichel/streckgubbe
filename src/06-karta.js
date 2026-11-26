@@ -371,7 +371,7 @@
     gr.addColorStop(0, 'rgba(' + col + ',' + a + ')'); gr.addColorStop(1, 'rgba(' + col + ',0)');
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
   }
-  function lightR() { return C.upgrades.lantern.lightBase + Math.min(power(), 12) * 6 + P.lamp * C.upgrades.lantern.lightPerLevel; }   // v3.6: ljusets radie
+  function lightR() { return C.upgrades.lantern.lightBase + Math.min(power(), 12) * 6 + P.lamp * C.upgrades.lantern.lightPerLevel + (P.moonPower ? C.moonPower.light : 0); }   // v3.6: ljusets radie
   function drawLighting() {
     var pw = lightCv.width, ph = lightCv.height, pw_ = Math.min(power(), 12);
     lg.setTransform(1, 0, 0, 1, 0, 0); lg.globalCompositeOperation = 'source-over'; lg.clearRect(0, 0, pw, ph);

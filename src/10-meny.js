@@ -3,6 +3,7 @@
   var PROWS = [
     { k: 'diff', label: 'Svårighet (från nästa nivå)', vals: ['latt', 'medel', 'svar'], names: ['Lätt', 'Medel', 'Svår'] },
     { k: 'music', label: 'Musik', vals: [0, 0.25, 0.5], names: ['Av', 'Låg', 'Hög'] },
+    { k: 'song', label: 'Musikstycke', vals: ['auto', 'ny', 'spel', 'klassisk'], names: ['Efter läge', 'Ny', 'Spelmusik', 'Klassisk'] },   // v3.8: Efter läge = Ny i bossfighter, Spelmusik i menyer, annars Klassisk
     { k: 'sfx', label: 'Ljudeffekter', vals: [0, 0.4, 0.8], names: ['Av', 'Låg', 'Hög'] },
     { k: 'shake', label: 'Skärmskak', vals: [0, 0.5, 1], names: ['Av', 'Lite', 'Full'] },
     { k: 'flash', label: 'Blinkningar vid träff', vals: [true, false], names: ['På', 'Av'] },
@@ -10,7 +11,7 @@
     { k: 'guide', label: 'Guide på nivå 1', vals: [true, false], names: ['På', 'Av'] },
     { k: 'controls', label: 'Styrning: tangenter och handkontroll', action: true }   // v3.7.1: öppnar Styrning
   ];
-  var PX = LW / 2 - 220, PW = 440, PY0 = 140, PH = 34, PSTEP = 40, PBY = PY0 + PROWS.length * PSTEP + 26;
+  var PX = LW / 2 - 220, PW = 440, PY0 = 128, PH = 32, PSTEP = 37, PBY = PY0 + PROWS.length * PSTEP + 26;
   var PB_GO = { x: LW / 2 - 112, y: PBY, w: 200, h: 48 }, PB_NEW = { x: LW / 2 + 112, y: PBY, w: 200, h: 48 };
   function inBox(p, b) { return Math.abs(p.x - b.x) < b.w / 2 + 6 && Math.abs(p.y - b.y) < b.h / 2 + 6; }
   function askNew() {                                       // v3.4: till titeln (spelet är sparat), där väljer man plats
@@ -43,7 +44,7 @@
   }
   function overlayPause() {
     g.fillStyle = 'rgba(8,16,10,0.82)'; g.fillRect(0, 0, LW, LH);
-    chalkTitle('Paus', LW / 2, 100, 48);
+    chalkTitle('Paus', LW / 2, 84, 46);
     g.textBaseline = 'middle';
     PROWS.forEach(function (r, i) {
       var y = PY0 + i * PSTEP, idx = r.vals ? r.vals.indexOf(settings[r.k]) : 0;
@@ -60,7 +61,7 @@
     });
     g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.75)';
     g.fillText(confirmNew > 0 ? 'Nytt spel börjar om från nivå 1. Svärd, malm och styrka försvinner.' : touchMode ? 'Tryck på en rad för att ändra den.' : 'Pilarna väljer och ändrar. Esc eller P fortsätter.', LW / 2, PBY + 44);
-    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.7.5', LW / 2, LH - 14);
+    g.font = '12px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.45)'; g.fillText('Malm & Monster, version 3.8', LW / 2, LH - 14);
     g.textAlign = 'left';
   }
 
@@ -189,24 +190,27 @@
     return Cc.lantern[lvl];                                       // v3.6: lyktan kostar metall, månsten blir kraft
   }
   var QUIVER_NAME = ['Större koger', 'Läderkoger', 'Förstärkt koger', 'Koger med kopparband', 'Stort koger med järnband'];   // v3.7.2: fem steg
-  function swordName(l) { return l <= 2 ? 'Stensvärd' : l <= 5 ? 'Kopparsvärd' : l <= 8 ? 'Järnsvärd' : l <= 11 ? 'Guldsvärd' : 'Stjärnsvärd'; }
+  function swordName(l) { return l <= 2 ? 'Stensvärd' : l <= 5 ? 'Kopparsvärd' : l <= 8 ? 'Järnsvärd' : l <= 11 ? 'Guldsvärd' : l <= 15 ? 'Stjärnsvärd' : 'Månsvärd'; }
+  function U2() { return C.upgrades; }
+  var BOW_NAME = ['Träbåge', 'Järnbåge', 'Guldbåge', 'Månbåge'];
+  function moonBase() { return { sword: C.weapon.maxSwordLevel, armor: C.upgrades.armor.max, shield: 4, bow: 3, head: 4, lamp: C.upgrades.lantern.max }; }   // v3.8: högsta nivån utan Månkraften
   function cap(s2) { return s2.charAt(0).toUpperCase() + s2.slice(1); }
   function allRows() {
     var U = C.upgrades, rows = [
-      { tab: 0, k: 'sword', name: swordName(Math.min(P.sword + 1, C.weapon.maxSwordLevel)), lvl: P.sword, max: C.weapon.maxSwordLevel, desc: 'Mer skada mot monstren', icon: iconSwordBig },
-      { tab: 0, k: 'armor', name: P.armor < U.armor.max ? ARMOR_PART[P.armor % 4] + ' av ' + MET[Math.floor(P.armor / 4)].name : 'Rustning', lvl: P.armor, max: U.armor.max,
-        desc: P.armor < U.armor.max ? (P.armor < 4 ? 'Ny del till rustningen' : 'Byter ut ' + ARMOR_PART[P.armor % 4].toLowerCase() + ' av ' + MET[Math.floor(P.armor / 4) - 1].name) + ', mindre skada' : 'Hela rustningen är av stjärnmalm', icon: iconShield },
-      { tab: 0, k: 'shield', name: P.shield < 4 ? 'Sköld av ' + MET[P.shield].name : 'Sköld', lvl: P.shield, max: 4,
-        desc: P.shield < 4 ? 'Håll in för att parera: stoppar ' + Math.round(C.shield.block[P.shield + 1] * 100) + ' % framifrån' : 'Stoppar 90 % framifrån', icon: iconShieldRound },
-      { tab: 0, k: 'bow', name: P.bow < 3 ? ['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow] : 'Pilbåge', lvl: P.bow, max: 3,
+      { tab: 0, k: 'sword', name: swordName(Math.min(P.sword + 1, C.weapon.maxSwordLevel + 1)), lvl: P.sword, max: C.weapon.maxSwordLevel, desc: 'Mer skada mot monstren', icon: iconSwordBig },
+      { tab: 0, k: 'armor', name: P.armor < U.armor.max ? ARMOR_PART[P.armor % 4] + ' av ' + MET[Math.floor(P.armor / 4)].name : 'Månrustning', lvl: P.armor, max: U.armor.max,
+        desc: P.armor < U.armor.max ? (P.armor < 4 ? 'Ny del till rustningen' : 'Byter ut ' + ARMOR_PART[P.armor % 4].toLowerCase() + ' av ' + MET[Math.floor(P.armor / 4) - 1].name) + ', mindre skada' : P.armor === U.armor.max ? 'Månsilver, mindre skada' : 'Rustningen lyser av månsilver', icon: iconShield },
+      { tab: 0, k: 'shield', name: P.shield < 5 ? 'Sköld av ' + MET[P.shield].name : 'Månsköld', lvl: P.shield, max: 4,
+        desc: P.shield < 5 ? 'Håll in: stoppar ' + Math.round(C.shield.block[P.shield + 1] * 100) + ' % framifrån' : 'Stoppar ' + Math.round(C.shield.block[5] * 100) + ' % framifrån', icon: iconShieldRound },
+      { tab: 0, k: 'bow', name: P.bow < 4 ? BOW_NAME[P.bow] : 'Månbåge', lvl: P.bow, max: 3,
         desc: P.bow === 0 ? 'Skjut pilar på avstånd, siktar själv' : 'Längre räckvidd och mer skada', icon: iconBow },
-      { tab: 0, k: 'head', name: P.arrowHead < 4 ? 'Pilspetsar av ' + MET[P.arrowHead].name : 'Pilspetsar', lvl: P.arrowHead, max: 4,
-        desc: 'Alla dina pilar gör mer skada' + (P.bow ? ': ' + fmt(arrowDamage()) + (P.arrowHead < 4 ? ' blir ' + fmt(Math.max(C.bow.headDmg[P.arrowHead + 1] * C.bow.bowMul[P.bow], damage() * C.bow.dmgMul[P.bow])) : '') : ''), icon: iconArrows },
+      { tab: 0, k: 'head', name: P.arrowHead < 5 ? 'Pilspetsar av ' + MET[P.arrowHead].name : 'Pilspetsar av månsilver', lvl: P.arrowHead, max: 4,
+        desc: 'Alla dina pilar gör mer skada' + (P.bow ? ': ' + fmt(arrowDamage()) + (P.arrowHead < 5 ? ' blir ' + fmt(Math.max(C.bow.headDmg[P.arrowHead + 1] * C.bow.bowMul[P.bow], damage() * C.bow.dmgMul[P.bow])) : '') : ''), icon: iconArrows },
       { tab: 0, k: 'arrows', name: 'Pilar med ' + (P.arrowHead ? MET[P.arrowHead - 1].name : 'sten') + 'spets (+' + C.bow.arrowsPerCraft + ')', lvl: P.arrows, max: maxArrows(),
         desc: P.bow ? 'Trä och sten. Skada ' + fmt(arrowDamage()) + ' (spetsen ovan)' : 'Kräver en pilbåge', icon: iconArrows },
       { tab: 1, k: 'pick', name: !P.hasPick ? 'Stenhacka' : P.pick < 3 ? cap(PICK_NAME[P.pick + 1]) : 'Guldhacka', lvl: P.hasPick ? P.pick + 1 : 0, max: 4,
         desc: !P.hasPick ? 'Behövs för att bryta koppar' : P.pick < 3 ? 'Kan bryta ' + MET[P.pick + 1].name : 'Bryter all malm', icon: iconPick },
-      { tab: 1, k: 'lamp', name: 'Lykta', lvl: P.lamp, max: U.lantern.max, desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus i grottorna och på natten', icon: iconLamp },
+      { tab: 1, k: 'lamp', name: P.lamp < U.lantern.max ? 'Lykta' : 'Månlykta', lvl: P.lamp, max: U.lantern.max, desc: P.lamp === 0 ? 'Mer ljus i grottorna' : 'Starkare ljus i grottorna och på natten', icon: iconLamp },
       { tab: 1, k: 'rod', name: 'Fiskespö', lvl: P.rod, max: 1, desc: 'Fiska vid dammar. En fisk räknas som mat.', icon: iconRod },
       { tab: 1, k: 'knife', name: 'Jaktkniv', lvl: P.knife, max: 1, desc: 'Flå djur som du fångat. Ger kött och ibland skinn.', icon: iconKnife },
       { tab: 2, k: 'spin', name: 'Snurrslag' + (P.spin ? ', nivå ' + Math.min(3, P.spin + 1) : ''), lvl: P.spin, max: 3,
@@ -220,6 +224,12 @@
       { tab: 1, k: 'quiver', name: P.quiver < QUIVER_NAME.length ? QUIVER_NAME[P.quiver] : 'Koger', lvl: P.quiver, max: QUIVER_NAME.length,
         desc: P.quiver < QUIVER_NAME.length ? 'Bär ' + maxArrows(P.quiver + 1) + ' pilar i stället för ' + maxArrows() : 'Bär ' + maxArrows() + ' pilar', icon: iconQuiverBig }
     ];
+    var MB = moonBase();                                          // v3.8: Månkraften ger en nivå till; utan den visas vad som väntar
+    rows.forEach(function (r) {
+      if (MB[r.k] == null) return;
+      if (P.moonPower) r.max = MB[r.k] + 1;
+      else if (r.lvl >= MB[r.k]) { r.moonLock = true; r.desc = 'Nästa nivå kräver Månkraften (fem månskärvor)'; }
+    });
     rows.forEach(function (r) { r.cost = r.lvl < r.max ? recipe(r.k, r.lvl + 1) : null; });
     return rows;
   }
@@ -273,15 +283,17 @@
     if (r.k === 'arrows' && !P.bow) { sfx('deny'); say('Du behöver en pilbåge först.'); return; }
     if (r.k === 'bash' && !P.shield) { sfx('deny'); say('Sköldknuffen kräver en sköld. Gör en under Vapen och skydd.'); return; }
     if (r.k === 'parrow' && !P.bow) { sfx('deny'); say('Kraftpilen kräver en pilbåge. Gör en under Vapen och skydd.'); return; }
+    if (!r.cost && r.moonLock) { sfx('deny'); say('Det här är högsta nivån tills du har Månkraften. Besegra alla fem väktarna och samla deras månskärvor.'); return; }
     if (!r.cost) { sfx('deny'); say(r.k === 'arrows' ? 'Kogret är fullt. Gör ett större koger under Verktyg.' : r.max === 1 ? 'Du har redan ' + r.name.toLowerCase() + '.' : r.name + ' är redan på högsta nivån'); return; }
     if (!canAfford(r.cost)) { sfx('deny'); say('Behöver ' + missingText(r.cost) + ' till'); return; }
     pay(r.cost);
-    if (r.k === 'sword') { P.sword++; say(P.sword === 1 ? 'Du gjorde ett stensvärd!' : swordName(P.sword) + ', nivå ' + P.sword); }
+    if (r.k === 'sword') { P.sword++; say(P.sword === 1 ? 'Du gjorde ett stensvärd!' : P.sword > C.weapon.maxSwordLevel ? 'Månsvärd! Klingan lyser som månen.' : swordName(P.sword) + ', nivå ' + P.sword); }
+    else if (r.k === 'armor' && P.armor >= U2().armor.max) { P.armor++; say('Månrustning! Månsilver täcker hela rustningen.'); }
     else if (r.k === 'armor') { var ap = (P.armor) % 4, am = Math.floor(P.armor / 4); P.armor++; say(ARMOR_PART[ap] + ' av ' + MET[am].name + '! Rustningen är nu nivå ' + P.armor + ' av 16.'); }
     else if (r.k === 'pick') { if (!P.hasPick) { P.hasPick = true; say('Du gjorde en stenhacka! Nu kan du bryta koppar.'); } else { P.pick++; say('Ny ' + PICK_NAME[P.pick] + '! Nu kan du bryta ' + MET[P.pick].name + '.'); } }
-    else if (r.k === 'lamp') { P.lamp++; say('Lyktan är nu nivå ' + P.lamp); }
+    else if (r.k === 'lamp') { P.lamp++; say(P.lamp > U2().lantern.max ? 'Månlykta! Den lyser med månens ljus.' : 'Lyktan är nu nivå ' + P.lamp); }
     else if (r.k === 'shield') { P.shield++; say('Ny sköld av ' + MET[P.shield - 1].name + '! Håll in ' + (touchMode ? 'Sköld' : KN2('shield')) + ' för att parera.'); }
-    else if (r.k === 'bow') { P.bow++; if (P.bow === 1) P.arrows = Math.max(P.arrows, Math.min(5, maxArrows())); say(['Träbåge', 'Järnbåge', 'Guldbåge'][P.bow - 1] + '! ' + (touchMode ? 'Tryck Skjut' : 'Tryck ' + KN('bow')) + ' för att skjuta.'); }
+    else if (r.k === 'bow') { P.bow++; if (P.bow === 1) P.arrows = Math.max(P.arrows, Math.min(5, maxArrows())); say(BOW_NAME[P.bow - 1] + '! ' + (touchMode ? 'Tryck Skjut' : 'Tryck ' + KN('bow')) + ' för att skjuta.'); }
     else if (r.k === 'arrows') { var a0 = P.arrows; P.arrows = Math.max(a0, Math.min(maxArrows(), a0 + C.bow.arrowsPerCraft)); say('+' + (P.arrows - a0) + ' pilar (du har ' + P.arrows + ' av ' + maxArrows() + ')'); }
     else if (r.k === 'head') { P.arrowHead++; say('Pilspetsar av ' + MET[P.arrowHead - 1].name + '! Pilarna gör nu ' + fmt(arrowDamage()) + ' i skada.'); }
     else if (r.k === 'rod') { P.rod = 1; say('Ett fiskespö! Ställ dig vid en damm och tryck ' + (touchMode ? 'Fiska' : KN('use')) + '.'); }
@@ -292,7 +304,7 @@
     else if (r.k === 'parrow') { P.parrow++; say(P.parrow === 1 ? 'Kraftpil! Håll in ' + (touchMode ? 'Skjut' : KN('bow')) + ' tills den blå ringen är full och släpp.' : 'Kraftpilen är nu nivå ' + P.parrow + '.'); }
     else { P.quiver++; say(QUIVER_NAME[P.quiver - 1] + '! Nu kan du bära ' + maxArrows() + ' pilar.'); }
     if (howTo(r.k)) { howToT = 3; powerReminder = { spin: 'Snurrslag: håll in och släpp när ringen är hel.', bash: 'Sköldknuff: tryck snabbt på Sköld.', parrow: 'Kraftpil: håll in Skjut och släpp när ringen är hel.', endure: 'Spring: ' + (touchMode ? 'dra styrspaken ända ut.' : 'håll in ' + KN('run') + '.') }[r.k]; }
-    sfx('craft'); powerUp(); save();
+    if (r.tab === 2) sfxFile('kraft', 'craft'); else sfx('craft'); powerUp(); save();   // v3.8: krafter har eget ljud
   }
   function forgeHit(p) {
     for (var t = 0; t < TABS.length; t++) if (p.x > tabX(t) && p.x < tabX(t) + TAB_W && p.y > TAB_Y - 4 && p.y < TAB_Y + TAB_H + 4) { switchTab(t); return; }

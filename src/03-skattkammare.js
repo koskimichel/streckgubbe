@@ -157,7 +157,7 @@
   function openChest() {
     var pz = puzzle, ch = pz.chest, wi = Math.floor((level - 1) / 5) % 5, tier = Math.min(3, wi + 1 + lapOf(level)), n = 4 + wi + (pz.perfect ? 2 : 0);
     ch.taken = true; P.chests.push(level); P.wood += C.treasure.chestWood; addMetal(tier, n); P.moon += C.treasure.moon; P.moonEver = true;
-    sfx('bossdown'); addTrauma(0.4); sparks(ch.x, ch.y, PAL.bolt, 30); fx.push({ k: 'r', x: ch.x, y: ch.y, t: 0.6, life: 0.6 });
+    sfxFile('kista', 'bossdown'); addTrauma(0.4); sparks(ch.x, ch.y, PAL.bolt, 30); fx.push({ k: 'r', x: ch.x, y: ch.y, t: 0.6, life: 0.6 });
     floatText(ch.x, ch.y - 30, '+' + n + ' ' + MET[tier].name, MET[tier].c2);
     floatText(ch.x - 34, ch.y - 12, '+' + C.treasure.chestWood + ' trä', '#d9a46a'); floatText(ch.x + 34, ch.y - 12, '+1 månsten', '#cfe6ff');
     say('Skatten! ' + n + ' ' + MET[tier].name + (pz.perfect ? ' (perfekt-bonus)' : '') + ', ' + C.treasure.chestWood + ' trä och en månsten.'); save();
@@ -176,17 +176,22 @@
     if (n < P.maxLevel) say('Tillbaka på nivå ' + n + '. Malmen har vuxit tillbaka, och portalen framåt är öppen.');
     else if (n >= 2 && !P.backSeen && !bossLvl) { P.backSeen = true; say('Nivå ' + n + ': besegra ' + quota + ' monster. Den blå portalen vid starten tar dig tillbaka till förra nivån.'); save(); }
     if (pond && n >= P.maxLevel && !bossLvl && !P.rod) say('Nivå ' + n + ': det finns en damm här! Med ett fiskespö kan du fiska mat.');
-    if (window.LJUD) LJUD.setBiome(biome.i);
+    if (window.LJUD) { LJUD.setBiome(biome.i); if (LJUD.preload && (n % 5 === 4 || n % 5 === 0)) LJUD.preload('ny'); }   // v3.8: bosslåten laddas nivån före
     if (puzzle && !P.treasureSeen) { P.treasureSeen = true; say('En skattkammare finns på den här nivån! Leta efter en stängd dörr.'); save(); }
     if (n >= 3 && !P.runSeen && !bossLvl && n >= P.maxLevel) { P.runSeen = true; say('Tips: ' + (touchMode ? 'dra styrspaken ända ut' : 'håll in ' + KN('run')) + ' för att springa. Mätaren under gubben visar hur länge du orkar.'); save(); }
     if (n >= 6 && P.lamp === 0) { P.lamp = 1; say('Du hittade en lykta! Den lyser upp de mörka grottorna.'); powerUp(); save(); }
-    bossIntro = bossLvl ? 2.4 : 0;
+    bossIntro = bossLvl ? BOSS_INTRO_T : 0;
+    if (!back) storyAtLevel(n, firstInWorld);                 // v3.8: berättelse när man kommer till en ny värld eller ett nytt varv
   }
 
-  function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); }
+  function newGame() { P = newPlayer(); settings.guide = true; applySettings(); if (window.LJUD) LJUD.duck(false); startLevel(1); P.seen.push('intro'); showStory(STORY_INTRO); }   // v3.8: introt
   function continueGame(s) {
     if (s.diff && C.difficulty[s.diff]) { settings.diff = s.diff; applySettings(); }   // svårigheten följer sparplatsen
-    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel); P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiverV === 3 ? (s.quiver || 0) : s.quiverV === 2 ? [0, 1, 3, 5][Math.min(3, s.quiver || 0)] : (s.quiver ? 5 : 0);   /* v3.7.2: fem steg (10/20/30 pilar = steg 1/3/5) */ P.spin = s.spin || 0; P.bash = s.bash || 0; P.parrow = s.parrow || 0; P.endure = s.endure || 0; P.runSeen = !!s.runSeen; P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.flaxSeen = !!s.flaxSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
+    P = newPlayer(); P.hearts = s.hearts; P.str = s.str; P.ore = s.ore; P.meat = s.meat; P.sword = Math.min(s.sword, C.weapon.maxSwordLevel + 1);   /* v3.8: 16 = Månsvärd */ P.armor = s.armor || 0; if (s.armorV !== 2 && P.armor > 0) P.armor = [0, 3, 6, 10, 13, 16][Math.min(5, P.armor)]; /* äldre sparningar: samma skydd i nya skalan */ P.pick = s.pick || 0; P.lamp = s.lamp || 0; P.moon = s.moon || 0; P.moonEver = !!s.moonEver; P.bolts = s.bolts || 0; P.wood = s.wood || 0; P.stone = s.stone || 0; P.bossDone = s.bossDone || 0; P.chests = s.chests || oldChests(s.chestDone || 0); P.minedMap = s.minedMap || {}; if (!s.minedMap && s.mined && s.minedLevel) P.minedMap[s.minedLevel] = s.mined; P.maxLevel = s.maxLevel || s.level; P.flax = s.flax || 0; P.hide = s.hide || 0; P.rod = s.rod || 0; P.knife = s.knife || 0; P.quiver = s.quiverV === 3 ? (s.quiver || 0) : s.quiverV === 2 ? [0, 1, 3, 5][Math.min(3, s.quiver || 0)] : (s.quiver ? 5 : 0);   /* v3.7.2: fem steg (10/20/30 pilar = steg 1/3/5) */ P.spin = s.spin || 0; P.bash = s.bash || 0; P.parrow = s.parrow || 0; P.endure = s.endure || 0; P.runSeen = !!s.runSeen; P.arrowHead = s.arrowHead || 0; P.backSeen = !!s.backSeen; P.flaxSeen = !!s.flaxSeen; P.hasPick = s.hasPick != null ? !!s.hasPick : true; P.shield = s.shield || 0; P.bow = s.bow || 0; P.arrows = s.arrows || 0; P.iron = s.iron || 0; P.gold = s.gold || 0; P.star = s.star || 0; P.treasureSeen = !!s.treasureSeen; P.hp = maxHp();
+    var bossesBeaten = Math.floor((P.maxLevel - 1) / 5) + (P.bossDone === P.maxLevel && P.maxLevel % 5 === 0 ? 1 : 0);   // v3.8: äldre sparningar får skärvor för bossarna de besegrat
+    P.shards = s.shards != null ? s.shards : bossesBeaten; P.moonPower = s.moonPower || 0;
+    P.seen = s.seen || ['intro'].concat([1, 2, 3, 4].filter(function (w) { return w * 5 + 1 <= P.maxLevel; }).map(function (w) { return 'w' + w; }), P.maxLevel >= 26 ? ['lap1'] : [], P.maxLevel >= 51 ? ['lap2'] : []);
     startLevel(s.level);
+    if (P.shards >= C.moonPower.perLap && !P.moonPower && state === 'play') startMoonrise();   // skärvorna fogas ihop direkt (äldre sparning eller avbrutet)
   }
 

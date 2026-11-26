@@ -85,6 +85,7 @@
     for (var mt = 0; mt < 4; mt++) if (metalAmt(mt) > 0 || mt <= P.pick) (function (q) { metStats.push([function (x, y) { iconMetal(x, y, q); }, String(metalAmt(q))]); })(mt);
     stats.splice.apply(stats, [3, 0].concat(metStats));
     if (P.bow > 0) stats.splice(1, 0, [iconArrowSmall, String(P.arrows), touchMode ? null : KS('bow')]);   // pilar
+    if (P.shards > 0) stats.push([function (x, y) { moonDisc(x, y, 8.5, Math.min(10, P.shards)); }, (P.shards > C.moonPower.perLap ? Math.min(C.moonPower.perLap, P.shards - C.moonPower.perLap) : P.shards) + '/' + C.moonPower.perLap]);   // v3.8: månskärvor i det här varvet
     g.font = 'bold 15px ' + TXT;
     var x0 = 10 + w1 + 10, wStats = 14;
     stats.forEach(function (s) { wStats += 22 + g.measureText(s[1]).width + 16 + (s[2] ? 24 : 0); });

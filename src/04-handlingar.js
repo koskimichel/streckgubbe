@@ -16,19 +16,23 @@
   // ---------- handlingar ----------
   function tileAt(px, py) { return { x: Math.floor(px / TS), y: Math.floor(py / TS) }; }
 
+  var chargeSnd = {};                                          // v3.8: uppladdningsljud per kraft (spin, bow)
+  function chargeSoundStart(k, rate, secs) { if (chargeSnd[k]) return; var h0 = window.LJUD && LJUD.playFile ? LJUD.playFile('uppladdning', rate, secs) : null; if (h0 && h0.src) chargeSnd[k] = h0; }   // secs: slutar exakt när ringen är full
+  function chargeSoundStop(k) { if (chargeSnd[k] && window.LJUD && LJUD.stopFile) LJUD.stopFile(chargeSnd[k], 0.08); chargeSnd[k] = null; }
   function chargeSpin(held, dt) {                              // v3.7: håll in Slå för att ladda snurrslaget, släpp för att snurra
     var S = C.powers.spin;
-    if (!P.spin || P.blocking || P.spinCd > 0 || state !== 'play') { P.atkHold = 0; P.spinCharge = 0; return false; }   // v3.7.3: under omladdningen räknas ingen laddning; håller man kvar börjar ringen om från noll
+    if (!P.spin || P.blocking || P.spinCd > 0 || state !== 'play') { P.atkHold = 0; P.spinCharge = 0; chargeSoundStop('spin'); return false; }   // v3.7.3: under omladdningen räknas ingen laddning; håller man kvar börjar ringen om från noll
     if (held) {
       P.atkHold += dt;
       if (P.atkHold > S.hold) {
-        var was = P.spinCharge; P.spinCharge = Math.min(1, (P.atkHold - S.hold) / S.charge);
+        chargeSoundStart('spin', 2.0, S.charge[P.spin] - (P.atkHold - S.hold));   // ringen växer: tonen stiger och slutar när ringen är hel
+        var was = P.spinCharge; P.spinCharge = Math.min(1, (P.atkHold - S.hold) / S.charge[P.spin]);
         if (was < 1 && P.spinCharge >= 1) { fx.push({ k: 'r', x: P.x, y: P.y + 4, t: 0.35, life: 0.35 }); sfx('click'); }   // v3.7.3: redo
         return true;
       }
       return false;
     }
-    var fire = P.spinCharge >= 1; P.atkHold = 0; P.spinCharge = 0;
+    var fire = P.spinCharge >= 1; P.atkHold = 0; P.spinCharge = 0; chargeSoundStop('spin');
     if (fire) doSpin();
     return false;
   }
@@ -40,25 +44,53 @@
   }
   function spinAngle() { return spinAngleAt(P.spinT); }
   function spinPhase() { var S = C.powers.spin, el = S.time + S.windup - Math.max(0, P.spinT); return el < S.windup ? -(el / S.windup) : Math.min(1, (el - S.windup) / S.time); }   // -1..0 uppladdning, 0..1 snurr
-  function spinGeo() {                                          // v3.7.3: snurrens bana: platt ellips runt axlarna, spetsen på avståndet R
-    var L = (P.sword ? 22 + Math.min(P.sword, 10) * 1.5 : 20) * 1.15;
-    return { cx: P.x, cy: P.y - 5, K: C.powers.spin.flat, hand: 10, L: L, R: 10 + L };
+  function spinGeo() {                                          // v3.8: snurrens bana är samma ellips som träffen: spetsen på spin.radius
+    var R0 = C.powers.spin.radius[Math.max(1, P.spin)];
+    return { cx: P.x, cy: P.y - 5, K: C.powers.spin.flat, hand: 10, L: R0 - 10, R: R0 };
   }
-  function doSpin() {                                          // svärdet snurrar runt gubben och träffar alla nära
-    var S = C.powers.spin, L = P.spin, rad = S.radius[L], dmg = damage() * S.dmgMul[L], hit = 0;
+  function doSpin() {                                          // v3.8: svärdet snurrar runt gubben; varje monster träffas när klingan passerar det (spinSweep)
+    var S = C.powers.spin, L = P.spin;
     P.spinCd = S.cooldown[L]; P.spinT = S.time + S.windup; P.spinA0 = Math.atan2(P.fy, P.fx); P.cd = C.player.attackCooldown; sfx('swing'); addTrauma(0.35);
+    P.spinDmg = damage() * S.dmgMul[L]; P.spinHits = [];
+    var G0 = spinGeo(), tr = Math.ceil((G0.R + 16) / TS), ptx = Math.floor(P.x / TS), pty = Math.floor(G0.cy / TS); P.spinTiles = [];   // rutor som klingan kan nå
+    for (var ty = pty - tr; ty <= pty + tr; ty++) for (var tx = ptx - tr; tx <= ptx + tr; tx++) {
+      if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
+      var tt = map[ty][tx]; if (tt !== TREE && tt !== ORE && tt !== FLAX && !(tt === STONE && breakableStone(tx, ty))) continue;
+      var tcx = (tx + 0.5) * TS, tcy = (ty + 0.5) * TS;
+      if (Math.hypot(tcx - G0.cx, (tcy - G0.cy) / G0.K) <= G0.R + 10) P.spinTiles.push({ x: tx, y: ty, cx: tcx, cy: tcy });
+    }
     for (var di = 0; di < 14; di++) { var da = di / 14 * 6.283; fx.push({ k: 'p', x: P.x + Math.cos(da) * 10, y: P.y + 10 + Math.sin(da) * 5, vx: Math.cos(da) * 120, vy: Math.sin(da) * 60 - 20, t: 0.45, life: 0.45, col: biome.i === 3 ? '#ffffff' : '#cdbf9a', s: 2.2 }); }   // damm
-    mons.forEach(function (m) {
-      if (m.hidden) return;
+  }
+  function spinSweep(done) {                                     // körs varje bildruta medan han snurrar; done = sista bildrutan
+    var S = C.powers.spin, L = P.spin, rad = S.radius[L], back = 0.7, a0 = (P.spinA0 || 0) - back, G = spinGeo();
+    var blade = done ? 99 : spinAngle() - a0;                      // hur långt klingan har gått sedan uppladdningen
+    if (blade >= 0) mons.forEach(function (m) {
+      if (m.hidden || m.hp <= 0 || P.spinHits.indexOf(m) >= 0) return;
       var dx = m.x - P.x, dy = m.y - P.y, d = Math.hypot(dx, dy);
-      if (d > rad + m.r) return;
-      m.hp -= dmg; m.hit = 0.12; m.pop = 0; hit++;
-      var kb = C.monsters.knockback * 1.5 * (m.type === 'boss' ? 0.25 : 1);
+      if (Math.hypot(m.x - G.cx, (m.y - G.cy) / G.K) > G.R + m.r) return;   // v3.8: samma ellips som svärdet ritas på
+      var rel = Math.atan2((m.y - G.cy) / G.K, m.x - G.cx) - a0; rel = ((rel % 6.283) + 6.283) % 6.283;   // monstrets vinkel på snurrens ellips
+      if (blade < rel) return;
+      P.spinHits.push(m); var n = P.spinHits.length, boss = m.type === 'boss';
+      m.hp -= P.spinDmg; m.hit = 0.14; m.pop = 0;
+      var kb = C.monsters.knockback * S.push * (boss ? 0.25 : 1);
       if (d > 0) { m.kx = dx / d * kb; m.ky = dy / d * kb; }
-      sparks(m.x, m.y, PAL.bolt, 6); floatText(m.x, m.y - m.r - 8, fmt(dmg), '#ffffff');
+      if (!boss) { m.stunT = S.stun[L]; m.cd = Math.max(m.cd, m.stunT); }
+      sparks(m.x, m.y, swordLook(Math.max(1, P.sword)).edge, 9); sparks(m.x, m.y, PAL.bolt, 4);
+      floatText(m.x, m.y - m.r - 8, fmt(P.spinDmg), '#ffffff');
+      sfxFile('traff', 'hit', 1 + Math.min(6, n - 1) * 0.07);    // tonen stiger för varje monster
+      freeze(n <= 3 ? 0.03 : 0.015); addTrauma(0.07);
     });
-    fx.push({ k: 'r', x: P.x, y: P.y, t: 0.4, life: 0.4 });
-    if (hit) { sfx('hit'); freeze(0.07); addTrauma(0.2); }
+    function passed(x, y) { var r = Math.atan2((y - G.cy) / G.K, x - G.cx) - a0; r = ((r % 6.283) + 6.283) % 6.283; return blade >= r; }
+    if (blade >= 0) {
+      P.spinTiles = P.spinTiles.filter(function (q) { if (!passed(q.cx, q.cy)) return true; hitTile(q, true); return false; });   // träd, sten, lin, malm
+      prey.forEach(function (p) { if (!p.dead && Math.hypot(p.x - G.cx, (p.y - G.cy) / G.K) <= G.R + p.r && passed(p.x, p.y)) catchPrey(p); });
+    }
+    if (done) {                                                  // avslutning: kraftigare ju fler han träffade
+      var hits = P.spinHits.length;
+      fx.push({ k: 'r', x: P.x, y: P.y, t: 0.45, life: 0.45 });
+      if (hits >= 3) { addTrauma(Math.min(0.6, 0.15 + hits * 0.06)); freeze(0.06); fx.push({ k: 'r', x: P.x, y: P.y + 4, t: 0.6, life: 0.6 }); }
+      P.spinHits = [];
+    }
   }
   var shieldDownAt = null;                                       // v3.7.2: snabbt tryck på Sköld = knuff
   function shieldPress() { shieldDownAt = performance.now(); }
@@ -68,7 +100,7 @@
   }
   function shieldBash() {                                      // v3.7: alla monster runt gubben kastas bort och blir yra
     var B = C.powers.bash, L = P.bash, rad = B.radius[L], dmg = damage() * B.dmgMul;
-    P.bashCd = B.cooldown[L]; P.blockFlash = 0.35; P.bashT = 0.3; sfx('block'); sfx('hit'); addTrauma(0.6); freeze(0.08);
+    P.bashCd = B.cooldown[L]; P.blockFlash = 0.35; P.bashT = 0.3; sfx('block'); sfxFile('traff', 'hit', 0.85); addTrauma(0.6); freeze(0.08);
     for (var di = 0; di < 18; di++) { var da = di / 18 * 6.283; fx.push({ k: 'p', x: P.x + Math.cos(da) * 12, y: P.y + 9 + Math.sin(da) * 6, vx: Math.cos(da) * 190, vy: Math.sin(da) * 95 - 25, t: 0.5, life: 0.5, col: biome.i === 3 ? '#ffffff' : '#cdbf9a', s: 2.6 }); }   // damm
     sparks(P.x + P.fx * 14, P.y - 4 + P.fy * 10, '#bfe8ff', 14);
     mons.forEach(function (m) {
@@ -105,10 +137,13 @@
       if (d > rc + p.r) return; var dot = d > 0 ? (dx * P.fx + dy * P.fy) / d : 1;
       if (dot < 0.2 && d > p.r + 14) return; catchPrey(p);
     });
-    if (hitAny) { addTrauma(0.32); freeze(0.05); sfx('hit'); }
+    if (hitAny) { addTrauma(0.32); freeze(0.05); sfxFile('traff', 'hit', 1.05 + Math.random() * 0.12); }   // v3.8: punch i stället för blip
     if (puzzle && !puzzle.solved) puzzleHit(rc);
     // hugg träd och hacka malm framför
-    var tx = P.x + P.fx * (P.r + 10), ty = P.y + P.fy * (P.r + 10), t = tileAt(tx, ty);
+    hitTile(tileAt(P.x + P.fx * (P.r + 10), P.y + P.fy * (P.r + 10)), false);
+  }
+
+  function hitTile(t, quiet) {                                  // v3.8: ett slag på en ruta (träd, sten, lin, malm); quiet = inga meddelanden (snurren)
     if (t.x >= 0 && t.y >= 0 && t.x < W && t.y < H) {
       var tile = map[t.y][t.x], key = t.x + ',' + t.y, cx2 = (t.x + 0.5) * TS, cy2 = (t.y + 0.5) * TS;
       if (tile === FLAX) {                                     // lin: ett slag räcker
@@ -131,11 +166,11 @@
       } else if (tile === ORE) {
         var ot = oreT[key] || 0;
         if (!P.hasPick) {                                      // malm kräver en hacka, först en stenhacka
-          sparks(cx2, cy2, '#cfd6e0', 5); sfx('deny');
-          if (msgT <= 0 || msg.indexOf('stenhacka') < 0) say('Du behöver en stenhacka för att bryta ' + MET[ot].name + '. Smid den vid ugnen.');
+          sparks(cx2, cy2, '#cfd6e0', 5); if (!quiet) sfx('deny');
+          if (!quiet && (msgT <= 0 || msg.indexOf('stenhacka') < 0)) say('Du behöver en stenhacka för att bryta ' + MET[ot].name + '. Smid den vid ugnen.');
         } else if (P.pick < ot) {                                     // för hård malm: visar vad man behöver
-          sparks(cx2, cy2, '#cfd6e0', 5); sfx('deny');
-          if (msgT <= 0 || msg.indexOf('För hård') < 0) say('För hård! Du behöver en ' + PICK_NAME[ot] + ' för ' + MET[ot].name + '.');
+          sparks(cx2, cy2, '#cfd6e0', 5); if (!quiet) sfx('deny');
+          if (!quiet && (msgT <= 0 || msg.indexOf('För hård') < 0)) say('För hård! Du behöver en ' + PICK_NAME[ot] + ' för ' + MET[ot].name + '.');
         } else {
           oreHp[key] -= C.mining.hitsPerOre / Math.max(1, C.mining.hitsPerOre - (P.pick - ot));
           sparks(cx2, cy2, MET[ot].c2, 7); addTrauma(0.1); sfx('mine');
@@ -195,7 +230,7 @@
     if (mode === 'skin') { skinPrey(carcassNear()); return; }
     if (mode === 'fish') { fishE(); return; }
     if (P.meat > 0 && P.hp < maxHp()) {
-      P.meat--; P.hp = Math.min(maxHp(), P.hp + C.items.meatHeal); say('Mums! + hälsa'); sparks(P.x, P.y, '#ff7a7a', 8); sfx('eat');
+      P.meat--; P.hp = Math.min(maxHp(), P.hp + C.items.meatHeal); say('Mums! + hälsa'); sparks(P.x, P.y, '#ff7a7a', 8); sfxFile('ata', 'eat');
       floatText(P.x, P.y - 24, '+' + C.items.meatHeal, '#7dff8a'); save();
     } else if (waterNear() && !P.rod) say('Här kan man fiska! Gör ett fiskespö av trä och lin i smedjan.');
     else if (P.meat > 0) say('Full hälsa'); else say('Ingen mat. Stå vid smältstationen för att smida.');

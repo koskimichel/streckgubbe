@@ -3,13 +3,13 @@
     time += dt; if (msgT > 0) msgT -= dt;
     if (state !== 'play') return;
     P.cd -= dt; P.inv -= dt; P.swing -= dt; P.shootCd -= dt; P.shotT -= dt; P.blockFlash -= dt;
-    P.spinCd -= dt; P.bashCd -= dt; P.pwrCd -= dt; P.spinT -= dt; if (P.bowHold > 0) P.bowHold = P.pwrCd > 0 ? 0.001 : P.bowHold + dt;   // v3.7: krafter (v3.7.3: laddar inte under omladdningen)
+    P.spinCd -= dt; P.bashCd -= dt; P.pwrCd -= dt; var spinWas = P.spinT; P.spinT -= dt; if (spinWas > 0) spinSweep(P.spinT <= 0);   /* v3.8: träffen följer svärdet */ if (P.bowHold > 0) P.bowHold = P.pwrCd > 0 ? 0.001 : P.bowHold + dt;   // v3.7: krafter (v3.7.3: laddar inte under omladdningen)
     if (P.bashT > 0) P.bashT -= dt;
     if (P.spinT > 0 && Math.random() < dt * 40) {               // v3.7.2: gnistor från svärdsspetsen när han snurrar
       var sa2 = spinAngle(), G3 = spinGeo(); sparks(G3.cx + Math.cos(sa2) * G3.R, G3.cy + Math.sin(sa2) * G3.R * G3.K, swordLook(Math.max(1, P.sword)).edge, 1);
     }
     if (P.bowHold > 0 && P.pwrCd <= 0 && P.arrows > 0) {        // v3.7.2: kraftpilen laddas, ljus dras in mot bågen
-      P.shotT = 0.35; var chg = Math.min(1, P.bowHold / C.powers.arrow.charge);
+      P.shotT = 0.35; var chg = Math.min(1, P.bowHold / C.powers.arrow.charge); if (P.bowHold > 0.15 && chg < 1) chargeSoundStart('bow', 1.8, C.powers.arrow.charge - P.bowHold);   // v3.8: inte vid korta tryck
       if (chg >= 1 && !P.bowFull) { P.bowFull = true; fx.push({ k: 'bash', x: P.x, y: P.y + 4, t: 0.3, life: 0.3, R: 30 }); sfx('click'); }   // v3.7.3: redo
       if (chg < 1) P.bowFull = false;
       if (Math.random() < dt * (10 + 30 * chg)) { var ia = Math.random() * 6.283, ir = 34 + Math.random() * 14; fx.push({ k: 's', x: P.x + Math.cos(ia) * ir, y: P.y - 4 + Math.sin(ia) * ir, vx: -Math.cos(ia) * ir * 2.4, vy: -Math.sin(ia) * ir * 2.4, t: 0.4, life: 0.4, s: 1.6 + chg, col: chg >= 1 ? '#ffffff' : '#9fe0ff' }); }
@@ -71,7 +71,7 @@
       m.hit -= dt; m.cd -= dt; m.pop += dt;
       var d = dist(m, P) || 0.01, inCave = isCave[clamp(Math.floor(m.y / TS), 0, H - 1)][clamp(Math.floor(m.x / TS), 0, W - 1)];
       if (m.bounceCd > 0) m.bounceCd -= dt;
-      if (P.blocking && P.shield > 0 && !m.hidden && (m.cd > 0 || P.inv > 0) && d < m.r + P.r + 5 && blockedFrom(m.x, m.y) && !(m.bounceCd > 0)) {   // v3.7.4: skölden är en vägg framåt för monster som just inte kan slå (de som kan slår och studsar som förut)
+      if (P.blocking && P.shield > 0 && !m.hidden && (m.cd > 0 || P.inv > 0) && d < m.r + P.r + 8 && blockedFrom(m.x, m.y) && !(m.bounceCd > 0)) {   // v3.7.4: skölden är en vägg framåt för monster som just inte kan slå (de som kan slår och studsar som förut)
         shieldBounce(m); m.bounceCd = 0.4; P.blockFlash = 0.2; sfx('block'); sparks(P.x + P.fx * 12, P.y - 4 + P.fy * 12, '#ffffff', 6);
       }
       if (m.type === 'boss') { updateBoss(m, dt, d); return; }
@@ -79,22 +79,23 @@
       if (m.type === 'spider' && !(m.stunT > 0) && spiderAI(m, dt, d)) return;
       var vx = m.kx, vy = m.ky; m.kx *= 0.85; m.ky *= 0.85;
       if (m.stunT > 0) { m.stunT -= dt; move(m, vx * dt, vy * dt); return; }   // v3.6: yr efter sköldstuds, glider bakåt och anfaller inte
-      if (d < range) {
+      if (d < range && d > m.r + P.r + 4) {                        // v3.8: stannar vid gubbens kant, där det fortfarande når att slå
         var s = m.speed * (m.type === 'bat' ? 1 + 0.3 * Math.sin(time * 6 + m.ph) : 1);
         vx += (P.x - m.x) / d * s; vy += (P.y - m.y) / d * s;
-      } else {
+      } else if (d >= range) {
         vx += Math.cos(time * 0.7 + m.ph) * 12; vy += Math.sin(time * 0.9 + m.ph) * 12;
       }
       if (m.type === 'ghost') {                              // spöken svävar genom väggar
         m.x = clamp(m.x + vx * dt, TS * 1.5, WW - TS * 1.5); m.y = clamp(m.y + vy * dt, TS * 1.5, WH - TS * 1.5);
       } else {
         var ox = m.x, oy = m.y; move(m, vx * dt, vy * dt);
-        if (m.x === ox && m.y === oy && d < range) {          // fastnat: försök glida runt hinder
+        if (m.x === ox && m.y === oy && d < range && d > m.r + P.r + 5) {   // fastnat: försök glida runt hinder (inte när det står vid gubben, v3.8)
           move(m, (P.y - m.y) / d * m.speed * dt, -(P.x - m.x) / d * m.speed * dt);
         }
       }
-      if (d < m.r + P.r + 3 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown; hurtPlayer(m.dmg, m.x, m.y, m); }
+      if (d < m.r + P.r + 6 && m.cd <= 0 && P.inv <= 0) { m.cd = C.monsters.attackCooldown;   /* v3.8: +3, de står en bit ifrån */ hurtPlayer(m.dmg, m.x, m.y, m); }
     });
+    separateMonsters();
     if (P.fish) {                                               // fiske: vänta, napp, för sent
       if (P.moving || P.blocking) P.fish = null;
       else { P.fish.t -= dt;
@@ -129,7 +130,7 @@
           if (a.hits && a.hits.indexOf(m) >= 0) continue;        // kraftpilen träffar varje monster en gång
           var l2 = Math.hypot(a.vx, a.vy) || 1, kb = C.monsters.knockback * 0.4 * (m.type === 'boss' ? 0.25 : 1);
           m.hp -= a.dmg; m.hit = 0.12; m.pop = 0; m.kx = a.vx / l2 * kb; m.ky = a.vy / l2 * kb;
-          sparks(m.x, m.y, PAL.bolt, 5); floatText(m.x, m.y - m.r - 8, fmt(a.dmg), '#ffffff'); sfx('hit');
+          sparks(m.x, m.y, PAL.bolt, 5); floatText(m.x, m.y - m.r - 8, fmt(a.dmg), '#ffffff'); sfxFile('traff', 'hit', 1.2);
           if (a.power) { sparks(m.x, m.y, '#bfe8ff', 12); fx.push({ k: 'bash', x: m.x, y: m.y, t: 0.25, life: 0.25, R: 26 }); freeze(0.04); addTrauma(0.2); }   // v3.7.2: ljusutbrott vid varje träff
           if (a.power && a.pierce > 1) { a.pierce--; a.hits.push(m); continue; }
           return false;
@@ -159,15 +160,15 @@
     // plocka upp
     items = items.filter(function (it) {
       if (Math.hypot(it.x - P.x, it.y - P.y) > 18) return true;
-      if (it.t === 'meat') { if (P.meat >= C.items.maxMeat) return true; P.meat++; say('+ köttklubba'); sfx('meat'); floatText(it.x, it.y - 14, '+1 kött', '#ffb38a'); }
-      else if (it.t === 'moon') { P.moon++; P.moonEver = true; say('Månsten! I smedjan kan du lära dig krafter med den.'); sfx('heart'); floatText(it.x, it.y - 14, '+1 månsten', '#cfe6ff'); }
-      else if (it.t === 'arrows') { if (P.arrows >= maxArrows()) return true; P.arrows = Math.min(maxArrows(), P.arrows + C.drops.arrowsN); sfx('meat'); floatText(it.x, it.y - 14, '+' + C.drops.arrowsN + ' pilar', '#e1e4ea'); }
-      else if (it.t === 'flax') { P.flax++; sfx('meat'); floatText(it.x, it.y - 14, '+1 lin', '#a8c8ff'); }
-      else if (it.t === 'ore') { var okk = it.k || 0; addMetal(okk, 1); sfx('ore'); floatText(it.x, it.y - 14, '+1 ' + MET[okk].name, MET[okk].c2); }
+      if (it.t === 'meat') { if (P.meat >= C.items.maxMeat) return true; P.meat++; say('+ köttklubba'); sfxFile('plock', 'meat'); floatText(it.x, it.y - 14, '+1 kött', '#ffb38a'); }
+      else if (it.t === 'moon') { P.moon++; say(P.moonEver ? 'Månsten! I smedjan kan du lära dig krafter med den.' : 'En bit av månen! Den surrar varmt i handen. Ta den till smedjan.'); P.moonEver = true; sfxFile('plock', 'heart'); floatText(it.x, it.y - 14, '+1 månsten', '#cfe6ff'); }
+      else if (it.t === 'arrows') { if (P.arrows >= maxArrows()) return true; P.arrows = Math.min(maxArrows(), P.arrows + C.drops.arrowsN); sfxFile('plock', 'meat'); floatText(it.x, it.y - 14, '+' + C.drops.arrowsN + ' pilar', '#e1e4ea'); }
+      else if (it.t === 'flax') { P.flax++; sfxFile('plock', 'meat'); floatText(it.x, it.y - 14, '+1 lin', '#a8c8ff'); }
+      else if (it.t === 'ore') { var okk = it.k || 0; addMetal(okk, 1); sfxFile('plock', 'ore'); floatText(it.x, it.y - 14, '+1 ' + MET[okk].name, MET[okk].c2); }
       else if (it.t === 'heart') {
         if (P.hearts >= C.items.maxHearts) { P.hp = maxHp(); say('Full hälsa! Du har redan max antal hjärtan'); floatText(it.x, it.y - 14, 'full hälsa', PAL.heart); }
         else { P.hearts += C.items.heartMaxHpGain; P.hp += C.player.hpPerHeart * C.items.heartMaxHpGain; say('+ hjärta! Maxhälsan ökade'); floatText(it.x, it.y - 14, '+ hjärta', PAL.heart); }
-        sfx('heart');
+        sfxFile('plock', 'heart');
       }
       else if (it.t === 'crystal') {
         P.str += C.items.crystalStrengthGain; P.bolts = Math.min(C.boltPower.max, P.bolts + 1);
@@ -214,6 +215,11 @@
     if (confirmNew > 0) confirmNew = Math.max(0, confirmNew - dt);
     if (stormT > 0) stormT = Math.max(0, stormT - dt);
     if (guideShowT > 0) guideShowT -= dt;
+    updateMusic();
+    if (state !== 'play') { chargeSoundStop('spin'); chargeSoundStop('bow'); }   // v3.8: paus, smedja, död: tyst
+    if (state === 'story') storyT += dt;                         // v3.8
+    if (state === 'moonrise') { var mr0 = moonT; moonT += dt; if (mr0 < 1.6 && moonT >= 1.6) { if (!moonSnd) sfx('level'); addTrauma(0.4); } }
+    if (moonDelay > 0 && state === 'play') { moonDelay -= dt; if (moonDelay <= 0) startMoonrise(); }
     texts = texts.filter(function (t) { t.t += dt; t.y -= 32 * dt; t.x += t.vx * dt; return t.t < t.life; });
   }
 
@@ -237,7 +243,7 @@
     return (dx * P.fx + dy * P.fy) / l > C.shield.arc;            // v3.6: skyddar en bred båge, inte bara rakt fram
   }
   function hurtPlayer(dmg, sx, sy, src) {                     // rustningen minskar all skada, skölden det som kommer framifrån
-    if (P.inv > 0 || state !== 'play') return false;
+    if (P.inv > 0 || P.spinT > 0 || state !== 'play') return false;   // v3.8: inget skadar gubben medan han snurrar
     if (blockedFrom(sx, sy)) {
       if (src) shieldBounce(src);                              // v3.6: monstret studsar tillbaka och blir yrt
       dmg *= 1 - C.shield.block[P.shield]; sfx('block'); P.blockFlash = 0.25;
@@ -327,11 +333,39 @@
       }
     }
   }
+  function separateMonsters() {                                 // v3.8: monstren går inte in i gubben eller i varandra, så att man ser dem
+    function nudge(m, dx, dy) { if (m.type === 'ghost') { m.x += dx; m.y += dy; } else move(m, dx, dy); }
+    for (var i = 0; i < mons.length; i++) {
+      var a = mons[i]; if (a.hidden) continue;
+      if (a.type !== 'boss') {
+        var dx = a.x - P.x, dy = a.y - P.y, d = Math.hypot(dx, dy), min = a.r + P.r + 3;   // lite luft så att gubben syns
+        if (d < min) {
+          if (d < 0.01) { dx = -P.fx || 1; dy = -P.fy; d = Math.hypot(dx, dy) || 1; }
+          nudge(a, dx / d * (min - d), dy / d * (min - d));
+          var d2 = Math.hypot(a.x - P.x, a.y - P.y);
+          if (d2 < min - 2) move(P, -dx / d * (min - d2) * 0.5, -dy / d * (min - d2) * 0.5);   // monstret står mot en vägg: gubben glider undan lite
+        }
+      }
+      for (var j = i + 1; j < mons.length; j++) {
+        var b = mons[j]; if (b.hidden) continue;
+        var ex = b.x - a.x, ey = b.y - a.y, e = Math.hypot(ex, ey), mn = (a.r + b.r) * 0.85;
+        if (e >= mn) continue;
+        if (e < 0.01) { ex = Math.cos(i + j); ey = Math.sin(i + j); e = 1; }
+        var push = (mn - e) * 0.5, ux = ex / e, uy = ey / e;
+        if (a.type === 'boss') nudge(b, ux * push * 2, uy * push * 2);
+        else if (b.type === 'boss') nudge(a, -ux * push * 2, -uy * push * 2);
+        else { nudge(a, -ux * push, -uy * push); nudge(b, ux * push, uy * push); }
+      }
+    }
+  }
   function bossDefeated(m) {
     P.bossDone = level; save();                                   // bossen kommer inte tillbaka vid omladdning
-    addTrauma(1); freeze(0.15); sfx('bossdown');
+    addTrauma(1); freeze(0.15); sfxFile('boss', 'bossdown');
     sparks(m.x, m.y, PAL.bolt, 30); fx.push({ k: 'r', x: m.x, y: m.y, t: 0.6, life: 0.6 });
-    say(biome.boss + ' är besegrad!');
+    P.shards++; var lapN = Math.min(C.moonPower.perLap, P.shards - (P.shards > C.moonPower.perLap ? C.moonPower.perLap : 0));   // v3.8: månskärva
+    fx.push({ k: 'shard', x: m.x, y: m.y - 10, t: 1.6, life: 1.6 }); floatText(m.x, m.y - 30, '+1 månskärva', '#e9f0ff');
+    say(P.shards === 2 * C.moonPower.perLap ? 'Tio skärvor. Månen är nästan hel, men något väntar längre fram.' : 'Väktaren föll! Du fick en månskärva (' + lapN + ' av ' + C.moonPower.perLap + ').');
+    if (P.shards >= C.moonPower.perLap && !P.moonPower) moonDelay = C.moonPower.delay;   // fem skärvor: Månkraften strax
     function drop(t, x, y) { if (blockedAt(x, y, 4)) { x = m.x; y = m.y; } items.push({ t: t, x: x, y: y }); }
     for (var i = 0; i < C.boss.rewardOre; i++) { var a = i / C.boss.rewardOre * 6.283; drop('ore', m.x + Math.cos(a) * 26, m.y + Math.sin(a) * 26); items[items.length - 1].k = Math.min(3, Math.floor((level - 1) / 5) % 5 + (i % 2) + lapOf(level)); }
     drop('heart', m.x - 10, m.y); drop('crystal', m.x + 10, m.y); drop('moon', m.x, m.y + 14);
@@ -380,7 +414,7 @@
   }
   function releaseBow() {
     if (!(P.bowHold > 0)) return;
-    var full = P.bowHold >= C.powers.arrow.charge && P.pwrCd <= 0; P.bowHold = 0; shoot(full);
+    var full = P.bowHold >= C.powers.arrow.charge && P.pwrCd <= 0; P.bowHold = 0; chargeSoundStop('bow'); shoot(full);
   }
   function shoot(power) {                                     // pilbåge: först det närmaste framför gubben, annars närmaste monster runt om
     if (state !== 'play' || P.blocking) return;

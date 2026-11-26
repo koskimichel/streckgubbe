@@ -118,7 +118,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.7.5', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.8', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -133,6 +133,7 @@
         g.font = '14px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.8)'; g.fillText(DIFF_DESC[DIFF_ORDER[diffSel]] + (touchMode ? '' : ' (Enter startar)'), c.x + 14, c.y + 136);
       } else if (s) {
         g.fillText('Nivå ' + s.level + ', ' + biomeOf(s.level).name, c.x + 14, c.y + 50);
+        if (s.shards) moonDisc(c.x + c.w - 26, c.y + 22, 12, Math.min(10, s.shards));   // v3.8: hur mycket av månen man samlat
         g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,0.8)';
         g.fillText((s.sword ? swordName(s.sword) : 'Pinne') + ', ' + (DIFF_NAME[s.diff] || DIFF_NAME[settings.diff]), c.x + 14, c.y + 76);
       } else {
@@ -172,12 +173,12 @@
     }
     g.scale(ZW, ZW); g.translate(-camX, -camY);                // kameran; på dator och platta visar den hela kartan
     g.drawImage(mapCv, 0, 0, WW, WH);
-    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPrey(); drawPuzzle(); drawMonsters(); drawStuns(); drawShots(); drawArrows(); drawChargeRings(); drawPlayer(); drawPowers(); drawEHint(); drawFx();
+    drawDynamicTiles(); drawGroundFx(); drawItems(); drawPrey(); drawPuzzle(); drawMonsters(); drawStuns(); drawShots(); drawArrows(); drawChargeRings(); drawMoonAura(); drawPlayer(); drawPowers(); drawEHint(); drawFx();
     if (biome.canopy) g.drawImage(canCv, 0, 0, WW, WH);          // djungelns lövtak
     var lapT = lapOf(level);                                     // varv 2 kväll, varv 3+ natt
     if (lapT > 0) { g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = lapT === 1 ? 0.5 : 0.75; g.fillStyle = lapT === 1 ? '#ffb07a' : '#6a78c0'; g.fillRect(0, 0, WW, WH); g.restore(); }
     var gd = guideNow();
-    drawLighting(); drawCaveEyes(); drawTexts(); drawGuideArrow(gd);
+    drawLighting(); drawCaveEyes(); drawTexts(); drawGuideArrow(gd); drawMoonriseWorld();
     g.restore();
     drawVignette();
     if (stormT > 0) { g.fillStyle = FXC.flash !== false ? 'rgba(255,250,220,' + stormT * 1.1 + ')' : 'rgba(255,225,77,' + stormT * 0.3 + ')'; g.fillRect(0, 0, LW, LH); }
@@ -190,6 +191,8 @@
     if (state === 'keys') inBox960(overlayKeys);
     if (state === 'forge') inBox960(overlayForge);
     if (state === 'dead') inBox960(overlayDead);
+    if (state === 'story') { g.fillStyle = 'rgba(6,10,22,0.96)'; g.fillRect(0, 0, LW, LH); inBox960(overlayStory); }   // v3.8
+    if (state === 'moonrise') inBox960(overlayMoonrise);
     if (state === 'title') { g.fillStyle = 'rgba(8,16,10,0.9)'; g.fillRect(0, 0, LW, LH); inBox960(overlayTitle); }   // mörkt över hela skärmen, även utanför menyrutan
     if (touchMode && window.innerHeight > window.innerWidth * 1.05) {
       g.fillStyle = 'rgba(8,16,10,0.88)'; g.fillRect(0, 0, LW, LH);
@@ -241,7 +244,7 @@
     g.beginPath(); g.moveTo(4, -16); g.lineTo(-8, 2); g.lineTo(-1, 2); g.lineTo(-5, 16); g.lineTo(9, -4); g.lineTo(2, -4); g.lineTo(6, -16); g.closePath();
     g.fillStyle = PAL.bolt; g.fill(); g.strokeStyle = '#7a5a10'; g.lineWidth = 1.5; g.stroke();
   }
-  function iconShieldRound() { drawShieldShape(0, 0, 1.5, Math.max(0, Math.min(3, P.shield > 0 ? P.shield - 1 : 0)), false); }
+  function iconShieldRound() { drawShieldShape(0, 0, 1.5, Math.max(0, Math.min(4, P.shield > 0 ? P.shield - 1 : 0)), false); }
   function iconBow() { drawBowShape(5, 0, 0, 15, Math.max(1, P.bow || 1), 0.6, true); }
   function iconArrows() {
     for (var i = -1; i <= 1; i++) {
@@ -289,5 +292,127 @@
     [[-20, -8, -10], [-22, 0, -12], [-20, 8, -10]].forEach(function (q) { g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[2], q[1]); g.stroke(); });
   }
   function iconQuiverBig() { g.save(); g.scale(1.8, 1.8); drawQuiver(0, 2, -1, 3); g.restore(); }
+  // ---------- storyn: den fallande månen (v3.8) ----------
+  var STORY_INTRO = [
+    { art: 'crack', t: 'En natt sprack månen.' },
+    { art: 'fall', t: 'Bitar av den regnade ner över landet och borrade sig djupt ner i jorden.' },
+    { art: 'miner', t: 'Du är gruvarbetare. Du vaknar vid gruvan, och allt är tystare och mörkare än förut.' },
+    { art: 'stone', t: 'Månstenarna du hittar är bitar av månen. Varje bit kan ge dig en kraft.' },
+    { art: 'disc', t: 'Fem väktare har tagit var sin stor skärva av månen. Den första, Grottkungen, väntar i Ängen.' }
+  ];
+  var STORY_WORLD = [null,
+    'Månljuset når knappt ner genom löven. Någonstans här vaktar Djungeljätten nästa skärva.',
+    'Där skärvan slog ner blev sanden blank som glas. Sandkungen har grävt ner den.',
+    'Isjätten tror att kylan kan hålla månen kvar hos honom för alltid.',
+    'Jorden brinner där skärvorna föll. Lavaherren vaktar den sista skärvan i det här varvet.'];
+  var STORY_LAP = { lap1: 'Månen sjunker och det blir kväll. Väktarna har vaknat igen, starkare än förut, och var och en har hittat en ny skärva.',
+                    lap2: 'Natten har kommit. Månen är nästan hel, men mörkret har vuxit. Håll lyktan nära.' };
+  var BOSS_QUOTE = ['Bitarna under jorden är mina!', 'Djungeln gömmer allt. Även månen.', 'Sanden har slukat skärvan. Du får den aldrig!',
+                    'Kylan bevarar månen. Den stannar här hos mig.', 'Elden ska smälta ihop månen åt mig!'];
+  var BOSS_QUOTE2 = ['Du har Månkraften... men den här skärvan är min!', 'Kvällen är min tid. Kom närmare.', 'Den här gången gräver jag ner dig!',
+                     'Kom närmare, så fryser jag ditt månljus.', 'Två halvor av en måne? Jag tar båda!'];
+  function bossQuote() { return (lapOf(level) ? BOSS_QUOTE2 : BOSS_QUOTE)[biome.i]; }
+  var storyCards = [], storyI = 0, storyT = 0, moonT = 0, moonDelay = 0, moonSnd = null;
+  function showStory(cards) { storyCards = cards; storyI = 0; storyT = 0; state = 'story'; keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null; }
+  function endStory() { state = 'play'; keys = {}; storyCards = []; save(); }
+  function storyNext(skip) {
+    if (storyT < 0.45) return;                                     // ett kvarglömt tryck ska inte hoppa förbi texten
+    if (skip || storyI >= storyCards.length - 1) { endStory(); sfx('click'); return; }
+    storyI++; storyT = 0; sfx('click');
+  }
+  function storyAtLevel(n, firstInWorld) {                         // en gång per värld (första varvet) och per nytt varv
+    if (n < P.maxLevel || state !== 'play') return;
+    var key = n === 26 ? 'lap1' : n === 51 ? 'lap2' : firstInWorld && n > 1 && lapOf(n) === 0 ? 'w' + biomeOf(n).i : null;
+    if (!key || P.seen.indexOf(key) >= 0) return;
+    P.seen.push(key); save();
+    showStory([{ art: key.charAt(0) === 'w' ? 'disc' : 'lap', t: key.charAt(0) === 'w' ? STORY_WORLD[biomeOf(n).i] : STORY_LAP[key], title: key.charAt(0) === 'w' ? biomeOf(n).name : lapOf(n) === 1 ? 'Kväll' : 'Natt' }]);
+  }
+  function wrapLines(text, maxW) {
+    var words = text.split(' '), lines = [], cur = '';
+    words.forEach(function (wd) { var tt = cur ? cur + ' ' + wd : wd; if (g.measureText(tt).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = tt; });
+    if (cur) lines.push(cur); return lines;
+  }
+  function storyArt(art, cx, cy, t) {
+    if (art === 'crack' || art === 'fall') {
+      var split = art === 'crack' ? Math.min(1, t / 1.2) * 6 : 6;
+      g.save(); g.beginPath(); g.rect(0, 0, cx, LH); g.clip(); moonDisc(cx - split, cy, 62, 10); g.restore();
+      g.save(); g.beginPath(); g.rect(cx, 0, LW, LH); g.clip(); moonDisc(cx + split, cy, 62, 10); g.restore();
+      g.strokeStyle = 'rgba(6,10,22,0.95)'; g.lineWidth = 3 + split; g.beginPath(); g.moveTo(cx + 4, cy - 64); g.lineTo(cx - 6, cy - 30); g.lineTo(cx + 7, cy - 4); g.lineTo(cx - 5, cy + 26); g.lineTo(cx + 3, cy + 64); g.stroke();
+      if (art === 'fall') for (var i = 0; i < 7; i++) {           // bitar som faller
+        var ph = (t * 0.55 + i * 0.37) % 1, fx2 = cx - 210 + i * 70 + Math.sin(i * 2.3) * 20, fy = cy - 40 + ph * 150;
+        g.globalAlpha = Math.min(1, (1 - ph) * 3); g.strokeStyle = 'rgba(200,220,255,0.5)'; g.lineWidth = 2; g.beginPath(); g.moveTo(fx2 - 12, fy - 26); g.lineTo(fx2, fy); g.stroke();
+        moonShape(fx2, fy, 0.9); g.globalAlpha = 1;
+      }
+    } else if (art === 'miner') {
+      g.save(); g.globalCompositeOperation = 'lighter'; glow(cx, cy, 90, '255,210,120', 0.18); g.restore();
+      g.save(); g.translate(cx, cy + 10); g.scale(2.4, 2.4); stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 18, col: '#9a9ea6', edge: '#e1e4ea', stone: true }, 0, false); g.restore();
+    } else if (art === 'stone') {
+      moonShape(cx, cy, 4.4 + 0.2 * Math.sin(t * 3));
+    } else if (art === 'disc') {
+      moonDisc(cx, cy, 58, Math.min(10, P.shards), true);
+    } else if (art === 'lap') {
+      moonDisc(cx, cy, 58, Math.min(10, P.shards), true);
+      g.fillStyle = 'rgba(6,10,22,' + (0.35 + 0.1 * Math.sin(t)) + ')'; g.beginPath(); g.arc(cx, cy, 60, 0, 7); g.fill();
+    }
+  }
+  function overlayStory() {
+    var c = storyCards[storyI]; if (!c) return;
+    var a = Math.min(1, storyT / 0.4), cx = LW / 2;
+    g.save(); g.globalAlpha = a; storyArt(c.art, cx, 170, storyT); g.restore();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (c.title) chalkTitle(c.title, cx, 286, 40);
+    g.font = '24px ' + TXT; var lines = wrapLines(c.t, 640), y0 = (c.title ? 350 : 320) - (lines.length - 1) * 17;
+    lines.forEach(function (ln, i) { g.globalAlpha = Math.min(1, Math.max(0, (storyT - 0.15 - i * 0.25) / 0.4)); g.fillStyle = PAL.chalk; g.fillText(ln, cx, y0 + i * 34); });
+    g.globalAlpha = 1;
+    if (storyCards.length > 1) for (var i = 0; i < storyCards.length; i++) { g.fillStyle = i === storyI ? PAL.bolt : 'rgba(250,250,242,0.3)'; g.beginPath(); g.arc(cx - (storyCards.length - 1) * 9 + i * 18, 470, 4, 0, 7); g.fill(); }
+    if (storyT > 0.45) {
+      g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,' + (0.55 + 0.25 * Math.sin(time * 3)) + ')';
+      var more = storyI < storyCards.length - 1;
+      g.fillText((touchMode ? 'Tryck på skärmen' : lastInput === 'pad' ? 'Tryck A' : 'Tryck Enter eller klicka') + (more ? ' för att gå vidare' : ' för att spela') + (more && !touchMode ? (lastInput === 'pad' ? ', B hoppar över' : ', Esc hoppar över') : ''), cx, 520);
+    }
+    g.textAlign = 'left';
+  }
+  function startMoonrise() { state = 'moonrise'; moonT = 0; moonDelay = 0; keys = {}; mouse.down = false; touch.joyId = touch.atkId = touch.eId = null; moonSnd = window.LJUD && LJUD.playFile ? LJUD.playFile('laddning') : null; if (!moonSnd) sfx('summon'); }
+  function endMoonrise() {
+    if (moonT < C.moonPower.scene) return;
+    P.moonPower = 1; state = 'play'; keys = {}; powerUp(); if (moonSnd && LJUD.stopFile) LJUD.stopFile(moonSnd, 0.3); moonSnd = null; sfxFile('kraft', 'level'); save();
+    say('Månkraften lyser i dig! Titta i smedjan: svärd, rustning, sköld, båge, pilspetsar och lykta har fått en månnivå.');
+  }
+  function drawMoonriseWorld() {                                   // i världen: skärvorna flyger ihop ovanför gubben
+    if (state !== 'moonrise') return;
+    var t = moonT, mp = toWorld(LW / 2, LH * 0.36), mx = mp.x, my = mp.y;   // halvmånen alltid i bild, strålen går till gubben
+    g.fillStyle = 'rgba(5,8,22,' + Math.min(0.7, t * 0.55) + ')'; g.fillRect(-200, -200, WW + 400, WH + 400);
+    if (t < 1.7) {
+      for (var i = 0; i < 5; i++) {
+        var a = -Math.PI / 2 - (i + 0.5) * Math.PI / 5, sx = mx + Math.cos(-2.4 + i * 1.2) * 300, sy = my + Math.sin(-2.4 + i * 1.2) * 220 - 60;
+        var k = easeOutCubic(Math.min(1, t / 1.5)), tx = mx + Math.cos(a) * 16, ty = my + Math.sin(a) * 16;
+        g.save(); g.translate(sx + (tx - sx) * k, sy + (ty - sy) * k); g.rotate((1 - k) * 8 + i); moonShape(0, 0, 1.3); g.restore();
+      }
+    } else {
+      var k2 = Math.min(1, (t - 1.6) / 0.6), pulse = 1 + 0.05 * Math.sin(t * 5);
+      g.save(); g.globalCompositeOperation = 'lighter';
+      if (t < 2.4) { g.globalAlpha = 1 - k2; glow(mx, my, 90 * (0.5 + k2), '255,255,255', 0.9); g.globalAlpha = 1; }
+      if (t > 2.1) {                                               // ljusstrålen ner till gubben
+        var bk = Math.min(1, (t - 2.1) / 0.5), bg = g.createLinearGradient(mx, my, P.x, P.y + 10);
+        bg.addColorStop(0, 'rgba(220,232,255,' + 0.55 * bk + ')'); bg.addColorStop(1, 'rgba(220,232,255,' + 0.1 * bk + ')');
+        var bdx = P.x - mx, bdy = P.y - my, bl = Math.hypot(bdx, bdy) || 1, qx = -bdy / bl, qy = bdx / bl;   // bredden vinkelrätt mot strålen
+        g.fillStyle = bg; g.beginPath(); g.moveTo(mx + qx * 10, my + qy * 10); g.lineTo(mx - qx * 10, my - qy * 10); g.lineTo(P.x - qx * 26, P.y - qy * 26); g.lineTo(P.x + qx * 26, P.y + qy * 26); g.closePath(); g.fill();
+        glow(P.x, P.y - 4, 40 + 6 * Math.sin(t * 4), '210,228,255', 0.35 * bk);
+      }
+      g.restore();
+      moonDisc(mx, my, 26 * pulse, 5);
+    }
+  }
+  function overlayMoonrise() {                                     // texten för Månkraften
+    var t = moonT; if (t < 2.2) return;
+    var a = Math.min(1, (t - 2.2) / 0.5); g.save(); g.globalAlpha = a; g.textAlign = 'center'; g.textBaseline = 'middle';
+    chalkTitle('Månkraften', LW / 2, 70, 54);
+    g.fillStyle = 'rgba(6,10,22,0.78)'; g.fillRect(0, LH - 150, LW, 150);
+    g.font = '21px ' + TXT; g.fillStyle = PAL.chalk;
+    g.fillText('De fem skärvorna blev en halvmåne, och dess ljus fyller dig.', LW / 2, LH - 118);
+    g.fillText('Du slår hårdare, lyser upp mörkret, och smedjan har fått månnivåer.', LW / 2, LH - 86);
+    if (t >= C.moonPower.scene) { g.font = '15px ' + TXT; g.fillStyle = 'rgba(250,250,242,' + (0.55 + 0.25 * Math.sin(time * 3)) + ')'; g.fillText(touchMode ? 'Tryck på skärmen för att spela vidare' : lastInput === 'pad' ? 'Tryck A för att spela vidare' : 'Tryck Enter eller klicka för att spela vidare', LW / 2, LH - 44); }
+    g.restore(); g.textAlign = 'left';
+  }
   function iconPause() { g.fillStyle = PAL.chalk; rr(g, -9, -11, 6, 22, 2); g.fill(); rr(g, 3, -11, 6, 22, 2); g.fill(); }
 

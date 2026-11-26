@@ -34,7 +34,12 @@ def main():
         os.makedirs(mal, exist_ok=True)
         for f in PUBLICERA:
             shutil.copyfile(os.path.join(ROT, f), os.path.join(mal, f))
-        print('kopierade ' + str(len(PUBLICERA)) + ' filer till publicera/')
+        ljud = sorted(f for f in os.listdir(os.path.join(ROT, 'ljud')) if f.endswith('.mp3')) if os.path.isdir(os.path.join(ROT, 'ljud')) else []
+        if ljud:                                                  # v3.8: ljudfilerna i ljud/
+            os.makedirs(os.path.join(mal, 'ljud'), exist_ok=True)
+            for f in ljud:
+                shutil.copyfile(os.path.join(ROT, 'ljud', f), os.path.join(mal, 'ljud', f))
+        print('kopierade ' + str(len(PUBLICERA)) + ' filer' + (' och ' + str(len(ljud)) + ' ljud' if ljud else '') + ' till publicera/')
     return 0
 
 
