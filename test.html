@@ -477,6 +477,12 @@
     var lv0 = s.level, mx0 = s.P.x, my0 = s.P.y, ml0 = s.P.maxLevel, bd0 = s.P.bossDone; var st0 = s.settings.song, mPlay = s.musicWanted(); s.P.maxLevel = 5; s.P.bossDone = 0; s.go(5); var mBoss = s.musicWanted(); s.forge(); var mForge = s.musicWanted(); key('Escape');
     check('musik efter läge: Klassisk när man spelar, Ny vid boss, Spelmusik i smedjan', st0 === 'auto' && mPlay === 'klassisk' && mBoss === 'ny' && mForge === 'spel', [st0, mPlay, mBoss, mForge].join(', '));
     s.P.maxLevel = ml0; s.P.bossDone = bd0; s.go(lv0); s.P.x = mx0; s.P.y = my0; s.mons.length = 0;   // tillbaka som före
+    var frame = function () { return new Promise(function (ok) { w().requestAnimationFrame(function () { w().requestAnimationFrame(ok); }); setTimeout(ok, 400); }); };   // v3.8.1: HUD-raden bryter i stället för att gå in under nivårutan
+    var hk = ['hearts', 'bolts', 'bow', 'arrows', 'wood', 'stone', 'ore', 'moon', 'moonEver', 'flax', 'rod', 'hide', 'quiver', 'meat', 'shards', 'iron', 'gold', 'star', 'pick', 'sword'], hv = {}; hk.forEach(function (k) { hv[k] = P[k]; });
+    await frame(); var hr1 = s.hudRows, hg1 = s.hudGap;
+    Object.assign(P, { hearts: 7, bolts: 2, bow: 1, arrows: 18, wood: 17, stone: 5, ore: 17, iron: 2, gold: 0, star: 0, pick: 2, moon: 1, moonEver: true, flax: 15, rod: true, hide: 2, quiver: 1, meat: 3, sword: 6, shards: 1 });   // som användarens skärmdump (nivå 6)
+    await frame(); var hr2 = s.hudRows, hg2 = s.hudGap, hf2 = s.hudFit; hk.forEach(function (k) { P[k] = hv[k]; }); await frame();
+    check('förrådet i HUD trycks ihop före radbrytning och går aldrig in under nivårutan', hr1 === 1 && (hr2 === 1 || hf2 === 6) && hg1 >= 0 && hg2 >= 0,   /* testramen är liten (mobilvy ca 717 bred), där får två rader bli sista utvägen */ 'rader: ' + hr1 + ' / ' + hr2 + ', steg ' + hf2 + ', glapp ' + Math.round(hg1) + ' / ' + Math.round(hg2));
     keyDown(' '); s.step(P.spinCd + 0.05); var noInstant = P.spinCharge === 0; s.step(0.5); s.step(0.6); var fresh = P.spinCharge >= 1; keyUp(' '); s.step(0.6); P.spinCd = 0;   // v3.7.3: håll in under omladdningen
     check('håller man in medan snurren laddar om börjar ringen från noll', noInstant && fresh, 'direkt efter: ' + noInstant + ', fylls sedan: ' + fresh);
     s.mons.length = 0; P.cd = 0; P.spinCd = 9; var sw0 = 0; keyDown(' '); for (var q = 0; q < 10; q++) { s.step(0.1); if (P.swing > 0.1) sw0++; } keyUp(' '); s.step(0.05);

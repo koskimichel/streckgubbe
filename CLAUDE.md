@@ -1,4 +1,7 @@
-# Malm & Monster (Mines & Monsters), version 3.8
+# Malm & Monster (Mines & Monsters), version 3.8.1
+
+v3.8.1:
+- HUD (efter användarens skärmdumpar, nivå 6): förrådet ritades in under nivårutan. Nu trycks det ihop i steg (`FITS` i `drawHud`: mindre mellanrum, sedan utan tangentrutor Q/F/E, sedan mindre text) så att allt ryms på en rad; två rader (`hudRows`, `hudExtra` flyttar Nästa-rutan, meddelanden och bossens ruta) bara som sista utväg. Nivårutan visar en lila portal och öppen i stället för portalen är öppen. Test: `__sg.hudRows`, `__sg.hudGap` (glapp till nivårutan, >= 0), `__sg.hudFit` (steget).
 
 v3.8 (storyn: den fallande månen):
 - Varje boss släpper en månskärva (`P.shards`, sparas; fx `shard`). Fem skärvor (`C.moonPower.perLap`) startar efter `C.moonPower.delay` s scenen `state = 'moonrise'` (`startMoonrise`, `drawMoonriseWorld` i världen, `overlayMoonrise` i 960-rutan, `moonT`). Man kan gå vidare efter `C.moonPower.scene` s (`endMoonrise`), då `P.moonPower = 1`: skada x `dmgMul` (i `damage()`), ljus + `light` (i `lightR()`), svagt månsken runt gubben (`drawMoonAura`).

@@ -2647,7 +2647,7 @@
   }
 
   // ---------- HUD ----------
-  var bossBarTop = false;                                       // v3.7.1: bossens hälsa flyttar upp när bossen eller gubben är längst ned
+  var bossBarTop = false, hudStatRows = 1, hudGap = 0, hudFit = 0;   // v3.7.1: bossens hälsa flyttar upp när bossen eller gubben är längst ned; v3.8.1: förrådets rader, glapp och hoptryckningssteg
   function tag(x, y, w, h) {                              // kritlapp
     rr(g, x, y, w, h, 9); g.fillStyle = 'rgba(16,36,18,0.78)'; g.fill();
     g.strokeStyle = 'rgba(250,250,242,0.55)'; g.lineWidth = 1.4; g.stroke();
@@ -2735,35 +2735,63 @@
     if (P.bow > 0) stats.splice(1, 0, [iconArrowSmall, String(P.arrows), touchMode ? null : KS('bow')]);   // pilar
     if (P.shards > 0) stats.push([function (x, y) { moonDisc(x, y, 8.5, Math.min(10, P.shards)); }, (P.shards > C.moonPower.perLap ? Math.min(C.moonPower.perLap, P.shards - C.moonPower.perLap) : P.shards) + '/' + C.moonPower.perLap]);   // v3.8: månskärvor i det här varvet
     g.font = 'bold 15px ' + TXT;
-    var x0 = 10 + w1 + 10, wStats = 14;
-    stats.forEach(function (s) { wStats += 22 + g.measureText(s[1]).width + 16 + (s[2] ? 24 : 0); });
-    tag(x0, 8, wStats, 30);
-    var xx = x0 + 18;
+    // nivårutan mäts först; förrådet trycks ihop i steg så att allt ryms på en rad (v3.8.1), två rader bara som sista utväg
+    var left = quota - kills, open = left <= 0 || exitOpen(), t2 = 'Nivå ' + level + (lapOf(level) ? ', varv ' + (lapOf(level) + 1) : ''), t3 = open ? 'öppen' : String(left);
+    var w2 = g.measureText(t2).width, w3 = g.measureText(t3).width, wR = w2 + w3 + 54;
+    var RX = LW - 44;                                        // plats för pausknappen längst till höger
+    var x0 = 10 + w1 + 10, avail = Math.max(120, RX - 10 - wR - 8 - x0);
+    var FITS = [{ f: 15, gap: 24, key: true }, { f: 15, gap: 18, key: true }, { f: 14, gap: 14, key: true }, { f: 15, gap: 16, key: false }, { f: 13, gap: 15, key: false }, { f: 12, gap: 14, key: false }];
+    function itemW(s, fit) { return 14 + g.measureText(s[1]).width + (fit.key && s[2] ? 24 : 0) + fit.gap; }
+    var fit = null, fi;
+    for (fi = 0; fi < FITS.length && !fit; fi++) {
+      g.font = 'bold ' + FITS[fi].f + 'px ' + TXT; var tw0 = 18 - FITS[fi].gap + 14;
+      stats.forEach(function (s) { tw0 += itemW(s, FITS[fi]); });
+      if (tw0 <= avail) fit = FITS[fi];
+    }
+    if (!fit) { fit = FITS[3]; fi = FITS.length + 1; }           // får inte plats ens hoptryckt: bryt rad
+    hudFit = fi - 1; g.font = 'bold ' + fit.f + 'px ' + TXT;
+    var hudRows = [[]], rw = [18 - fit.gap + 14];
     stats.forEach(function (s) {
-      s[0](xx, 23); xx += 14;
-      g.fillStyle = PAL.chalk; g.fillText(s[1], xx, 24); xx += g.measureText(s[1]).width + 24;
-      if (s[2]) {                                            // tangent som visar vad man trycker
-        rr(g, xx - 16, 14, 19, 19, 4); g.fillStyle = 'rgba(250,250,242,0.15)'; g.fill(); g.strokeStyle = 'rgba(250,250,242,0.75)'; g.lineWidth = 1.3; g.stroke();
-        g.fillStyle = PAL.chalk; g.font = 'bold 12px ' + TXT; g.textAlign = 'center'; g.fillText(s[2], xx - 6.5, 24); g.textAlign = 'left'; g.font = 'bold 15px ' + TXT;
-        xx += 24;
-      }
+      var iw = itemW(s, fit), r = hudRows.length - 1;
+      if (hudRows[r].length && rw[r] + iw > avail) { hudRows.push([]); rw.push(18 - fit.gap + 14); r++; }
+      hudRows[r].push(s); rw[r] += iw;
     });
+    hudRows.forEach(function (row, ri) {
+      var ty = 8 + ri * 34, cy = ty + 15;
+      tag(x0, ty, rw[ri], 30);
+      var xx = x0 + 18;
+      row.forEach(function (s) {
+        s[0](xx, cy); xx += 14;
+        g.fillStyle = PAL.chalk; g.fillText(s[1], xx, cy + 1); xx += g.measureText(s[1]).width;
+        if (fit.key && s[2]) {                                 // tangent som visar vad man trycker
+          rr(g, xx + 5, cy - 9, 19, 19, 4); g.fillStyle = 'rgba(250,250,242,0.15)'; g.fill(); g.strokeStyle = 'rgba(250,250,242,0.75)'; g.lineWidth = 1.3; g.stroke();
+          g.fillStyle = PAL.chalk; g.font = 'bold 12px ' + TXT; g.textAlign = 'center'; g.fillText(s[2], xx + 14.5, cy + 1); g.textAlign = 'left'; g.font = 'bold ' + fit.f + 'px ' + TXT;
+          xx += 24;
+        }
+        xx += fit.gap;
+      });
+    });
+    g.font = 'bold 15px ' + TXT;
+    var hudExtra = (hudRows.length - 1) * 34;                    // fler rader: målet och bossens ruta flyttar ned
+    hudStatRows = hudRows.length; hudGap = (RX - 10 - wR) - (x0 + Math.max.apply(null, rw));   // glappet till nivårutan (test)
     var goal = forgeGoal();                                      // nästa mål i smedjan
     if (goal && state === 'play') {
       g.font = 'bold 13px ' + TXT; var gtx = 'Nästa: ' + goal.name + ', ' + goal.price, gw = g.measureText(gtx).width + 22;
       if (gtx !== goalLast) { goalLast = gtx; goalUntil = time + 6; }      // visas en stund när målet ändras, och alltid när du har råd
       var gA = goal.can ? 1 : clamp((goalUntil - time) / 0.6, 0, 1);
-      if (gA > 0) { g.save(); g.globalAlpha = gA; tag(x0, 42, gw, 22); g.fillStyle = goal.can ? '#7dff8a' : 'rgba(250,250,242,0.85)'; g.fillText(gtx, x0 + 11, 53); g.restore(); }
+      if (gA > 0) { g.save(); g.globalAlpha = gA; tag(x0, 42 + hudExtra, gw, 22); g.fillStyle = goal.can ? '#7dff8a' : 'rgba(250,250,242,0.85)'; g.fillText(gtx, x0 + 11, 53 + hudExtra); g.restore(); }
       g.font = 'bold 15px ' + TXT;
     }
     // nivå och monster kvar, högerställt
-    var left = quota - kills, t2 = 'Nivå ' + level + (lapOf(level) ? ', varv ' + (lapOf(level) + 1) : ''), t3 = left > 0 && !exitOpen() ? String(left) : 'portalen är öppen';
-    var w2 = g.measureText(t2).width, w3 = g.measureText(t3).width, wR = w2 + w3 + 62;
-    var RX = LW - 44;                                        // plats för pausknappen längst till höger
     tag(RX - 10 - wR, 8, wR, 30);
     g.fillStyle = PAL.chalk; g.fillText(t2, RX - wR + 6, 24);
-    if (left > 0) iconSkull(RX - w3 - 30, 23);
-    g.fillStyle = left > 0 ? PAL.chalk : '#c9bfff'; g.fillText(t3, RX - w3 - 18, 24);
+    if (!open) iconSkull(RX - w3 - 30, 23);
+    else {                                                       // öppen portal: liten lila virvel i stället för dödskallen
+      g.save(); g.translate(RX - w3 - 30, 23); g.strokeStyle = '#c9bfff'; g.lineWidth = 2;
+      g.beginPath(); g.ellipse(0, 0, 6, 8.5, 0, 0, 7); g.stroke();
+      g.globalAlpha = 0.6; g.beginPath(); g.arc(0, 0, 3, time * 4, time * 4 + 4.2); g.stroke(); g.restore();
+    }
+    g.fillStyle = open ? '#c9bfff' : PAL.chalk; g.fillText(t3, RX - w3 - 18, 24);
     // pausknapp
     if (state === 'play') {
       g.fillStyle = 'rgba(16,36,18,0.85)'; g.beginPath(); g.arc(BTN_PAUSE.x, BTN_PAUSE.y, BTN_PAUSE.r, 0, 7); g.fill();
@@ -2774,7 +2802,7 @@
     if (msgT > 0) {
       var a = Math.min(1, msgT / 0.4), k = easeOutCubic(Math.min(1, (3 - msgT) / 0.25));
       g.save(); g.globalAlpha = a; g.font = 'bold 17px ' + TXT;
-      var mw = g.measureText(msg).width + 34, my = 30 + 22 * k;
+      var mw = g.measureText(msg).width + 34, my = 30 + 22 * k + hudExtra;
       tag(LW / 2 - mw / 2, my, mw, 32);
       g.textAlign = 'center'; g.fillStyle = PAL.bolt; g.fillText(msg, LW / 2, my + 17);
       g.restore(); g.textAlign = 'left';
@@ -2784,7 +2812,7 @@
     if (boss) {
       var sbo = toScreen(boss.x, boss.y), spl = toScreen(P.x, P.y), lowest = Math.max(sbo.y + boss.r, spl.y + 20);
       if (lowest > LH - 120) bossBarTop = true; else if (lowest < LH - 190) bossBarTop = false;   // glapp så att den inte hoppar fram och tillbaka
-      var bw2 = 300, bx2 = LW / 2 - bw2 / 2, by2 = bossBarTop ? 114 : LH - 22;
+      var bw2 = 300, bx2 = LW / 2 - bw2 / 2, by2 = bossBarTop ? 114 + hudExtra : LH - 22;
       g.save(); g.globalAlpha = 0.9;
       tag(bx2 - 12, by2 - 23, bw2 + 24, 38);
       g.font = 'bold 14px ' + TXT; g.textAlign = 'center'; g.fillStyle = PAL.chalk; g.fillText(biome.boss, LW / 2, by2 - 10);
@@ -2931,7 +2959,7 @@
     stick(0, 0, 0.8, -0.6, 0, { sword: true, len: 26, col: '#ffe14d', glow: 'rgba(255,225,77,0.3)' }, time * 3, false);
     g.restore();
     chalkTitle('Malm & Monster', cx, 194, 56);
-    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.8', cx, 232);
+    g.font = 'bold 15px ' + TXT; g.fillStyle = PAL.bolt; g.fillText('Mines & Monsters, version 3.8.1', cx, 232);
     for (i = 0; i < SLOT_N; i++) {                              // tre sparplatser
       var c = cardRect(i), s = slots[i], del = confirmDel.i === i && time < confirmDel.until, pick = newPick === i;
       tag(c.x, c.y, c.w, c.h);
@@ -3905,6 +3933,6 @@
     get items() { return items; }, get map() { return map; }, build: function (n) { buildLevel(n, 0); }, get puzzle() { return puzzle; }, get oreT() { return oreT; },
     get shots() { return shots; }, get biome() { return biome.name; }, buy: function (i) { buy(i); }, forge: function () { openForge(); },
     step: function (sec) { for (var t = 0; t < sec; t += 0.02) { pollPads(0.02); realUpdate(0.02); if (hitStop > 0) hitStop -= 0.02; else update(0.02); } },   // test: spola fram
-    get bossIntro() { return bossIntro; }, get slots() { return slots; }, get slot() { return slot; }, playSlot: function (i, story) { playSlot(i); if (!story && state === 'story') endStory(); }, storyNext: function (skip) { storyT = 9; storyNext(skip); }, dmg: function () { return damage(); }, musicWanted: function () { return musicWanted(); }, light: function () { return lightR(); }, get story() { return { i: storyI, n: storyCards.length, moonT: moonT, moonDelay: moonDelay }; }, endMoonrise: function () { moonT = 99; endMoonrise(); }, bossDefeated: function (m) { bossDefeated(m); }, titleHit: function (x, y, t) { titleHit({ x: x, y: y }, t); }, toTitle: function () { askNew(); }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
+    get bossIntro() { return bossIntro; }, get slots() { return slots; }, get slot() { return slot; }, playSlot: function (i, story) { playSlot(i); if (!story && state === 'story') endStory(); }, storyNext: function (skip) { storyT = 9; storyNext(skip); }, dmg: function () { return damage(); }, musicWanted: function () { return musicWanted(); }, get hudRows() { return hudStatRows; }, get hudGap() { return hudGap; }, get hudFit() { return hudFit; }, light: function () { return lightR(); }, get story() { return { i: storyI, n: storyCards.length, moonT: moonT, moonDelay: moonDelay }; }, endMoonrise: function () { moonT = 99; endMoonrise(); }, bossDefeated: function (m) { bossDefeated(m); }, titleHit: function (x, y, t) { titleHit({ x: x, y: y }, t); }, toTitle: function () { askNew(); }, get prey() { return prey; }, get pond() { return pond; }, useE: function () { useE(); }, tab: function (t) { forgeTab = t; }, get backPos() { return backPos; }, get arrows() { return arrows; }, shoot: function () { shoot(); }, hurt: function (d, x, y) { return hurtPlayer(d, x, y); },
     get fx() { return { trauma: trauma, hitStop: hitStop, texts: texts.length, particles: fx.length }; } };
 })();
